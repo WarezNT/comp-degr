@@ -178,6 +178,7 @@
    *
    * cfg = {
    *   Sn: number,                       // capacitate nominală [kVA]
+   *   SnRezerva: number,                // capacitate transformator de rezervă N-1 [kVA]
    *   IT: number,                       // cost lucrări [lei]
    *   elementeComune: number,           // echipamente comune [lei] (opțional)
    *   utilizatori: [userId, ...],       // utilizatorii racordați (ordine informativă)
@@ -189,8 +190,12 @@
   function computeStation(cfg) {
     cfg = cfg || {};
     var Sn = num(cfg.Sn);
+    var SnRezerva = num(cfg.SnRezerva);
+    // Art. 15 alin. (4): capacitatea transformatorului de rezervă (criteriul
+    // N-1) nu se ia în considerare la calculul costului specific b_T.
+    var SnEfectiv = Sn - SnRezerva;
     var IT = num(cfg.IT);
-    var bT = Sn > 0 ? IT / Sn : 0;
+    var bT = SnEfectiv > 0 ? IT / SnEfectiv : 0;
     var users = (cfg.utilizatori || []).slice();
     var puteri = cfg.puteri || {};
     var elementeComune = num(cfg.elementeComune);
@@ -227,6 +232,8 @@
     return {
       model: 'station',
       Sn: Sn,
+      SnRezerva: SnRezerva,
+      SnEfectiv: SnEfectiv,
       IT: IT,
       bT: bT,
       elementeComune: elementeComune,
@@ -239,36 +246,98 @@
   }
 
   /* ---------------------------------------------------------------
-   * Anexa 3 — instalație de racordare complexă: însumarea componentelor.
+   * Anexa 3 — instalație de racordare complexă: însumarea componentelor
+   * conform variantei punctului de racordare (art. 14).
+   *
    * cfg = {
-   *   linii:   [cfgLine, ...],
-   *   statii:  [cfgStation, ...],
-   *   varianta: 1..4 (informativ)
+   *   varianta: 1..4,
+   *   liniiU1: [cfgLine, ...],   // compensația Anexa 1 pentru l_U1
+   *   liniiU2: [cfgLine, ...],   // doar varianta 4 (l_U2)
+   *   statii:  [cfgStation, ...],// doar variantele 3 și 4 (Anexa 2)
+   *   echipamenteComune: number  // doar varianta 2 (art. 12 alin. 1)
    * }
+   *
+   * - varianta 1: Anexa 1 pentru l_U1
+   * - varianta 2: Anexa 1 (l_U1) + echipamente stație, în cote egale
+   * - varianta 3: Anexa 1 (l_U1) + Anexa 2 (stație/PT)
+   * - varianta 4: Anexa 1 (l_U1) + Anexa 2 (stație/PT) + Anexa 1 (l_U2)
    * ------------------------------------------------------------- */
   function computeComplex(cfg) {
     cfg = cfg || {};
+    var v = num(cfg.varianta) || 1;
     var components = [];
     var payments = {};
+    var nouList = listNew(cfg);
+    var puteri = cfg.puteri || {};
 
-    (cfg.linii || []).forEach(function (l) {
-      var res = computeLine(l);
-      components.push(res);
-      mergePayments(payments, res.payments);
-    });
-    (cfg.statii || []).forEach(function (s) {
-      var res = computeStation(s);
-      components.push(res);
-      mergePayments(payments, res.payments);
-    });
+    function withNou(sub) {
+      var o = {};
+      Object.keys(sub || {}).forEach(function (k) { o[k] = sub[k]; });
+      if (o.nouUtilizatori === undefined) o.nouUtilizatori = nouList;
+      if (o.nouUtilizator === undefined) o.nouUtilizator = nouList.length === 1 ? nouList[0] : null;
+      if (o.primId === undefined) o.primId = cfg.primId;
+      if (o.puteri === undefined) o.puteri = puteri;
+      return o;
+    }
+
+    function addLine(list) {
+      (list || []).forEach(function (l) {
+        var res = computeLine(withNou(l));
+        components.push(res);
+        mergePayments(payments, res.payments);
+      });
+    }
+    function addStation(list) {
+      (list || []).forEach(function (s) {
+        var res = computeStation(withNou(s));
+        components.push(res);
+        mergePayments(payments, res.payments);
+      });
+    }
+
+    // Componenta Anexa 1 pentru l_U1 (toate variantele).
+    addLine(cfg.liniiU1 || cfg.linii);
+
+    if (v === 2) {
+      // Echipamentele electroenergetice ale stației, altele decât
+      // transformatoarele: împărțire în cote egale (art. 12 alin. 1),
+      // aplicată utilizatorilor stației.
+      var ec = num(cfg.echipamenteComune);
+      if (ec > 0) {
+        // Determină utilizatorii stației (primul din listă = primul utilizator).
+        var st = (cfg.statii || [])[0];
+        var users = st ? orderList(st.utilizatori) : [];
+        if (users.length) {
+          var prim = (st.primId && users.indexOf(st.primId) >= 0) ? st.primId : users[0];
+          var n = users.length;
+          var nOld = n - users.filter(function (u) { return nouList.indexOf(u) >= 0; }).length;
+          users.forEach(function (x) {
+            if (x === prim) return;
+            if (nouList.indexOf(x) < 0) return; // plătește doar utilizatorul nou
+            var comp = (nOld > 0 ? ec / nOld : 0) - ec / n;
+            if (comp > EPS) addPay(payments, x, prim, comp);
+          });
+        }
+      }
+    } else if (v === 3 || v === 4) {
+      // Anexa 2 pentru stație/PT.
+      addStation(cfg.statii);
+    }
+    if (v === 4) {
+      // Anexa 1 pentru l_U2.
+      addLine(cfg.liniiU2);
+    }
 
     return {
       model: 'complex',
-      varianta: cfg.varianta || null,
+      varianta: v,
       payments: payments,
-      components: components
+      components: components,
+      nouUtilizatori: nouList
     };
   }
+
+  function orderList(a) { return (a || []).slice(); }
 
   /* ---------------------------------------------------------------
    * Anexa 4 — prevederi tranzitorii (Metodologia Ord. 28/2003).

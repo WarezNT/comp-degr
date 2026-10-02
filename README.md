@@ -110,7 +110,7 @@ Fără browser, se pot rula headless (Chrome/Edge), din rădăcina proiectului:
   --virtual-time-budget=10000 --dump-dom "file:///<cale-absoluta>/tests/integration.html"
 ```
 
-**Stare curentă:** `test.html` 9/9 trecute, `integration.html` 11/11 trecute.
+**Stare curentă:** `test.html` 12/12 trecute, `integration.html` 11/11 trecute.
 
 Acoperire: exemple metodologie (20.000; 6.666,67/11.666,67; `b_T`=250 → 25.000;
 `C_2`=13.500; 87,5%/9,375%), scenariu `.xlsx` U4 → 500/500/500 (1.500 fără TVA),

@@ -85,6 +85,13 @@
     return o;
   }
 
+  function stationCfg(s, puteri, primId, nouCfg) {
+    return mergeCfg({
+      Sn: s.Sn, SnRezerva: s.SnRezerva || 0, IT: s.IT, elementeComune: s.elementeComune,
+      utilizatori: orderByIds(s.utilizatori), puteri: puteri, primId: primId
+    }, nouCfg);
+  }
+
   // Primul utilizator (finanțatorul / receptorul compensațiilor). Un singur
   // utilizator poate avea acest rol; dacă sunt mai mulți bifați, îl luăm pe primul.
   function getPrimId() {
@@ -172,27 +179,28 @@
     }
     if (model === 'station') {
       // Comasează toate stațiile configurate.
-      var statii = state.statii.map(function (s) {
-        return {
-          Sn: s.Sn, IT: s.IT, elementeComune: s.elementeComune,
-          utilizatori: orderByIds(s.utilizatori), puteri: puteri, primId: primId
-        };
-      });
+      var statii = state.statii.map(function (s) { return stationCfg(s, puteri, primId, nouCfg); });
       if (statii.length === 1) return mergeCfg(statii[0], nouCfg);
       return { linii: [], statii: statii, nouUtilizatori: nouList, nouUtilizator: nouCfg.nouUtilizator };
     }
     if (model === 'complex') {
       var sel = state.complexConfig;
-      var linii = state.linii.filter(function (l) { return sel.liniiIds.indexOf(l.id) >= 0; });
+      var liniiU1 = state.linii.filter(function (l) { return sel.liniiIds.indexOf(l.id) >= 0; });
+      var liniiU2 = state.linii.filter(function (l) { return sel.liniiU2Ids.indexOf(l.id) >= 0; });
       var st = state.statii.filter(function (s) { return sel.statiiIds.indexOf(s.id) >= 0; });
+      // Echipamentele comune (varianta 2) = suma echipamentelor stațiilor bifate.
+      var ec = st.reduce(function (sum, s) { return sum + (Number(s.elementeComune) || 0); }, 0);
       return {
-        varianta: Number(sel.varianta) || 3,
-        linii: linii.map(function (l) {
+        varianta: Number(sel.varianta) || 1,
+        liniiU1: liniiU1.map(function (l) {
           return mergeCfg({ bL: Number(l.bL) || 0, tronsoane: lineTronsoane([l]), primId: primId }, nouCfg);
         }),
-        statii: st.map(function (s) {
-          return mergeCfg({ Sn: s.Sn, IT: s.IT, elementeComune: s.elementeComune, utilizatori: orderByIds(s.utilizatori), puteri: puteri, primId: primId }, nouCfg);
+        liniiU2: liniiU2.map(function (l) {
+          return mergeCfg({ bL: Number(l.bL) || 0, tronsoane: lineTronsoane([l]), primId: primId }, nouCfg);
         }),
+        statii: st.map(function (s) { return stationCfg(s, puteri, primId, nouCfg); }),
+        echipamenteComune: ec,
+        puteri: puteri,
         nouUtilizatori: nouList,
         nouUtilizator: nouCfg.nouUtilizator
       };
@@ -216,9 +224,21 @@
     }
     var model = state.meta.model;
     var nouList = getNewIds();
-    // Pentru stații multiple configurate se folosește modelul complex.
-    var effModel = (model === 'station' && state.statii.length !== 1) ? 'complex' : model;
-    var res = E.compute(effModel, buildConfig(model));
+    var res;
+    if (model === 'station') {
+      // Anexa 2: însumează toate stațiile (indiferent de număr).
+      var puteri = {};
+      state.utilizatori.forEach(function (u) { puteri[u.id] = Number(u.putere) || 0; });
+      var primId = getPrimId();
+      var payments = {};
+      state.statii.forEach(function (s) {
+        var sub = E.computeStation(stationCfg(s, puteri, primId, { nouUtilizatori: nouList, nouUtilizator: nouList.length === 1 ? nouList[0] : null }));
+        E.mergePayments(payments, sub.payments);
+      });
+      res = { model: 'station', nouUtilizator: nouList.length === 1 ? nouList[0] : null, nouUtilizatori: nouList, payments: payments };
+    } else {
+      res = E.compute(model, buildConfig(model));
+    }
     if (!res.nouUtilizatori) res.nouUtilizatori = nouList;
     results = res;
 
@@ -521,20 +541,27 @@
         '</span>';
       }).join(' ');
       var avail = state.utilizatori.filter(function (u) { return (s.utilizatori || []).indexOf(u.id) < 0; });
+      var SnEf = (Number(s.Sn) || 0) - (Number(s.SnRezerva) || 0);
       return '<div class="card"><div class="card-head">' +
         '<input class="line-title" data-bind="stat.' + s.id + '.nume" value="' + esc(s.nume) + '" placeholder="Denumire stație / PT">' +
         '<button class="btn tiny danger" data-action="del-stat" data-id="' + s.id + '">Șterge</button></div>' +
         '<div class="row3">' +
           field('Capacitate nominală S_n (kVA)', number('stat.' + s.id + '.Sn', s.Sn)) +
+          field('Transformator de rezervă N-1 (kVA) — exclus din b_T', number('stat.' + s.id + '.SnRezerva', s.SnRezerva)) +
           field('Cost lucrări I_T (lei)', number('stat.' + s.id + '.IT', s.IT)) +
-          field('Echipamente comune (lei)', number('stat.' + s.id + '.elementeComune', s.elementeComune)) +
+        '</div>' +
+        '<div class="row2">' +
+          field('Echipamente comune, altele decât transformatoare (lei)', number('stat.' + s.id + '.elementeComune', s.elementeComune)) +
         '</div>' +
         '<div class="toolbar"><strong>Utilizatori (primul utilizator se bifează la pasul 2 „Utilizatori”)</strong></div>' +
         '<div class="chips">' + (chips || '<span class="muted">—</span>') + '</div>' +
         '<select data-action="st-add" data-st="' + s.id + '"><option value="">+ utilizator…</option>' +
           avail.map(function (u) { return '<option value="' + u.id + '">' + esc(u.nume || u.codPA) + '</option>'; }).join('') +
         '</select>' +
-        '<p class="hint">Compensația fiecărui utilizator ulterior = puterea sa aprobată × b_T, unde b_T = I_T / S_n.</p>' +
+        '<p class="hint">b_T = I_T / S_n efectiv = ' + money(Number(s.IT) || 0) + ' / ' + money(SnEf) +
+          ' = <strong>' + money(SnEf > 0 ? (Number(s.IT) || 0) / SnEf : 0) + ' lei/kVA</strong>' +
+          (Number(s.SnRezerva) > 0 ? ' (S_n efectiv exclude transformatorul de rezervă, art. 15 alin. 4)' : '') +
+          '. Compensația fiecărui utilizator nou = puterea sa aprobată × b_T.</p>' +
       '</div>';
     }).join('');
 
@@ -572,18 +599,36 @@
       return '<label class="chk"><input type="checkbox" data-action="cx-line-u2" data-id="' + l.id + '"' +
         (c.liniiU2Ids.indexOf(l.id) >= 0 ? ' checked' : '') + '> ' + esc(l.nume) + '</label>';
     }).join('') || '<span class="muted">—</span>';
+    var v = Number(c.varianta) || 1;
     var statiiChk = state.statii.map(function (s) {
       return '<label class="chk"><input type="checkbox" data-action="cx-stat" data-id="' + s.id + '"' +
         (c.statiiIds.indexOf(s.id) >= 0 ? ' checked' : '') + '> ' + esc(s.nume) + '</label>';
     }).join('') || '<span class="muted">Nu există stații configurate.</span>';
 
+    // Descrierea componentelor în funcție de variantă.
+    var compDesc = {
+      1: 'Varianta 1 — noul utilizator se racordează pe linia U1, în amonte de stație. Se aplică <strong>doar Anexa 1</strong> pentru l_U1.',
+      2: 'Varianta 2 — racordare la bara U1 a stației. Se aplică <strong>Anexa 1 (l_U1)</strong> + <strong>echipamentele stației</strong> (altele decât transformatoarele), în cote egale (art. 12 alin. 1).',
+      3: 'Varianta 3 — racordare pe linia U2, în aval de stație. Se aplică <strong>Anexa 1 (l_U1)</strong> + <strong>Anexa 2 (stație/PT)</strong>.',
+      4: 'Varianta 4 — racordare pe linia U2, mai departe. Se aplică <strong>Anexa 1 (l_U1)</strong> + <strong>Anexa 2 (stație/PT)</strong> + <strong>Anexa 1 (l_U2)</strong>.'
+    }[v];
+
+    var staBlock = (v === 3 || v === 4)
+      ? '<div class="card"><strong>Stații / posturi de transformare (Anexa 2)</strong><div class="list-chk">' + statiiChk + '</div></div>'
+      : (v === 2
+        ? '<div class="card"><strong>Echipamente comune ale stației</strong><p class="hint">Valorile „Echipamente comune" din stații se împart în cote egale între utilizatori. Bifează stația folosită:</p><div class="list-chk">' + statiiChk + '</div></div>'
+        : '');
+
+    var u2Block = (v === 4)
+      ? '<div class="card"><strong>Linii l_U2 (Anexa 1)</strong><div class="list-chk">' + liniiU2Chk + '</div></div>'
+      : '';
+
     return section('Anexa 3 — instalație de racordare complexă',
       field('Varianta punctului de racordare', '<select data-bind="complex.varianta">' +
-        opts(variants.map(function (v) { return [String(v), 'Varianta ' + v]; }), String(c.varianta)) + '</select>') +
-      '<p class="hint">Varianta 1: linie l_U1 · Varianta 2: linie l_U1 + echipamente stație · Varianta 3: linie l_U1 + stație (Anexa 2) · Varianta 4: l_U1 + stație + l_U2.</p>' +
-      '<div class="card"><strong>Linii incluse (l_U1)</strong><div class="list-chk">' + liniiChk + '</div></div>' +
-      '<div class="card"><strong>Linii l_U2 (doar varianta 4)</strong><div class="list-chk">' + liniiU2Chk + '</div></div>' +
-      '<div class="card"><strong>Stații / posturi de transformare</strong><div class="list-chk">' + statiiChk + '</div></div>',
+        opts(variants.map(function (vv) { return [String(vv), 'Varianta ' + vv]; }), String(v)) + '</select>') +
+      '<p class="hint">' + compDesc + '</p>' +
+      '<div class="card"><strong>Linii incluse (l_U1) — Anexa 1</strong><div class="list-chk">' + liniiChk + '</div></div>' +
+      staBlock + u2Block,
       helperComplex()
     );
   }
@@ -591,15 +636,15 @@
   function helperComplex() {
     return {
       title: 'Ce completezi în acest pas',
-      intro: 'Instalația complexă combină linii și o stație/PT. Alegi varianta punctului de racordare a noului utilizator.',
+      intro: 'Instalația complexă combină linii și o stație/PT. Alegi varianta punctului de racordare a noului utilizator; aplicația însumează componentele corespunzătoare.',
       items: [
-        { field: 'Varianta', desc: '1 = doar linia l_U1 · 2 = l_U1 + echipamentele stației · 3 = l_U1 + stația (Anexa 2) · 4 = l_U1 + stație + linia l_U2.' },
-        { field: 'Linii incluse (l_U1)', desc: 'Bifează liniile cuprinse între punctul de racordare al primului utilizator și punctul de racordare al noului utilizator.' },
-        { field: 'Linii l_U2', desc: 'Doar pentru varianta 4: linia de cealaltă tensiune, din aval de stație.' },
-        { field: 'Stații / PT', desc: 'Bifează stațiile folosite în comun (se aplică Anexa 2).' }
+        { field: 'Varianta', desc: '1 = doar linia l_U1 · 2 = l_U1 + echipamentele stației (cote egale) · 3 = l_U1 + stația (Anexa 2) · 4 = l_U1 + stație + linia l_U2.' },
+        { field: 'Linii incluse (l_U1)', desc: 'Liniile dintre punctul de racordare al primului utilizator și cel al noului utilizator (Anexa 1).' },
+        { field: 'Stații / PT', desc: 'Apare la variantele 2/3/4: la 3/4 se aplică Anexa 2 (proporțional cu puterea); la 2 doar echipamentele comune, în cote egale.' },
+        { field: 'Linii l_U2', desc: 'Doar varianta 4: linia de cealaltă tensiune, în aval de stație (Anexa 1).' }
       ],
       note: 'Compensația totală = suma componentelor din varianta aleasă.',
-      refs: 'Ref.: Anexa nr. 3 din Metodologie.'
+      refs: 'Ref.: Anexa nr. 3 și art. 14 din Metodologie.'
     };
   }
 
@@ -826,13 +871,20 @@
       return '<details class="card"><summary>Detaliu pe tronsoane</summary>' + det + '</details>';
     }
     if (res.model === 'station') {
+      var rez = Number(res.SnRezerva) > 0
+        ? '<br>S_n efectiv = ' + money(res.Sn) + ' − ' + money(res.SnRezerva) + ' (rezervă N-1) = ' + money(res.SnEfectiv) + ' kVA'
+        : '';
       return '<details class="card"><summary>Detaliu stație</summary>' +
-        '<p>b_T = I_T / S_n = ' + money(res.IT) + ' / ' + money(res.Sn) + ' = <strong>' + money(res.bT) + ' lei/kVA</strong></p>' +
+        '<p>b_T = I_T / S_n = ' + money(res.IT) + ' / ' + money(res.SnEfectiv) + ' = <strong>' + money(res.bT) + ' lei/kVA</strong>' + rez + '</p>' +
         '</details>';
     }
     if (res.model === 'complex') {
-      return '<details class="card"><summary>Detaliu componente</summary><pre>' +
-        esc(JSON.stringify(res.components.map(function (c) { return c.model; }), null, 0)) + '</pre></details>';
+      var comps = res.components.map(function (c) {
+        if (c.model === 'station') return 'Anexa 2 — ' + money(c.bT) + ' lei/kVA';
+        return 'Anexa 1 — ' + money((c.tronsoaneDetalii || []).reduce(function (s, t) { return s + (Number(t.cost) || 0); }, 0)) + ' lei';
+      });
+      return '<details class="card" open><summary>Varianta ' + esc(res.varianta) + ' — componente însumate</summary>' +
+        '<ul>' + (comps.length ? comps.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') : '<li class="muted">fără componente</li>') + '</ul></details>';
     }
     return '';
   }
@@ -1120,7 +1172,7 @@
   }
 
   function addStation() {
-    state.statii.push({ id: S.uid('st'), nume: 'Stație ' + (state.statii.length + 1), Sn: 0, IT: 0, elementeComune: 0, utilizatori: [] });
+    state.statii.push({ id: S.uid('st'), nume: 'Stație ' + (state.statii.length + 1), Sn: 0, SnRezerva: 0, IT: 0, elementeComune: 0, utilizatori: [] });
     persistRender();
   }
 

@@ -187,6 +187,27 @@
         if (r.central.newList.length !== 2) throw new Error('newList=' + r.central.newList.length);
       });
 
+      test('Anexa 3 (complex) prin UI — varianta 3 = linie + stație', function () {
+        var p = window.AppState.emptyProject();
+        p.meta.model = 'complex';
+        p.complexConfig.varianta = 3;
+        var u1 = window.AppState.addUser(p, { nume: 'U1', putere: 0, prim: true });
+        var u2 = window.AppState.addUser(p, { nume: 'U2', putere: 100 });
+        var linie = { id: 'L1', nume: 'Linie', IL: 50000, L: 100, bL: 0, bLManual: false,
+          tronsoane: [{ id: 'T1', nume: 'T1', lungime: 80, cost: 0, costManual: false, utilizatori: [u1.id, u2.id] }] };
+        p.linii.push(linie);
+        p.complexConfig.liniiIds = [linie.id];
+        var st = { id: 'S1', nume: 'PT', Sn: 400, SnRezerva: 0, IT: 100000, elementeComune: 0, utilizatori: [u1.id, u2.id] };
+        p.statii.push(st);
+        p.complexConfig.statiiIds = [st.id];
+        p.meta.nouUtilizatoriIds = [u2.id];
+        window.AppUI.setProject(p);
+        var r = window.AppUI.calculate();
+        if (r.error) throw new Error('nu ar trebui blocat: ' + r.error);
+        // linie 20000 + stație 100*250=25000 => 45000
+        if (Math.abs(r.payments[u2.id][u1.id] - 45000) > 0.01) throw new Error('U2->U1=' + r.payments[u2.id][u1.id]);
+      });
+
       var s = document.createElement('div');
       s.className = 'summary' + (fail === 0 ? '' : ' fail');
       s.textContent = 'Rezultat: ' + pass + ' trecute, ' + fail + ' eșuate.';

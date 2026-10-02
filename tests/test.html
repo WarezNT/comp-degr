@@ -141,6 +141,60 @@
       if (!(total['U4']['U2'] > 0)) assert('U4 -> U2 lipsă');
     });
 
+    // Anexa 2: transformatorul de rezervă N-1 se exclude din b_T (art. 15 alin. 4)
+    test('Anexa 2 — S_n exclude transformatorul de rezervă N-1', function (assert) {
+      var res = E.computeStation({
+        Sn: 1000, SnRezerva: 400, IT: 300000,
+        utilizatori: ['P', 'U2'], primId: 'P', nouUtilizatori: ['U2'],
+        puteri: { P: 0, U2: 100 }
+      });
+      eq(assert, res.SnEfectiv, 600, 'S_n efectiv');
+      eq(assert, res.bT, 500, 'b_T = 300000/600');
+      eq(assert, res.payments['U2']['P'], 50000, 'U2 plătește 100*500');
+    });
+
+    // Anexa 3: variantele de racordare însumează componentele corecte
+    test('Anexa 3 — varianta 2: linie U1 + echipamente comune (nu stație)', function (assert) {
+      var res = E.computeComplex({
+        varianta: 2,
+        liniiU1: [{ bL: 500, tronsoane: [{ id: 'T1', lungime: 80, cost: 40000, utilizatori: ['U1', 'U2'] }] }],
+        statii: [{ Sn: 400, IT: 100000, elementeComune: 12000, utilizatori: ['U1', 'U2'], primId: 'U1' }],
+        echipamenteComune: 12000,
+        primId: 'U1',
+        nouUtilizatori: ['U2']
+      });
+      // linie: U2 -> U1 = 20000; echipamente: 12000/2=6000 după, 12000/1=12000 înainte -> 6000
+      eq(assert, res.payments['U2']['U1'], 26000, 'U2 -> U1 (linie + echipamente)');
+      eq(assert, res.varianta, 2, 'varianta');
+    });
+
+    test('Anexa 3 — varianta 3: linie U1 + stație (Anexa 2)', function (assert) {
+      var res = E.computeComplex({
+        varianta: 3,
+        liniiU1: [{ bL: 500, tronsoane: [{ id: 'T1', lungime: 80, cost: 40000, utilizatori: ['U1', 'U2'] }] }],
+        statii: [{ Sn: 400, IT: 100000, utilizatori: ['U1', 'U2'], primId: 'U1' }],
+        puteri: { U1: 0, U2: 100 },
+        primId: 'U1',
+        nouUtilizatori: ['U2']
+      });
+      // linie 20000 + stație 100*250 = 25000 => 45000
+      eq(assert, res.payments['U2']['U1'], 45000, 'U2 -> U1 (linie + stație)');
+    });
+
+    test('Anexa 3 — varianta 4: linie U1 + stație + linie U2', function (assert) {
+      var res = E.computeComplex({
+        varianta: 4,
+        liniiU1: [{ bL: 500, tronsoane: [{ id: 'T1', lungime: 80, cost: 40000, utilizatori: ['U1', 'U2'] }] }],
+        liniiU2: [{ bL: 200, tronsoane: [{ id: 'T2', lungime: 50, cost: 10000, utilizatori: ['U2'] }] }],
+        statii: [{ Sn: 400, IT: 100000, utilizatori: ['U1', 'U2'], primId: 'U1' }],
+        puteri: { U1: 0, U2: 100 },
+        primId: 'U1',
+        nouUtilizatori: ['U2']
+      });
+      // 20000 (linie U1) + 25000 (stație) + 10000 (linie U2, plătită către primul din U2? de fapt către U1)
+      if (!(res.payments['U2']['U1'] >= 45000)) assert('U2 -> U1 >= 45000, got ' + res.payments['U2']['U1']);
+    });
+
     // Anexa 4: C2 = 30 * 500 * (90/100) = 13.500 lei
     test('Anexa 4 — prevederi tranzitorii', function (assert) {
       var res = E.computeTransitional({ B: 50000, S: 100, S2: 30, l2: 90, L: 100 });

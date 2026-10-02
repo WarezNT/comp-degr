@@ -298,7 +298,9 @@
         if (t.costManual === undefined) t.costManual = false;
       });
     });
-    // Un singur „prim utilizator”: dacă sunt mai mulți bifați, păstrăm primul.
+    (p.statii || []).forEach(function (s) {
+      if (s.SnRezerva === undefined) s.SnRezerva = 0;
+    });
     // Un singur „prim utilizator”: dacă sunt mai mulți bifați, păstrăm primul.
     if (p.utilizatori && p.utilizatori.length) {
       var seenPrim = false;
