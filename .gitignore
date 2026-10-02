@@ -1,0 +1,13 @@
+# Documentație internă / context AI — nu se publică
+README.md
+AGENTS.md
+docs/
+
+# Documente sursă (PDF-uri, modele de calcul) — nu se publică
+ajutatoare/
+
+# Sistem
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.log

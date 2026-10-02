@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <title>Test integrare UI — Compensatii</title>
+  <style>
+    body { font-family: "Segoe UI", Arial, sans-serif; margin: 24px; background: #f4f6f9; }
+    .t { border: 1px solid #e2e8f0; background: #fff; border-left: 5px solid #15803d; border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+    .t.fail { border-left-color: #b91c1c; background: #fdecec; }
+    .summary { margin: 16px 0; padding: 12px; border-radius: 8px; font-weight: 600; background: #e7f6ec; color: #15803d; }
+    .summary.fail { background: #fdecec; color: #b91c1c; }
+  </style>
+</head>
+<body>
+  <h1>Test integrare (UI + motor)</h1>
+  <div id="app"></div>
+  <div id="out"></div>
+
+  <script src="../js/state.js"></script>
+  <script src="../js/engine.js"></script>
+  <script src="../js/ui.js"></script>
+  <script>
+    var out = document.getElementById('out');
+    var pass = 0, fail = 0;
+
+    function test(name, fn) {
+      var errs = [];
+      try { fn(); } catch (e) { errs.push('Excepție: ' + e.message); }
+      var ok = errs.length === 0;
+      if (ok) pass++; else fail++;
+      var d = document.createElement('div');
+      d.className = 't' + (ok ? '' : ' fail');
+      d.innerHTML = '<strong>' + (ok ? 'PASS' : 'FAIL') + '</strong> — ' + name +
+        (ok ? '' : '<br>' + errs.join('<br>'));
+      out.appendChild(d);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      var ready = (window.AppUI && window.AppUI.ready) ? window.AppUI.ready() : Promise.resolve();
+      ready.then(runTests, runTests);
+    });
+
+    function runTests() {
+      test('UI se inițializează', function () {
+        if (!document.querySelector('.tabs')) throw new Error('tabs lipsă');
+      });
+
+      test('Scenariu U4 prin UI — centralizator 1.500 lei', function () {
+        window.AppUI.setProject(window.AppState.demoU4());
+        var r = window.AppUI.calculate();
+        if (!r || !r.central) throw new Error('fără rezultat');
+        if (Math.abs(r.central.totalFaraTVA - 1500) > 0.01) throw new Error('total=' + r.central.totalFaraTVA);
+        if (Math.abs(r.central.totalCuTVA - 1785) > 0.01) throw new Error('totalTVA=' + r.central.totalCuTVA);
+      });
+
+      test('Randare centralizator în DOM', function () {
+        window.AppUI.setTab('rezultate');
+        window.AppUI.calculate();
+        var html = document.getElementById('app').innerHTML;
+        if (html.indexOf('Centralizator') < 0) throw new Error('centralizator neafișat');
+      });
+
+      test('Verificare condiții Art. 8 (5 condiții)', function () {
+        var r = window.AppUI.calculate();
+        if (!r.conditions || r.conditions.length !== 5) throw new Error('condiții incorecte');
+      });
+
+      test('Cost tronson se calculează automat din lungime × b_L', function () {
+        var p = window.AppState.emptyProject();
+        p.meta.model = 'line';
+        var u1 = window.AppState.addUser(p, { nume: 'U1' });
+        var u2 = window.AppState.addUser(p, { nume: 'U2' });
+        p.linii.push({
+          id: 'L1', nume: 'Linie', IL: 6000, L: 200, bL: 0, bLManual: false,
+          tronsoane: [
+            { id: 'T1', nume: 'T1', lungime: 100, cost: 0, costManual: false, utilizatori: [u1.id, u2.id] },
+            { id: 'T2', nume: 'T2', lungime: 50, cost: 0, costManual: false, utilizatori: [u2.id] }
+          ]
+        });
+        p.meta.nouUtilizatoriIds = [u2.id];
+        p.meta.noulUtilizatorId = u2.id;
+        window.AppUI.setProject(p);
+        // Simulează setarea I_L și L (b_L trebuie derivat automat = 6000/200 = 30)
+        var cfg = window.AppUI.buildConfig('line');
+        if (Math.abs(cfg.tronsoane[0].cost - 3000) > 0.01) throw new Error('T1 cost=' + cfg.tronsoane[0].cost);
+        if (Math.abs(cfg.tronsoane[1].cost - 1500) > 0.01) throw new Error('T2 cost=' + cfg.tronsoane[1].cost);
+        // U1 a finanțat T1; U2 se racordează -> U1 primește 3000 - 1500 = 1500
+        var r = window.AppUI.calculate();
+        if (Math.abs(r.payments[u2.id][u1.id] - 1500) > 0.01) throw new Error('compensatie=' + r.payments[u2.id][u1.id]);
+      });
+
+      test('b_L derivat automat din I_L / L', function () {
+        var p = window.AppState.emptyProject();
+        p.linii.push({ id: 'L1', nume: 'L', IL: 6000, L: 200, bL: 0, bLManual: false, tronsoane: [] });
+        window.AppUI.setProject(p);
+        var st = window.AppUI.getState();
+        if (Math.abs(st.linii[0].bL - 30) > 0.001) throw new Error('bL=' + st.linii[0].bL);
+      });
+
+      test('Tastarea cifrelor nu le amestecă și nu re-randează inputul', function () {
+        var p = window.AppState.emptyProject();
+        p.meta.model = 'line';
+        window.AppState.addUser(p, { nume: 'U1' });
+        window.AppState.addUser(p, { nume: 'U2' });
+        p.linii.push({ id: 'L1', nume: 'L', IL: 0, L: 0, bL: 0, bLManual: false, tronsoane: [
+          { id: 'T1', nume: 'T1', lungime: 0, cost: 0, costManual: false, utilizatori: [] }
+        ]});
+        window.AppUI.setProject(p);
+        window.AppUI.setTab('instalatie');
+
+        var el = document.querySelector('[data-bind="line.L1.IL"]');
+        var before = el;
+        '6000'.split('').forEach(function (ch) {
+          el.value = el.value + ch;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        if (el.value !== '6000') throw new Error('valoare amestecată: ' + el.value);
+        if (before !== document.querySelector('[data-bind="line.L1.IL"]')) throw new Error('inputul a fost înlocuit');
+        if (Number(window.AppUI.getState().linii[0].IL) !== 6000) throw new Error('model IL greșit');
+
+        // completăm L și verificăm că b_L se afișează live
+        var lEl = document.querySelector('[data-bind="line.L1.L"]');
+        '200'.split('').forEach(function (ch) {
+          lEl.value = lEl.value + ch;
+          lEl.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        var bLEl = document.querySelector('[data-bind="line.L1.bL"]');
+        if (Number(bLEl.value) !== 30) throw new Error('b_L live greșit: ' + bLEl.value);
+
+        // lungime tronson -> cost afișat automat 3.000
+        var lung = document.querySelector('[data-bind="tronson.L1.T1.lungime"]');
+        '100'.split('').forEach(function (ch) {
+          lung.value = lung.value + ch;
+          lung.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        var span = document.querySelector('[data-derived-cost="L1-T1"]');
+        if (!span || span.textContent.indexOf('3.000') < 0) throw new Error('cost live: ' + (span && span.textContent));
+      });
+
+      test('Blochează calculul dacă primul utilizator = utilizator nou', function () {
+        var p = window.AppState.emptyProject();
+        p.meta.model = 'line';
+        var u1 = window.AppState.addUser(p, { nume: 'U1', prim: true });
+        var u2 = window.AppState.addUser(p, { nume: 'U2' });
+        p.meta.nouUtilizatoriIds = [u1.id]; // conflict: primul utilizator nu poate plăti
+        window.AppUI.setProject(p);
+        var r = window.AppUI.calculate();
+        if (!r || !r.error) throw new Error('calculul ar trebui blocat (așteptat r.error)');
+      });
+
+      test('Anexa 2 prin UI — primul bifat primește, nu plătește', function () {
+        var p = window.AppState.emptyProject();
+        p.meta.model = 'station';
+        var a = window.AppState.addUser(p, { nume: 'A', putere: 100, prim: true });
+        var b = window.AppState.addUser(p, { nume: 'B', putere: 100 });
+        var c = window.AppState.addUser(p, { nume: 'C', putere: 100 });
+        p.statii.push({ id: 'S1', nume: 'PT', Sn: 400, IT: 100000, elementeComune: 0, utilizatori: [a.id, b.id, c.id] });
+        p.meta.nouUtilizatoriIds = [c.id]; // noul utilizator plătește
+        window.AppUI.setProject(p);
+        var r = window.AppUI.calculate();
+        if (r.error) throw new Error('nu ar trebui blocat: ' + r.error);
+        // A este primul -> primește de la C 25.000 (B nu e utilizator nou)
+        if (Math.abs(r.central.totalFaraTVA - 25000) > 0.01) throw new Error('C plătește ' + r.central.totalFaraTVA);
+      });
+
+      test('Doi utilizatori noi pe tronsoane diferite (prin UI)', function () {
+        var p = window.AppState.emptyProject();
+        p.meta.model = 'line';
+        var u1 = window.AppState.addUser(p, { nume: 'U1', prim: true });
+        var u2 = window.AppState.addUser(p, { nume: 'U2' });
+        var u3 = window.AppState.addUser(p, { nume: 'U3' });
+        var u4 = window.AppState.addUser(p, { nume: 'U4' });
+        p.linii.push({
+          id: 'L1', nume: 'Linie', IL: 6000, L: 200, bL: 0, bLManual: false,
+          tronsoane: [
+            { id: 'T1', nume: 'T1', lungime: 100, cost: 0, costManual: false, utilizatori: [u1.id, u2.id] },
+            { id: 'T2', nume: 'T2', lungime: 50, cost: 0, costManual: false, utilizatori: [u2.id, u3.id] },
+            { id: 'T3', nume: 'T3', lungime: 60, cost: 0, costManual: false, utilizatori: [u2.id, u4.id] }
+          ]
+        });
+        p.meta.nouUtilizatoriIds = [u3.id, u4.id]; // ambii se racordează
+        window.AppUI.setProject(p);
+        var r = window.AppUI.calculate();
+        if (r.error) throw new Error('nu ar trebui blocat: ' + r.error);
+        // Ambii noi plătesc; centralizatorul are linii de la ambele.
+        if (!r.payments[u3.id] || !r.payments[u4.id]) throw new Error('ambii utilizatori noi trebuie să plătească');
+        if (r.central.newList.length !== 2) throw new Error('newList=' + r.central.newList.length);
+      });
+
+      var s = document.createElement('div');
+      s.className = 'summary' + (fail === 0 ? '' : ' fail');
+      s.textContent = 'Rezultat: ' + pass + ' trecute, ' + fail + ' eșuate.';
+      document.body.insertBefore(s, out);
+    }
+  </script>
+</body>
+</html>

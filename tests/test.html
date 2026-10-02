@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <title>Teste motor de calcul — Compensatii</title>
+  <style>
+    body { font-family: "Segoe UI", Arial, sans-serif; margin: 24px; background: #f4f6f9; color: #1f2937; }
+    h1 { font-size: 18px; }
+    .t { border: 1px solid #e2e8f0; background: #fff; border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+    .pass { border-left: 5px solid #15803d; }
+    .fail { border-left: 5px solid #b91c1c; background: #fdecec; }
+    .summary { margin: 16px 0; padding: 12px; border-radius: 8px; font-weight: 600; }
+    .summary.pass { background: #e7f6ec; color: #15803d; }
+    .summary.fail { background: #fdecec; color: #b91c1c; }
+    code { background: #f1f5f9; padding: 1px 4px; border-radius: 4px; }
+    .muted { color: #6b7280; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Teste motor de calcul (Anexa 1–5)</h1>
+  <p class="muted">Teste derivate din exemplele numerice ale metodologiei și din modelul .xlsx.</p>
+  <div id="out"></div>
+
+  <script src="../js/engine.js"></script>
+  <script>
+    var E = window.CompEngine;
+    var out = document.getElementById('out');
+    var pass = 0, fail = 0;
+
+    function approx(a, b, eps) { return Math.abs(a - b) <= (eps || 0.02); }
+
+    function test(name, fn) {
+      var errs = [];
+      try { fn(function (msg) { errs.push(msg); }); }
+      catch (e) { errs.push('Excepție: ' + e.message); }
+      var ok = errs.length === 0;
+      if (ok) pass++; else fail++;
+      var div = document.createElement('div');
+      div.className = 't ' + (ok ? 'pass' : 'fail');
+      div.innerHTML = '<strong>' + (ok ? 'PASS' : 'FAIL') + '</strong> — ' + name +
+        (ok ? '' : '<br><span class="muted">' + errs.join('<br>') + '</span>');
+      out.appendChild(div);
+    }
+
+    function eq(assert, actual, expected, label) {
+      if (!approx(actual, expected)) assert(label + ': așteptat ' + expected + ', obținut ' + actual);
+    }
+
+    // Anexa 1, exemplul (2): al doilea utilizator la 80 m -> primul primește 20.000 lei
+    test('Anexa 1 — 2 utilizatori (linie 50.000 lei / 100 m)', function (assert) {
+      var res = E.computeLine({
+        bL: 500, nouUtilizatori: ['U1'],
+        tronsoane: [
+          { id: 'T1', nume: 'T1', lungime: 80, cost: 40000, utilizatori: ['U1', 'U2'] },
+          { id: 'T2', nume: 'T2', lungime: 20, cost: 10000, utilizatori: ['U2'] }
+        ]
+      });
+      eq(assert, res.payments['U1']['U2'], 20000, 'U1 -> U2');
+      eq(assert, res.finalShare['U1'], 20000, 'cota U1');
+      eq(assert, res.finalShare['U2'], 30000, 'cota U2');
+    });
+
+    // Anexa 1, exemplul (3): al treilea utilizator -> 6.667 + 11.667 = 18.333 total
+    test('Anexa 1 — 3 utilizatori (prelungire 50 m)', function (assert) {
+      var res = E.computeLine({
+        bL: 300, nouUtilizatori: ['U3'],
+        tronsoane: [
+          { id: 'T1', lungime: 80, cost: 40000, utilizatori: ['U1', 'U2', 'U3'] },
+          { id: 'T2', lungime: 20, cost: 10000, utilizatori: ['U2', 'U3'] },
+          { id: 'T3', lungime: 50, cost: 15000, utilizatori: ['U3'] }
+        ]
+      });
+      eq(assert, res.payments['U3']['U1'], 6666.67, 'U3 -> U1');
+      eq(assert, res.payments['U3']['U2'], 11666.67, 'U3 -> U2');
+      eq(assert, res.finalShare['U1'], 13333.33, 'cota U1');
+      eq(assert, res.finalShare['U2'], 18333.33, 'cota U2');
+      eq(assert, res.finalShare['U3'], 33333.33, 'cota U3');
+    });
+
+    // Model .xlsx U4: 2 tronsoane a 3000 lei, utilizatori U1..U4 -> 500 fiecare
+    test('Model xlsx U4 — 4 utilizatori, 2 tronsoane a 3.000 lei', function (assert) {
+      var t = function (n) { return { id: 'T' + n, lungime: 100, cost: 3000, utilizatori: ['U1', 'U2', 'U3', 'U4'] }; };
+      var res = E.computeLine({ bL: 30, nouUtilizatori: ['U4'], tronsoane: [t(1), t(2)] });
+      var c = E.centralizator(res.payments, 'U4', [
+        { id: 'U1', nume: 'U1', codPA: '1' }, { id: 'U2', nume: 'U2', codPA: '2' },
+        { id: 'U3', nume: 'U3', codPA: '3' }, { id: 'U4', nume: 'U4', codPA: '4' }
+      ], 19, true);
+      eq(assert, res.payments['U4']['U1'], 500, 'U4 -> U1');
+      eq(assert, res.payments['U4']['U2'], 500, 'U4 -> U2');
+      eq(assert, res.payments['U4']['U3'], 500, 'U4 -> U3');
+      eq(assert, c.totalFaraTVA, 1500, 'total fara TVA');
+      eq(assert, c.totalCuTVA, 1785, 'total cu TVA 19%');
+    });
+
+    // Anexa 2: b_T = 250 lei/kVA, C2 = 100 * 250 = 25.000 lei
+    test('Anexa 2 — post de transformare (250 lei/kVA)', function (assert) {
+      var res = E.computeStation({
+        Sn: 400, IT: 100000, utilizatori: ['P', 'U2'], nouUtilizatori: ['U2'], puteri: { P: 260, U2: 100 }
+      });
+      eq(assert, res.bT, 250, 'b_T');
+      eq(assert, res.payments['U2']['P'], 25000, 'compensatie U2 -> P');
+    });
+
+    // Anexa 2: primul utilizator (primId) este receptorul, nu `users[0]`
+    test('Anexa 2 — primId bifat este receptorul (nu ordinea din listă)', function (assert) {
+      var res = E.computeStation({
+        Sn: 400, IT: 100000,
+        utilizatori: ['A', 'B', 'C'], primId: 'B', nouUtilizatori: ['A', 'C'],
+        puteri: { A: 100, B: 100, C: 100 }
+      });
+      // B este primul utilizator -> A și C îi plătesc; B nu plătește nimănui.
+      eq(assert, res.payments['A']['B'], 25000, 'A -> B');
+      eq(assert, res.payments['C']['B'], 25000, 'C -> B');
+      if (res.payments['B']) assert('B nu ar trebui să plătească nimănui');
+      if ((res.payments['A'] || {})['A']) assert('A nu se poate plăti pe sine');
+    });
+
+    // Doi utilizatori noi simultan (pe tronsoane diferite): plățile se cumulează
+    test('Anexa 1 — doi utilizatori noi simultan', function (assert) {
+      var res = E.computeLine({
+        bL: 300, nouUtilizatori: ['U3', 'U4'],
+        tronsoane: [
+          { id: 'T1', lungime: 80, cost: 40000, utilizatori: ['U1', 'U2'] },
+          { id: 'T2', lungime: 20, cost: 10000, utilizatori: ['U2', 'U3'] },
+          { id: 'T3', lungime: 40, cost: 12000, utilizatori: ['U2', 'U4'] }
+        ]
+      });
+      var total = E.allPayments('line', function (single) {
+        return {
+          bL: 300, nouUtilizatori: single ? [single] : ['U3', 'U4'],
+          tronsoane: [
+            { id: 'T1', lungime: 80, cost: 40000, utilizatori: ['U1', 'U2'] },
+            { id: 'T2', lungime: 20, cost: 10000, utilizatori: ['U2', 'U3'] },
+            { id: 'T3', lungime: 40, cost: 12000, utilizatori: ['U2', 'U4'] }
+          ]
+        };
+      });
+      // U3 plătește pe T2 către U2 și (T1) către U1,U2; U4 pe T3.
+      if (!total['U3'] || !total['U4']) assert('ambii utilizatori noi trebuie să plătească');
+      if (!(total['U3']['U2'] > 0)) assert('U3 -> U2 lipsă');
+      if (!(total['U4']['U2'] > 0)) assert('U4 -> U2 lipsă');
+    });
+
+    // Anexa 4: C2 = 30 * 500 * (90/100) = 13.500 lei
+    test('Anexa 4 — prevederi tranzitorii', function (assert) {
+      var res = E.computeTransitional({ B: 50000, S: 100, S2: 30, l2: 90, L: 100 });
+      eq(assert, res.b, 500, 'b');
+      eq(assert, res.C2, 13500, 'C2');
+    });
+
+    // Anexa 5: X_ef = 87,5%; cote 9,375% / 3,125%; sume 14.062,5 / 4.687,5
+    test('Anexa 5 — cote de eficiență/ineficiență', function (assert) {
+      var res = E.computeDeveloper({
+        Itotal: 150000, Ief: 131250,
+        dezvoltatori: [ { id: 'D1', nume: 'D1', putere: 300 }, { id: 'D2', nume: 'D2', putere: 100 } ]
+      });
+      eq(assert, res.Xef, 0.875, 'X_ef');
+      eq(assert, res.rows[0].Xinef, 0.09375, 'X_D1');
+      eq(assert, res.rows[1].Xinef, 0.03125, 'X_D2');
+      eq(assert, res.rows[0].suma, 14062.5, 'suma D1');
+      eq(assert, res.rows[1].suma, 4687.5, 'suma D2');
+    });
+
+    var sum = document.createElement('div');
+    sum.className = 'summary ' + (fail === 0 ? 'pass' : 'fail');
+    sum.textContent = 'Rezultat: ' + pass + ' trecute, ' + fail + ' eșuate.';
+    document.body.insertBefore(sum, out);
+  </script>
+</body>
+</html>
