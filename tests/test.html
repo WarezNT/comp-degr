@@ -116,7 +116,7 @@
     });
 
     // Doi utilizatori noi simultan (pe tronsoane diferite): plățile se cumulează
-    test('Anexa 1 — doi utilizatori noi simultan', function (assert) {
+    test('Anexa 1 — doi utilizatori noi pe tronsoane diferite', function (assert) {
       var res = E.computeLine({
         bL: 300, nouUtilizatori: ['U3', 'U4'],
         tronsoane: [
@@ -125,23 +125,33 @@
           { id: 'T3', lungime: 40, cost: 12000, utilizatori: ['U2', 'U4'] }
         ]
       });
-      var total = E.allPayments('line', function (single) {
-        return {
-          bL: 300, nouUtilizatori: single ? [single] : ['U3', 'U4'],
-          tronsoane: [
-            { id: 'T1', lungime: 80, cost: 40000, utilizatori: ['U1', 'U2'] },
-            { id: 'T2', lungime: 20, cost: 10000, utilizatori: ['U2', 'U3'] },
-            { id: 'T3', lungime: 40, cost: 12000, utilizatori: ['U2', 'U4'] }
-          ]
-        };
-      });
-      // U3 plătește pe T2 către U2 și (T1) către U1,U2; U4 pe T3.
-      if (!total['U3'] || !total['U4']) assert('ambii utilizatori noi trebuie să plătească');
-      if (!(total['U3']['U2'] > 0)) assert('U3 -> U2 lipsă');
-      if (!(total['U4']['U2'] > 0)) assert('U4 -> U2 lipsă');
+      eq(assert, res.payments['U3']['U2'], 5000, 'U3 -> U2');
+      eq(assert, res.payments['U4']['U2'], 6000, 'U4 -> U2');
     });
 
-    // Anexa 2: transformatorul de rezervă N-1 se exclude din b_T (art. 15 alin. 4)
+    // Art. 12 alin. 1 + Anexa 1: racordare secvențială. 4 utilizatori pe un tronson de 12.000 lei,
+    // N1 și N2 noi (în ordine). Cei vechi primesc 12000/2 − 12000/4 = 3000 fiecare în total;
+    // N2 plătește și lui N1 (racordat înaintea lui).
+    test('Anexa 1 — doi utilizatori noi pe ACELAȘI tronson (secvențial)', function (assert) {
+      var res = E.computeLine({
+        nouUtilizatori: ['N1', 'N2'],
+        tronsoane: [{ id: 'T', cost: 12000, utilizatori: ['U1', 'U2', 'N1', 'N2'] }]
+      });
+      var p = res.payments;
+      eq(assert, p['N1']['U1'], 2000, 'N1 -> U1');
+      eq(assert, p['N1']['U2'], 2000, 'N1 -> U2');
+      eq(assert, p['N2']['U1'], 1000, 'N2 -> U1');
+      eq(assert, p['N2']['U2'], 1000, 'N2 -> U2');
+      eq(assert, p['N2']['N1'], 1000, 'N2 -> N1');
+      eq(assert, p['N1']['U1'] + p['N2']['U1'], 3000, 'total primit de U1');
+    });
+
+    test('Anexa 1 — rezultatul unui utilizator nou unic nu s-a schimbat', function (assert) {
+      var res = E.computeLine({ nouUtilizatori: ['U4'],
+        tronsoane: [{ id: 'T', cost: 3000, utilizatori: ['U1', 'U2', 'U3', 'U4'] }] });
+      eq(assert, res.payments['U4']['U1'], 250, 'U4 -> U1');
+    });
+
     test('Anexa 2 — S_n exclude transformatorul de rezervă N-1', function (assert) {
       var res = E.computeStation({
         Sn: 1000, SnRezerva: 400, IT: 300000,
@@ -166,6 +176,28 @@
       // linie: U2 -> U1 = 20000; echipamente: 12000/2=6000 după, 12000/1=12000 înainte -> 6000
       eq(assert, res.payments['U2']['U1'], 26000, 'U2 -> U1 (linie + echipamente)');
       eq(assert, res.varianta, 2, 'varianta');
+    });
+
+    test('Anexa 3 — varianta 2: echipamentele comune se plătesc TUTUROR utilizatorilor existenți', function (assert) {
+      var res = E.computeComplex({
+        varianta: 2,
+        liniiU1: [],
+        statii: [{ Sn: 400, IT: 100000, elementeComune: 12000, utilizatori: ['U1', 'U2', 'U3'], primId: 'U1' }],
+        primId: 'U1', nouUtilizatori: ['U3']
+      });
+      // 12000/2 − 12000/3 = 2000 către fiecare dintre U1 și U2
+      eq(assert, res.payments['U3']['U1'], 2000, 'U3 -> U1');
+      eq(assert, res.payments['U3']['U2'], 2000, 'U3 -> U2');
+    });
+
+    test('Anexa 3 — varianta 3: echipamentele comune NU se adaugă (Anexa 3 literal)', function (assert) {
+      var res = E.computeComplex({
+        varianta: 3,
+        liniiU1: [{ bL: 500, tronsoane: [{ id: 'T1', lungime: 80, cost: 40000, utilizatori: ['U1', 'U2'] }] }],
+        statii: [{ Sn: 400, IT: 100000, elementeComune: 12000, utilizatori: ['U1', 'U2'], primId: 'U1' }],
+        puteri: { U1: 0, U2: 100 }, primId: 'U1', nouUtilizatori: ['U2']
+      });
+      eq(assert, res.payments['U2']['U1'], 45000, 'U2 -> U1 (fără echipamente comune)');
     });
 
     test('Anexa 3 — varianta 3: linie U1 + stație (Anexa 2)', function (assert) {
@@ -246,6 +278,97 @@
       eq(assert, res.payments['N']['P'], 25000 + 10000, 'N -> P');
       eq(assert, res.statii.length, 2, 'nr. stații');
       eq(assert, res.statii[0].bT, 250, 'b_T stația 1');
+    });
+
+    // Art. 15 alin. 3: întărirea postului — compensație doar pentru capacitatea suplimentară
+    // a transformatorului existent (S_n 400, I_T 100.000 → b_T 250; primul utilizator 260 kVA → 140 kVA liberi).
+    test('Art. 15 alin. 3 — întărire post: compensație limitată la capacitatea suplimentară', function (assert) {
+      var res = E.computeStation({ Sn: 400, IT: 100000, intarire: true, primId: 'A',
+        utilizatori: ['A', 'N'], nouUtilizatori: ['N'], puteri: { A: 260, N: 200 } });
+      eq(assert, res.suplimentara.initiala, 140, 'capacitate suplimentară');
+      eq(assert, res.payments['N']['A'], 140 * 250, 'N -> A (140 kVA × 250)');
+      // fără întărire: tot 200 kVA × 250
+      var normal = E.computeStation({ Sn: 400, IT: 100000, primId: 'A',
+        utilizatori: ['A', 'N'], nouUtilizatori: ['N'], puteri: { A: 260, N: 200 } });
+      eq(assert, normal.payments['N']['A'], 50000, 'fără întărire');
+    });
+
+    test('Art. 15 alin. 3 — doi utilizatori noi consumă succesiv capacitatea suplimentară', function (assert) {
+      var res = E.computeStation({ Sn: 400, IT: 100000, intarire: true, primId: 'A',
+        utilizatori: ['A', 'N1', 'N2'], nouUtilizatori: ['N1', 'N2'], puteri: { A: 260, N1: 100, N2: 100 } });
+      eq(assert, res.payments['N1']['A'], 100 * 250, 'N1');
+      eq(assert, res.payments['N2']['A'], 40 * 250, 'N2 (doar 40 kVA rămași)');
+      eq(assert, res.suplimentara.ramasa, 0, 'rămas');
+    });
+
+    test('Art. 15 alin. 3 — capacitate suplimentară 0: nicio compensație', function (assert) {
+      var res = E.computeStation({ Sn: 400, IT: 100000, intarire: true, primId: 'A',
+        utilizatori: ['A', 'N'], nouUtilizatori: ['N'], puteri: { A: 400, N: 100 } });
+      if (res.payments['N']) assert('nu ar trebui plată: ' + JSON.stringify(res.payments));
+    });
+
+    // Art. 15 alin. 1: al doilea circuit pe stâlpii liniei existente — costul stâlpilor în cote egale.
+    test('Art. 15 alin. 1 — al doilea circuit pe stâlpi existenți (cote egale)', function (assert) {
+      var res = E.computeLine({ nouUtilizatori: ['N'],
+        tronsoane: [{ id: 'S', tip: 'stalpi', cost: 10000, utilizatori: ['U1', 'N'] }] });
+      eq(assert, res.payments['N']['U1'], 5000, 'N -> U1');
+      if (res.tronsoaneDetalii[0].tip !== 'stalpi') assert('tipul elementului nu s-a păstrat în detaliu');
+    });
+
+    test('Art. 15 alin. 1 — stâlpii folosiți de doi utilizatori existenți', function (assert) {
+      var res = E.computeLine({ nouUtilizatori: ['N'],
+        tronsoane: [{ id: 'S', tip: 'stalpi', cost: 12000, utilizatori: ['U1', 'U2', 'N'] }] });
+      eq(assert, res.payments['N']['U1'], 2000, 'N -> U1');   // 6000 − 4000
+      eq(assert, res.payments['N']['U2'], 2000, 'N -> U2');
+    });
+
+    // Art. 7 alin. 2–3: refacerea ATR-urilor (doar cele valabile; tariful recalculat = tarif − compensație).
+    test('Art. 7 alin. 2 — refacerea ATR: doar cele valabile, fără tarif, cu tarif recalculat', function (assert) {
+      var central = { newList: ['B', 'C'], perNou: { B: { faraTVA: 1000, cuTVA: 1190 }, C: { faraTVA: 500, cuTVA: 595 } } };
+      var rows = E.refaceAtr({
+        dataCalcul: '2026-10-01', central: central,
+        utilizatori: [
+          { id: 'A', nume: 'A', faraContract: false },
+          { id: 'B', nume: 'B', faraContract: true, valabilPana: '2027-01-01', tarifInitial: 5000 },
+          { id: 'C', nume: 'C', faraContract: true, valabilPana: '2026-05-01', tarifInitial: 3000 },
+          { id: 'D', nume: 'D', faraContract: true, valabilPana: '', tarifInitial: 0 }
+        ]
+      });
+      eq(assert, rows.length, 3, 'nr. rânduri (A nu e „fără contract”)');
+      var b = rows[0], c = rows[1], d = rows[2];
+      if (b.status !== 'refacut' || !b.refacut) assert('B trebuia refăcut');
+      eq(assert, b.tarifRecalculat, 4000, 'tarif recalculat B');
+      eq(assert, b.compensatieFaraTVA, 1000, 'compensație B');
+      if (c.status !== 'expirat' || c.refacut || c.tarifRecalculat !== null) assert('C expirat: nu se reface');
+      if (d.status !== 'valabilitate-necompletata' || !d.refacut) assert('D: se reface, cu atenționare');
+      if (d.selectat) assert('D nu e utilizator nou selectat');
+    });
+
+    test('Art. 7 alin. 2 — tariful recalculat nu devine negativ', function (assert) {
+      var rows = E.refaceAtr({ dataCalcul: '2026-10-01',
+        central: { newList: ['B'], perNou: { B: { faraTVA: 9000, cuTVA: 9000 } } },
+        utilizatori: [{ id: 'B', nume: 'B', faraContract: true, valabilPana: '2027-01-01', tarifInitial: 5000 }] });
+      eq(assert, rows[0].tarifRecalculat, 0, 'tarif');
+    });
+
+    // Anexa 4 pct. B: investiția netă 36.500 (50.000 − 13.500), utilizatorul 2 (compensat vechi) ignorat;
+    // noul utilizator la 80 m plătește 14.600 și primul utilizator rămâne cu 21.900.
+    test('Art. 18 / Anexa 4 pct. B — 36.500 lei net, utilizator vechi ignorat → 14.600', function (assert) {
+      var f = E.factorCostNet(50000, 13500);
+      eq(assert, f, 0.73, 'factor');
+      var res = E.computeLine({ nouUtilizatori: ['N'], ignorati: ['U2'],
+        tronsoane: [
+          { id: 'T1', cost: 40000 * f, utilizatori: ['P', 'U2', 'N'] },
+          { id: 'T2', cost: 10000 * f, utilizatori: ['P', 'U2'] }
+        ] });
+      eq(assert, res.payments['N']['P'], 14600, 'N -> P');
+      if (res.payments['N']['U2']) assert('U2 (ignorat) nu trebuie să primească');
+      eq(assert, 36500 - res.payments['N']['P'], 21900, 'primul utilizator rămâne cu');
+    });
+
+    test('Art. 18 — factorul net: B ≤ 0 → 1; compensații > B → 0', function (assert) {
+      eq(assert, E.factorCostNet(0, 100), 1, 'B=0');
+      eq(assert, E.factorCostNet(1000, 5000), 0, 'comp > B');
     });
 
     var sum = document.createElement('div');

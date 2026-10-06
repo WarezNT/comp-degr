@@ -82,3 +82,45 @@ Recomandare: validare centralizată (`validate(project)` → listă erori/averti
 
 **Netratat intenționat (necesită decizie de specialist, nu s-a schimbat nicio formulă):** C2 (utilizatori noi simultani — doar notă în UI), C3 (Anexa 2: doar primul primește), C4 (echipamente comune în Anexa 3), C6 (TVA pe rând vs. pe total).
 **Nemplementat (extinderi):** export .xlsx, listă de proiecte în UI, refactor `ui.js` către componente.
+
+
+## Actualizare — verificare față de textul consolidat al metodologiei (Ord. 180/2015, cu Ord. 10/2016 și 16/2019)
+
+| Punct | Ce spune norma | Ce s-a făcut |
+|---|---|---|
+| Art. 8 blochează? | Art. 8 alin. 1: „se calculează și se plătește **numai dacă** sunt îndeplinite cumulativ” (4 condiții, lit. a–d) | Calcul blocat; opțiune explicită „Calculează oricum (informativ)”. Condiția a 5-a din aplicație = art. 7 alin. 1 (reetichetată). Prag 10 ani pentru prim casnic (art. 8 alin. 2) derivat din tipul clientului (înainte nu putea fi activat). Art. 19 (fonduri publice) adăugat ca excludere. Anexa 5 pct. 1 (5 ani) verificat. |
+| dataATR / dataTR | Termenul curge de la punerea în funcțiune, nu de la ATR; art. 7 alin. 1 cere tariful achitat de fiecare beneficiar | `dataTR` verificată per beneficiar (confirmare manuală posibilă); `dataATR` folosită doar pentru ordinea racordării; text de ajutor corectat. |
+| Utilizatori noi multipli | Anexa 1: un singur utilizator nou pe rând (n−1 → n), exemple secvențiale | Calcul secvențial (`sequentialPayments`), ordine după Data ATR; noii plătesc și celor racordați înaintea lor. Total primit de un utilizator vechi = cost/n_vechi − cost/n_final. |
+| Echipamente comune Anexa 3 | Var. 2: art. 12 alin. 1 (cote egale, toți cei care au contribuit); var. 3/4: doar Anexa 1 + Anexa 2 | Var. 2 plătește tuturor; var. 3/4 nu mai adaugă echipamente comune (notă în UI, de confirmat). |
+| Antet/semnături | Norma nu impune format; valoarea se precizează în ATR (art. 6 alin. 2) | Neschimbat (practică, nu obligație). |
+| Anexa 2 (doar primul primește) | Art. 6 alin. 1 lit. b, art. 13 | Confirmat — corect în aplicație. |
+
+Modelat ulterior: art. 15 alin. 1 (element „stâlpi” cu cost propriu, cote egale) și art. 15 alin. 3 (întărire post: compensație = b_T × min(puterea nouă, capacitatea suplimentară a transformatorului existent), consum succesiv pentru mai mulți utilizatori noi).
+
+Modelat ulterior: art. 6 alin. 5 (operator de rețea = utilizator nou, inclus automat) și art. 7 alin. 2–3 (panou de refacere ATR: doar ATR valabile, fără tarif, tarif recalculat estimat; tariful oficial se stabilește cu Metodologia de stabilire a tarifului de racordare).
+
+Modelat ulterior: art. 17–18 + Anexa 4 pct. B (regim tranzitoriu activat de data contractului primului utilizator: cost net = I_L − compensații vechi, utilizatori cu contract anterior ignorați, capacitate suplimentară informativă; exemplul din anexă reproduce 14.600 / 21.900). Din textul consolidat nu mai rămâne nemodelat niciun articol de calcul.
+
+
+---
+
+## Refactor UI/UX (Preact + htm vendorizate)
+
+Motivat de revizuirea din perspectiva utilizatorului (referințe legale inconsistente, pornire cu date demo, erori
+duplicate, rezultat sub condiții, roluri împrăștiate pe 3 locuri, alocare prin chip-uri, mobil, contrast, flash la
+fiecare acțiune). Realizat:
+
+| Problemă | Soluție |
+|---|---|
+| Referințe legale la unele mesaje, la altele nu | Registru unic `js/rules.js`; fiecare issue/condiție/pas/explicație are `rule`; chip uniform + textul normei într-o fereastră; test de consistență |
+| Prima deschidere cu date demo | Ecran de start (Proiect nou / Exemplu / Import); exemplele au banner „Exemplu” și fără ghid |
+| Utilizatorul nu știe ce completează | **Ghid pas cu pas**: bară cu pasul următor, câmp evidențiat, focus mutat automat după completare, schimbă singur pasul; „Sari”, „Mută-mă automat”, ascundere |
+| Erori triplicate, rezultat sub condiții | O singură listă de probleme cu „Mergi la câmp”; rezumat → centralizator → condiții (restrânse când sunt îndeplinite) |
+| Roluri în 3 locuri | Rol unic per utilizator (prim / nou / existent / operator); migrare automată din formatul vechi |
+| Alocare cu chip-uri și săgeți | Grilă utilizatori × tronsoane cu „Toți” |
+| Sumele fără explicație | „Cum s-a calculat”: formulă + articol pe fiecare sumă |
+| Flash la fiecare acțiune, focus pierdut | Re-randare diferențială (Preact); animația doar la schimbarea pasului; testat e2e (Tab, panou neremontat) |
+| Mobil | Carduri în loc de tabele, ajutor sub conținut și restrâns, fără scroll orizontal (testat la 390 px) |
+| Contrast / etichete | `--muted` 6,98:1; toate câmpurile au etichetă; ⓘ accesibil prin `aria-describedby` |
+| Ajutor lung în coloană | ⓘ la fiecare câmp + introducere scurtă pe pas |
+| Formate numerice | Virgulă zecimală, separator de mii la părăsirea câmpului, text invalid marcat |

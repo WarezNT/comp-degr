@@ -15,19 +15,19 @@
   function emptyProject() {
     return {
       meta: {
-        operator: 'Operator de rețea',
+        operator: '',
         codOperator: '',
         dataCalcul: new Date().toISOString().slice(0, 10),
         tva: 19,
         withTva: true,
         model: 'line',
-        noulUtilizatorId: '',
-        nouUtilizatoriIds: []
+        modelConfirmat: false,   // ghid: utilizatorul a confirmat tipul de instalație
+        exemplu: false           // proiect demo (afișează un banner „Exemplu”)
       },
       utilizatori: [],
       linii: [],
       statii: [],
-      complexConfig: { varianta: 3, liniiIds: [], liniiU2Ids: [], statiiIds: [] },
+      complexConfig: { varianta: 3, variantaConfirmata: false, liniiIds: [], liniiU2Ids: [], statiiIds: [] },
       tranzitoriu: { B: 0, S: 0, S2: 0, l2: 0, L: 0 },
       dezvoltator: { Itotal: 0, Ief: 0, dezvoltatori: [] },
       conditii: {
@@ -35,9 +35,14 @@
         capacitateDisponibila: true,
         aniDeLaPF: 0,
         dataPIF: '',
-        clientCasnic: false,
         solutieComuna: true,
-        tarifAchitatIntegral: true
+        verificate: false,          // ghid: utilizatorul a verificat condițiile din art. 8
+        // Art. 7 alin. 1: tariful achitat integral de cei care primesc compensația.
+        // Se verifică din „Data achitare TR” a fiecărui beneficiar; bifa de aici
+        // este confirmarea manuală când data lipsește.
+        tarifAchitatIntegral: false,
+        fonduriPublice: false,      // art. 19: instalația finanțată din fonduri nerambursabile
+        calcInformativ: false       // calculează oricum, chiar dacă art. 8 nu e îndeplinit
       }
     };
   }
@@ -51,11 +56,66 @@
       dataATR: '',
       dataTR: '',
       tipClient: 'noncasnic',
-      prim: false
+      // Rol unic: 'prim' (finanțator, primește compensații) | 'existent' | 'nou' (plătește)
+      // | 'operator' (art. 6 alin. 5: operatorul de rețea, asimilat unui utilizator nou).
+      rol: 'existent',
+      faraContract: false,    // art. 7 alin. 2: ATR emis pentru instalația comună, contract neîncheiat
+      atrValabilPana: '',     // sfârșitul perioadei de valabilitate a ATR
+      dataContract: '',       // data contractului de racordare (art. 17–18)
+      tarifInitial: 0         // tariful de racordare înainte de refacerea ATR [lei] (opțional)
     };
     Object.keys(data || {}).forEach(function (k) { u[k] = data[k]; });
+    // Compatibilitate: câmpurile booleene vechi (prim / operator) stabilesc rolul.
+    if (!data || data.rol === undefined) {
+      if (data && data.prim) u.rol = 'prim';
+      else if (data && data.operator) u.rol = 'operator';
+    }
+    delete u.prim;
+    delete u.operator;
     p.utilizatori.push(u);
     return u;
+  }
+
+  // Adăugare din interfață: primul utilizator devine finanțator, al doilea utilizator
+  // nou (cel care plătește), ceilalți existenți — utilizatorul le poate schimba.
+  function addUserAuto(p, data) {
+    var rol = 'existent';
+    if (!primId(p)) rol = 'prim';
+    else if (!newIds(p).length) rol = 'nou';
+    var d = {};
+    Object.keys(data || {}).forEach(function (k) { d[k] = data[k]; });
+    if (d.rol === undefined) d.rol = rol;
+    return addUser(p, d);
+  }
+
+  var ROLURI = ['prim', 'existent', 'nou', 'operator'];
+
+  // Normalizează rolurile (și migrează formatul vechi: prim/operator booleene și
+  // lista meta.nouUtilizatoriIds): un singur prim utilizator, roluri valide.
+  function normalizeRoles(p) {
+    var meta = p.meta || {};
+    var legacyNou = {};
+    (Array.isArray(meta.nouUtilizatoriIds) ? meta.nouUtilizatoriIds : []).forEach(function (id) { legacyNou[id] = true; });
+    if (meta.noulUtilizatorId) legacyNou[meta.noulUtilizatorId] = true;
+    var seenPrim = false;
+    (p.utilizatori || []).forEach(function (u) {
+      if (ROLURI.indexOf(u.rol) < 0) {
+        if (u.prim) u.rol = 'prim';
+        else if (u.operator) u.rol = 'operator';
+        else u.rol = legacyNou[u.id] ? 'nou' : 'existent';
+      } else if (u.rol === 'existent' && legacyNou[u.id]) {
+        u.rol = 'nou';
+      }
+      if (u.rol === 'prim') {
+        if (seenPrim) u.rol = 'existent';
+        seenPrim = true;
+      }
+      delete u.prim;
+      delete u.operator;
+    });
+    delete meta.nouUtilizatoriIds;
+    delete meta.noulUtilizatorId;
+    return p;
   }
 
   function findUser(p, id) {
@@ -65,31 +125,47 @@
     return null;
   }
 
-  // Primul utilizator (finanțatorul / receptorul compensațiilor). Doar unul
-  // poate avea acest rol; dacă sunt mai mulți bifați, îl luăm pe primul.
+  // Primul utilizator (finanțatorul / receptorul compensațiilor): rolul „prim”.
   function primId(p) {
     var found = null;
-    (p.utilizatori || []).forEach(function (u) { if (u.prim && !found) found = u.id; });
+    (p.utilizatori || []).forEach(function (u) { if (u.rol === 'prim' && !found) found = u.id; });
     return found;
   }
 
-  // Noii utilizatori (cei care plătesc), fără primul utilizator și fără
-  // id-uri inexistente. Pot fi mai mulți (racordați simultan).
+  // Utilizatorii care plătesc: rolurile „nou” și „operator” (art. 6 alin. 5 — operatorul
+  // se asimilează unui utilizator nou). Ordinea racordării (calcul secvențial, Anexa 1):
+  // după data ATR; cei fără dată păstrează ordinea din listă, după cei cu dată.
   function newIds(p) {
-    var prim = primId(p);
-    var ids = p.meta.nouUtilizatoriIds || [];
-    if (!ids.length && p.meta.noulUtilizatorId) ids = [p.meta.noulUtilizatorId];
-    var existing = {};
-    (p.utilizatori || []).forEach(function (u) { existing[u.id] = true; });
-    return ids.filter(function (id) { return id && id !== prim && existing[id] !== undefined; });
+    var list = [];
+    (p.utilizatori || []).forEach(function (u, i) {
+      if (u.rol === 'nou' || u.rol === 'operator') list.push({ id: u.id, d: u.dataATR || '9999-99-99', i: i });
+    });
+    return list.sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : a.i - b.i; })
+      .map(function (x) { return x.id; });
   }
 
-  // Conflict: un utilizator nou este și prim utilizator.
-  function roleConflict(p) {
-    var prim = primId(p);
-    if (!prim) return false;
-    return (p.meta.nouUtilizatoriIds || []).indexOf(prim) >= 0 ||
-      p.meta.noulUtilizatorId === prim;
+  // Data intrării în vigoare a metodologiei (Ord. 180/2015, M.Of. 12/07.01.2016).
+  var DATA_INTRARE_VIGOARE = '2016-01-07';
+
+  // Art. 17–18: dacă primul utilizator a încheiat contractul de racordare înainte
+  // de intrarea în vigoare, se aplică prevederile tranzitorii. Utilizatorii (altii
+  // decât primul și decât cei noi) cu contract tot anterior sunt ignorați la
+  // repartizare: art. 18 alin. 3 — noul utilizator plătește doar primului și celor
+  // cu contract ulterior care au plătit compensație.
+  function tranzitoriu(p) {
+    var prim = findUser(p, primId(p));
+    var activ = !!(prim && prim.dataContract && prim.dataContract < DATA_INTRARE_VIGOARE);
+    var noi = newIds(p);
+    var ignorati = [];
+    var faraData = [];
+    if (activ) {
+      (p.utilizatori || []).forEach(function (u) {
+        if (u.id === prim.id || noi.indexOf(u.id) >= 0) return;
+        if (!u.dataContract) faraData.push(u.id);
+        else if (u.dataContract < DATA_INTRARE_VIGOARE) ignorati.push(u.id);
+      });
+    }
+    return { activ: activ, ignorati: ignorati, faraData: faraData };
   }
 
   function demoU6() {
@@ -97,15 +173,16 @@
     // primii 3 utilizatori + cei racordați ulterior, pe tronsoane comune.
     var p = emptyProject();
     p.meta.operator = 'Operator de distribuție';
+    // (exemplu demonstrativ)
     p.meta.model = 'line';
     p.meta.tva = 19;
 
     var u1 = addUser(p, { codPA: '1000000001', nume: 'U1', putere: 100, prim: true, dataATR: '2017-12-20', dataTR: '2018-03-09' });
     var u2 = addUser(p, { codPA: '1000000002', nume: 'U2', putere: 100, dataATR: '2020-10-19', dataTR: '2020-11-19' });
     var u3 = addUser(p, { codPA: '1000000003', nume: 'U3', putere: 100, dataATR: '2020-12-19', dataTR: '2020-12-20' });
-    var u4 = addUser(p, { codPA: '1000000004', nume: 'U4', putere: 100 });
-    var u5 = addUser(p, { codPA: '1000000005', nume: 'U5', putere: 100 });
-    var u6 = addUser(p, { codPA: '1000000006', nume: 'U6', putere: 100 });
+    var u4 = addUser(p, { codPA: '1000000004', nume: 'U4', putere: 100, dataATR: '2021-02-10', dataTR: '2021-03-15' });
+    var u5 = addUser(p, { codPA: '1000000005', nume: 'U5', putere: 100, dataATR: '2021-06-10', dataTR: '2021-07-15' });
+    var u6 = addUser(p, { codPA: '1000000006', nume: 'U6', putere: 100, rol: 'nou' });
 
     var linie = {
       id: uid('lin'),
@@ -120,8 +197,9 @@
     };
     p.linii.push(linie);
     p.complexConfig.liniiIds = [linie.id];
-    p.meta.nouUtilizatoriIds = [u6.id];
-    p.meta.noulUtilizatorId = u6.id;
+    p.meta.modelConfirmat = true;
+    p.meta.exemplu = true;
+    p.conditii.verificate = true;
     return p;
   }
 
@@ -130,10 +208,10 @@
     // Rezultat așteptat: U4 plătește 500 lei către fiecare din U1,U2,U3.
     var p = emptyProject();
     p.meta.model = 'line';
-    var u1 = addUser(p, { codPA: '1000000001', nume: 'U1', putere: 100, prim: true });
-    var u2 = addUser(p, { codPA: '1000000002', nume: 'U2', putere: 100 });
-    var u3 = addUser(p, { codPA: '1000000003', nume: 'U3', putere: 100 });
-    var u4 = addUser(p, { codPA: '1000000004', nume: 'U4', putere: 100 });
+    var u1 = addUser(p, { codPA: '1000000001', nume: 'U1', putere: 100, prim: true, dataATR: '2023-01-10', dataTR: '2023-02-10' });
+    var u2 = addUser(p, { codPA: '1000000002', nume: 'U2', putere: 100, dataATR: '2023-05-10', dataTR: '2023-06-10' });
+    var u3 = addUser(p, { codPA: '1000000003', nume: 'U3', putere: 100, dataATR: '2023-09-10', dataTR: '2023-10-10' });
+    var u4 = addUser(p, { codPA: '1000000004', nume: 'U4', putere: 100, rol: 'nou' });
     var linie = {
       id: uid('lin'),
       nume: 'Linie U1 (2 tronsoane)',
@@ -145,8 +223,9 @@
     };
     p.linii.push(linie);
     p.complexConfig.liniiIds = [linie.id];
-    p.meta.nouUtilizatoriIds = [u4.id];
-    p.meta.noulUtilizatorId = u4.id;
+    p.meta.modelConfirmat = true;
+    p.meta.exemplu = true;
+    p.conditii.verificate = true;
     return p;
   }
 
@@ -367,12 +446,18 @@
     p.utilizatori.forEach(function (u) {
       u.id = safeId(u.id, 'u');
       u.tipClient = u.tipClient === 'casnic' ? 'casnic' : 'noncasnic';
-      u.prim = !!u.prim;
+      u.prim = !!u.prim;            // câmpuri vechi, consumate de normalizeRoles
+      u.operator = !!u.operator;
+      u.dataContract = str(u.dataContract);
+      u.faraContract = !!u.faraContract;
     });
     p.linii.forEach(function (l) {
       l.id = safeId(l.id, 'lin');
       l.tronsoane = arr(l.tronsoane).filter(isObj);
-      l.tronsoane.forEach(function (t) { t.id = safeId(t.id, 't'); });
+      l.tronsoane.forEach(function (t) {
+        t.id = safeId(t.id, 't');
+        if (t.tip !== 'stalpi') delete t.tip;   // art. 15 alin. 1: singura valoare permisă
+      });
     });
     p.statii.forEach(function (s) { s.id = safeId(s.id, 'st'); });
     p.dezvoltator.dezvoltatori.forEach(function (d) { d.id = safeId(d.id, 'dev'); });
@@ -388,7 +473,7 @@
     });
     p.statii.forEach(function (s) { s.utilizatori = userRefs(s.utilizatori); });
 
-    // Migrare: din vechiul câmp unic „noul utilizator” către listă.
+    // Format vechi: lista „noilor utilizatori” (consumată de normalizeRoles).
     if (!Array.isArray(p.meta.nouUtilizatoriIds)) {
       p.meta.nouUtilizatoriIds = p.meta.noulUtilizatorId ? [p.meta.noulUtilizatorId] : [];
     }
@@ -417,40 +502,24 @@
     Object.keys(base.meta).forEach(function (k) {
       if (p.meta[k] === undefined) p.meta[k] = base.meta[k];
     });
+    Object.keys(base.conditii).forEach(function (k) {
+      if (p.conditii[k] === undefined) p.conditii[k] = base.conditii[k];
+    });
+    delete p.conditii.clientCasnic;   // derivat din tipul clientului primului utilizator
     (p.linii || []).forEach(function (l) {
       if (l.bLManual === undefined) l.bLManual = false;
+      if (l.compVeche === undefined) l.compVeche = 0;     // art. 18: compensații primite sub Ord. 28/2003
+      if (l.capacitate === undefined) l.capacitate = 0;   // art. 18 alin. 1 lit. b: capacitatea instalației [kVA]
       (l.tronsoane || []).forEach(function (t) {
         if (t.costManual === undefined) t.costManual = false;
       });
     });
     (p.statii || []).forEach(function (s) {
       if (s.SnRezerva === undefined) s.SnRezerva = 0;
+      s.intarire = !!s.intarire;
+      if (s.compVeche === undefined) s.compVeche = 0;
     });
-    // Un singur „prim utilizator”: dacă sunt mai mulți bifați, păstrăm primul.
-    if (p.utilizatori && p.utilizatori.length) {
-      var seenPrim = false;
-      p.utilizatori.forEach(function (u) {
-        if (u.prim) {
-          if (seenPrim) u.prim = false;
-          seenPrim = true;
-        }
-      });
-      var prim = p.utilizatori.filter(function (u) { return u.prim; })[0];
-      var primId = prim ? prim.id : null;
-
-      // Migrare: din vechiul câmp unic „noul utilizator” către listă.
-      if (!Array.isArray(p.meta.nouUtilizatoriIds)) {
-        p.meta.nouUtilizatoriIds = p.meta.noulUtilizatorId ? [p.meta.noulUtilizatorId] : [];
-      }
-      // Elimină primul utilizator și id-urile inexistente din listă.
-      var ids = {};
-      p.utilizatori.forEach(function (u) { ids[u.id] = true; });
-      p.meta.nouUtilizatoriIds = p.meta.nouUtilizatoriIds.filter(function (id) {
-        return ids[id] && id !== primId;
-      });
-      // Menține sincron câmpul legacy (primul din listă) pentru compatibilitate.
-      p.meta.noulUtilizatorId = p.meta.nouUtilizatoriIds.length ? p.meta.nouUtilizatoriIds[0] : '';
-    }
+    normalizeRoles(p);
     return p;
   }
 
@@ -473,7 +542,10 @@
     migrate: migrate,
     sanitize: sanitize,
     primId: primId,
+    tranzitoriu: tranzitoriu,
+    DATA_INTRARE_VIGOARE: DATA_INTRARE_VIGOARE,
     newIds: newIds,
-    roleConflict: roleConflict
+    normalizeRoles: normalizeRoles,
+    addUserAuto: addUserAuto
   };
 })(typeof window !== 'undefined' ? window : this);
