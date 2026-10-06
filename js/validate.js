@@ -40,11 +40,26 @@
       if (p.conditii && p.conditii.fonduriPublice) {
         errors.push('Art. 19: metodologia nu se aplică dacă instalația primului utilizator a fost finanțată din fonduri publice nerambursabile.');
       }
+      users.forEach(function (u) {
+        if (u.operator && u.id === primId) {
+          errors.push('Operatorul de rețea („' + nameOf(u.id) + '”, art. 6 alin. 5) nu poate fi primul utilizator: el se asimilează unui utilizator nou și plătește compensație.');
+        }
+        if (u.faraContract && u.id === primId) {
+          warnings.push('Utilizatorul „' + nameOf(u.id) + '” este marcat „ATR fără contract” și, în același timp, prim utilizator (a încheiat contractul). Debifează „ATR fără contract”.');
+        }
+        if (u.faraContract && newIds.indexOf(u.id) < 0 && u.id !== primId) {
+          warnings.push('Art. 7 alin. 2: utilizatorul „' + nameOf(u.id) + '” are ATR pentru instalația comună, dar nu e selectat ca utilizator nou; compensația lui nu e calculată.');
+        }
+      });
+      if (!primId && users.some(function (u) { return u.faraContract; })) {
+        warnings.push('Art. 7 alin. 2 se aplică după ce un utilizator încheie contractul de racordare: bifează-l ca prim utilizator.');
+      }
       if (S.roleConflict(p)) errors.push('Primul utilizator nu poate fi și utilizator nou (cel care plătește). Scoate-l din lista de utilizatori noi.');
 
       users.forEach(function (u) {
         var nm = nameOf(u.id);
         nonNeg('Puterea aprobată a utilizatorului „' + nm + '”', u.putere);
+        nonNeg('Tariful inițial al utilizatorului „' + nm + '”', u.tarifInitial);
         if (u.dataATR && u.dataTR && u.dataTR < u.dataATR) {
           warnings.push('Utilizatorul „' + nm + '”: data achitării TR este anterioară datei ATR.');
         }

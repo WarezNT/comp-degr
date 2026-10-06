@@ -322,6 +322,35 @@
       eq(assert, res.payments['N']['U2'], 2000, 'N -> U2');
     });
 
+    // Art. 7 alin. 2–3: refacerea ATR-urilor (doar cele valabile; tariful recalculat = tarif − compensație).
+    test('Art. 7 alin. 2 — refacerea ATR: doar cele valabile, fără tarif, cu tarif recalculat', function (assert) {
+      var central = { newList: ['B', 'C'], perNou: { B: { faraTVA: 1000, cuTVA: 1190 }, C: { faraTVA: 500, cuTVA: 595 } } };
+      var rows = E.refaceAtr({
+        dataCalcul: '2026-10-01', central: central,
+        utilizatori: [
+          { id: 'A', nume: 'A', faraContract: false },
+          { id: 'B', nume: 'B', faraContract: true, valabilPana: '2027-01-01', tarifInitial: 5000 },
+          { id: 'C', nume: 'C', faraContract: true, valabilPana: '2026-05-01', tarifInitial: 3000 },
+          { id: 'D', nume: 'D', faraContract: true, valabilPana: '', tarifInitial: 0 }
+        ]
+      });
+      eq(assert, rows.length, 3, 'nr. rânduri (A nu e „fără contract”)');
+      var b = rows[0], c = rows[1], d = rows[2];
+      if (b.status !== 'refacut' || !b.refacut) assert('B trebuia refăcut');
+      eq(assert, b.tarifRecalculat, 4000, 'tarif recalculat B');
+      eq(assert, b.compensatieFaraTVA, 1000, 'compensație B');
+      if (c.status !== 'expirat' || c.refacut || c.tarifRecalculat !== null) assert('C expirat: nu se reface');
+      if (d.status !== 'valabilitate-necompletata' || !d.refacut) assert('D: se reface, cu atenționare');
+      if (d.selectat) assert('D nu e utilizator nou selectat');
+    });
+
+    test('Art. 7 alin. 2 — tariful recalculat nu devine negativ', function (assert) {
+      var rows = E.refaceAtr({ dataCalcul: '2026-10-01',
+        central: { newList: ['B'], perNou: { B: { faraTVA: 9000, cuTVA: 9000 } } },
+        utilizatori: [{ id: 'B', nume: 'B', faraContract: true, valabilPana: '2027-01-01', tarifInitial: 5000 }] });
+      eq(assert, rows[0].tarifRecalculat, 0, 'tarif');
+    });
+
     var sum = document.createElement('div');
     sum.className = 'summary ' + (fail === 0 ? 'pass' : 'fail');
     sum.textContent = 'Rezultat: ' + pass + ' trecute, ' + fail + ' eșuate.';

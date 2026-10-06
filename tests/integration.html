@@ -513,6 +513,52 @@
         if ('tip' in p.linii[0].tronsoane[1]) throw new Error('tip invalid păstrat');
       });
 
+      test('Art. 6 alin. 5: operatorul de rețea e inclus automat ca utilizator nou și plătește', function () {
+        var p = emptyOk();
+        var u1 = window.AppState.addUser(p, { nume: 'U1', prim: true, dataTR: '2024-01-01' });
+        var u2 = window.AppState.addUser(p, { nume: 'U2', dataTR: '2024-02-01' });
+        var op = window.AppState.addUser(p, { nume: 'OD', operator: true });
+        p.linii.push({ id: 'L', nume: 'L', IL: 3000, L: 100, bL: 0, bLManual: false, tronsoane: [
+          { id: 'T', nume: 'T', lungime: 100, cost: 0, costManual: false, utilizatori: [u1.id, u2.id, op.id] }] });
+        p.meta.nouUtilizatoriIds = [];     // nu e bifat nimeni manual
+        window.AppUI.setProject(p);
+        var r = window.AppUI.calculate();
+        if (r.error) throw new Error(r.error);
+        // 3000/2 − 3000/3 = 500 către fiecare dintre U1 și U2
+        if (!r.payments[op.id] || Math.abs(r.payments[op.id][u1.id] - 500) > 0.01) throw new Error('OD -> U1 lipsă/greșit');
+        window.AppUI.setTab('rezultate');
+        if (document.getElementById('app').innerHTML.indexOf('Art. 6 alin. 5') < 0) throw new Error('nota art. 6 alin. 5 lipsește');
+      });
+
+      test('Art. 6 alin. 5: operatorul nu poate fi prim utilizator', function () {
+        var p = window.AppState.demoU4();
+        p.utilizatori[0].operator = true;      // U1 este și prim
+        window.AppUI.setProject(p);
+        var r = window.AppUI.calculate();
+        if (!r.error || r.error.indexOf('art. 6 alin. 5') < 0) throw new Error('trebuia blocat: ' + JSON.stringify(r.error));
+      });
+
+      test('Art. 7 alin. 2: panoul de refacere a ATR apare și respectă valabilitatea', function () {
+        var p = window.AppState.demoU4();
+        // U4 (nou) are ATR fără contract, valabil; U3 are ATR fără contract, expirat (și nu e nou)
+        p.utilizatori[3].faraContract = true; p.utilizatori[3].atrValabilPana = '2999-01-01'; p.utilizatori[3].tarifInitial = 4000;
+        p.utilizatori[2].faraContract = true; p.utilizatori[2].atrValabilPana = '2000-01-01';
+        window.AppUI.setProject(p);
+        window.AppUI.setTab('rezultate');
+        var r = window.AppUI.calculate();
+        if (r.error) throw new Error(r.error);
+        var html = document.getElementById('app').innerHTML;
+        if (html.indexOf('art. 7 alin. 2') < 0) throw new Error('panoul lipsește');
+        if (html.indexOf('ATR expirat') < 0) throw new Error('ATR expirat neindicat');
+        if (html.indexOf('2.500,00') < 0) throw new Error('tarif recalculat (4000 − 1500) lipsă');
+        if (html.indexOf('fără perceperea unui tarif') < 0) throw new Error('mențiunea „fără tarif” lipsește');
+      });
+
+      test('Import: câmpurile operator / faraContract sunt booleene', function () {
+        var p = window.AppState.migrate({ utilizatori: [{ id: 'u', operator: 'da', faraContract: 1 }] });
+        if (p.utilizatori[0].operator !== true || p.utilizatori[0].faraContract !== true) throw new Error('nu sunt boolean');
+      });
+
       var s = document.createElement('div');
       s.className = 'summary' + (fail === 0 ? '' : ' fail');
       s.textContent = 'Rezultat: ' + pass + ' trecute, ' + fail + ' eșuate.';

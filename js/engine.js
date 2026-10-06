@@ -457,6 +457,51 @@
   }
 
   /* ---------------------------------------------------------------
+   * Art. 7 alin. (2)–(3): refacerea avizelor tehnice de racordare.
+   * Când instalația de racordare a fost prevăzută în ATR-urile mai multor
+   * utilizatori și unul dintre ei încheie contractul (devine prim utilizator),
+   * ATR-urile celorlalți, DACĂ sunt în perioada de valabilitate, se refac de
+   * operator: din oficiu, fără tarif, cu menționarea tarifului de racordare
+   * recalculat și a valorii compensației.
+   *
+   * opts = {
+   *   dataCalcul: 'YYYY-MM-DD',
+   *   utilizatori: [{ id, nume, faraContract, valabilPana, tarifInitial }],
+   *   central: rezultatul centralizatorului (perNou, newList)
+   * }
+   * Tariful recalculat este o ESTIMARE: tarif inițial − compensație (art. 1
+   * alin. 2: tariful se diminuează cu valoarea elementelor folosite în comun);
+   * valoarea oficială se stabilește cu Metodologia de stabilire a tarifului.
+   * ------------------------------------------------------------- */
+  function refaceAtr(opts) {
+    opts = opts || {};
+    var central = opts.central || { perNou: {}, newList: [] };
+    var dc = opts.dataCalcul || '';
+    return (opts.utilizatori || []).filter(function (u) { return u.faraContract; }).map(function (u) {
+      var selectat = (central.newList || []).indexOf(u.id) >= 0;
+      var pn = (central.perNou || {})[u.id] || { faraTVA: 0, cuTVA: 0 };
+      var status;
+      if (u.valabilPana && dc && u.valabilPana < dc) status = 'expirat';
+      else if (!u.valabilPana) status = 'valabilitate-necompletata';
+      else status = 'refacut';
+      var refac = status !== 'expirat';
+      var tarif = num(u.tarifInitial);
+      return {
+        id: u.id,
+        nume: u.nume,
+        status: status,
+        refacut: refac,
+        selectat: selectat,
+        valabilPana: u.valabilPana || '',
+        compensatieFaraTVA: pn.faraTVA,
+        compensatieCuTVA: pn.cuTVA,
+        tarifInitial: tarif,
+        tarifRecalculat: (refac && tarif > 0) ? r2(Math.max(0, tarif - pn.faraTVA)) : null
+      };
+    });
+  }
+
+  /* ---------------------------------------------------------------
    * Condiții cumulative — Art. 8 din metodologie.
    * ------------------------------------------------------------- */
   // Art. 8 alin. (1) lit. a–d (cumulativ) + art. 7 alin. (1) (tariful achitat
@@ -581,6 +626,7 @@
     computeTransitional: computeTransitional,
     computeDeveloper: computeDeveloper,
     checkConditions: checkConditions,
+    refaceAtr: refaceAtr,
     centralizator: centralizator,
     totals: totals,
     computeStations: computeStations,

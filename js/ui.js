@@ -523,11 +523,13 @@
       var checked = sel.indexOf(u.id) >= 0;
       var nume = u.nume || u.codPA || u.id;
       var pa = (u.codPA && u.nume) ? ' <span class="muted">(PA: ' + esc(u.codPA) + ')</span>' : '';
+      var isOp = !!u.operator && !isPrim;
       var label = esc(nume) + pa +
-        (isPrim ? ' <span class="muted">(prim utilizator — receptor)</span>' : '');
-      return '<label class="chk' + (isPrim ? ' disabled' : '') + '">' +
+        (isPrim ? ' <span class="muted">(prim utilizator — receptor)</span>' : '') +
+        (isOp ? ' <span class="muted">(operator de rețea — plătește automat, art. 6 alin. 5)</span>' : '');
+      return '<label class="chk' + ((isPrim || isOp) ? ' disabled' : '') + '">' +
         '<input type="checkbox" data-action="new-user" data-id="' + esc(u.id) + '"' +
-        (checked ? ' checked' : '') + (isPrim ? ' disabled' : '') + '> ' + label + '</label>';
+        (checked ? ' checked' : '') + ((isPrim || isOp) ? ' disabled' : '') + '> ' + label + '</label>';
     }).join('') + '</div>' +
     (sel.length > 1 ? '<p class="hint">Fiecare utilizator nou plătește pe tronsonul/stația pe care este adăugat. Se pot selecta mai mulți: se racordează <strong>pe rând</strong> (Anexa 1), în ordinea Datei ATR (dacă lipsește, ordinea din listă); cel racordat mai târziu plătește și celor racordați înaintea lui.</p>' : '');
   }
@@ -561,6 +563,7 @@
         '<td><select aria-label="Tip client" data-bind="user.' + esc(u.id) + '.tipClient">' +
           opts([['noncasnic', 'Non-casnic'], ['casnic', 'Casnic']], u.tipClient) + '</select></td>' +
         '<td class="center">' + checkbox('user.' + esc(u.id) + '.prim', u.prim, 'Prim utilizator') + '</td>' +
+        '<td class="center">' + checkbox('user.' + esc(u.id) + '.operator', u.operator, 'Operator de rețea (art. 6 alin. 5)') + '</td>' +
         '<td><button class="btn tiny danger" data-action="del-user" data-id="' + esc(u.id) + '" aria-label="Șterge utilizatorul ' + esc(u.nume || u.codPA || '') + '">Șterge</button></td>' +
         '</tr>';
     }).join('');
@@ -569,10 +572,30 @@
       '<div class="toolbar"><button class="btn" data-action="add-user">+ Adaugă utilizator</button>' +
       '<span class="hint">Ordinea racordării pe fiecare element se stabilește în tabul „Instalație”.</span></div>' +
       '<div class="table-wrap"><table class="grid"><thead><tr>' +
-      '<th>Cod PA</th><th>Nume / denumire</th><th>Putere aprobată (kVA)</th><th>Data ATR</th><th>Data achitare TR</th><th>Tip client</th><th class="center">Prim utilizator</th><th></th>' +
-      '</tr></thead><tbody>' + (rows || '<tr><td colspan="8" class="empty">Niciun utilizator. Adaugă cel puțin unul.</td></tr>') + '</tbody></table></div>',
+      '<th>Cod PA</th><th>Nume / denumire</th><th>Putere aprobată (kVA)</th><th>Data ATR</th><th>Data achitare TR</th><th>Tip client</th><th class="center">Prim utilizator</th><th class="center" title="Art. 6 alin. 5: operatorul de rețea se asimilează unui utilizator nou și plătește compensație">Operator de rețea</th><th></th>' +
+      '</tr></thead><tbody>' + (rows || '<tr><td colspan="9" class="empty">Niciun utilizator. Adaugă cel puțin unul.</td></tr>') + '</tbody></table></div>' +
+      renderAtrTable(),
       helperUsers()
     );
+  }
+
+  // Art. 7 alin. 2: utilizatori cu ATR emis pentru instalația comună, dar fără
+  // contract încheiat — ATR-urile lor se refac când altcineva devine prim utilizator.
+  function renderAtrTable() {
+    if (!state.utilizatori.length) return '';
+    var rows = state.utilizatori.map(function (u) {
+      var prim = u.id === getPrimId();
+      return '<tr>' +
+        '<td>' + esc(u.nume || u.codPA || u.id) + '</td>' +
+        '<td class="center">' + (prim ? '<span class="muted">— (prim utilizator)</span>' : checkbox('user.' + esc(u.id) + '.faraContract', u.faraContract, 'ATR emis, contract neîncheiat')) + '</td>' +
+        '<td><input type="date" aria-label="ATR valabil până la" data-bind="user.' + esc(u.id) + '.atrValabilPana" value="' + esc(u.atrValabilPana) + '"' + (prim ? ' disabled' : '') + '></td>' +
+        '<td>' + number('user.' + esc(u.id) + '.tarifInitial', u.tarifInitial, 'Tarif de racordare inițial (lei)') + '</td>' +
+        '</tr>';
+    }).join('');
+    return '<h3>Avize tehnice emise pentru instalația comună (art. 7 alin. 2)</h3>' +
+      '<p class="hint">Dacă instalația a fost prevăzută în ATR-urile mai multor utilizatori și unul încheie contractul (se bifează „Prim utilizator”), ATR-urile celorlalți — dacă sunt valabile — se refac de operator, fără tarif, cu tariful recalculat și valoarea compensației. Marchează aici utilizatorii cu ATR fără contract.</p>' +
+      '<div class="table-wrap"><table class="grid"><thead><tr><th>Utilizator</th><th class="center">ATR emis, contract neîncheiat</th><th>ATR valabil până la</th><th>Tarif de racordare inițial (lei, opțional)</th></tr></thead><tbody>' +
+      rows + '</tbody></table></div>';
   }
 
   function helperUsers() {
@@ -586,6 +609,8 @@
         { field: 'Data ATR', desc: 'Data emiterii avizului tehnic de racordare. Nu intră în verificarea termenului de 5/10 ani (acela se măsoară de la punerea în funcțiune, pasul 4); se folosește doar pentru <strong>ordinea racordării</strong> a utilizatorilor noi (calcul secvențial, Anexa 1).' },
         { field: 'Data achitare TR', desc: 'Data la care a fost achitat integral tariful de racordare. <strong>Obligatorie pentru beneficiarii compensației</strong> (art. 7 alin. 1): fără ea, condiția nu e îndeplinită decât prin confirmare manuală la pasul 4.' },
         { field: 'Tip client', desc: 'Casnic sau non-casnic. Contează tipul <strong>primului utilizator</strong>: dacă e casnic, termenul din art. 8 se extinde automat la 10 ani (art. 8 alin. 2).' },
+        { field: 'Operator de rețea', desc: 'Art. 6 alin. 5: dacă operatorul folosește instalația primului utilizator pentru instalații proprii (îmbunătățirea tensiunii, injecții pentru descărcarea rețelelor, redistribuirea sarcinii etc.), el se asimilează unui utilizator nou și plătește compensație. Bifează-l: este inclus automat între utilizatorii noi (trebuie adăugat pe tronsoanele/stațiile pe care le folosește).' },
+        { field: 'ATR fără contract (art. 7 alin. 2)', desc: 'Pentru utilizatorii cu ATR emis pe aceeași instalație, dar fără contract: când altcineva devine prim utilizator, ATR-urile lor valabile se refac (fără tarif), cu tariful recalculat și compensația. Vezi tabelul de sub lista de utilizatori și panoul din pasul 4.' },
         { field: 'Prim utilizator', desc: 'Bifează utilizatorul care a finanțat inițial instalația (cel care primește compensații la stații/PT).' }
       ],
       note: 'Nu uita să selectezi utilizatorii noi la pasul 1. Dacă sunt mai mulți, ordinea racordării se ia după Data ATR.',
@@ -1064,6 +1089,7 @@
       printHead +
       '<h3>' + titlu + (blocante ? ' <span class="badge warn">INFORMATIV — condiții Art. 8 neîndeplinite</span>' : '') + '</h3>' +
       '<p class="hint">Utilizatorii noi plătesc compensații utilizatorilor racordați anterior (primul utilizator este receptorul principal).</p>' +
+      operatorNote(central) +
       (blocante ? '<p class="warn">Atenție: ' + blocante + ' condiții (Art. 8) nu sunt îndeplinite. Compensația se calculează doar dacă sunt îndeplinite cumulativ.</p>' : '<p class="okmsg">Toate condițiile Art. 8 sunt îndeplinite.</p>') +
       '<div class="table-wrap"><table class="grid"><thead><tr>' +
       (multi ? '<th>Cod PA plătitor</th><th>Plătitor (nou)</th>' : '') +
@@ -1073,7 +1099,7 @@
       renderPerNou(central, multi) +
       '<div class="signatures"><span>Întocmit: ' + esc(state.meta.operator || 'operator de rețea') + '</span>' +
       '<span>Semnătură: ____________________</span></div>' +
-      '</div>' + renderDetails();
+      '</div>' + renderDetails() + renderAtrRefacute(central);
   }
 
   function modelLabel(m) {
@@ -1081,6 +1107,53 @@
       line: 'Anexa 1 — linie electrică', station: 'Anexa 2 — stație / PT', complex: 'Anexa 3 — instalație complexă',
       transitional: 'Anexa 4 — tranzitoriu', developer: 'Anexa 5 — dezvoltator'
     }[m] || m;
+  }
+
+  // Art. 6 alin. 5: operatorul de rețea asimilat unui utilizator nou.
+  function operatorNote(central) {
+    var ops = central.newList.filter(function (id) {
+      var u = S.findUser(state, id);
+      return u && u.operator;
+    });
+    if (!ops.length) return '';
+    return '<p class="hint">Art. 6 alin. 5: operatorul de rețea (' + esc(ops.map(nameOf).join(', ')) +
+      ') este asimilat unui utilizator nou — folosește instalația primului utilizator pentru instalații proprii și plătește compensație.</p>';
+  }
+
+  // Art. 7 alin. 2–3: refacerea ATR-urilor celorlalți utilizatori când unul devine prim utilizator.
+  function renderAtrRefacute(central) {
+    var prim = getPrimId();
+    if (!prim) return '';
+    var rows = E.refaceAtr({
+      dataCalcul: state.meta.dataCalcul,
+      central: central,
+      utilizatori: state.utilizatori.map(function (u) {
+        return {
+          id: u.id, nume: u.nume || u.codPA || u.id, faraContract: !!u.faraContract && u.id !== prim,
+          valabilPana: u.atrValabilPana, tarifInitial: u.tarifInitial
+        };
+      })
+    });
+    if (!rows.length) return '';
+    var statusTxt = {
+      'refacut': 'ATR se reface',
+      'valabilitate-necompletata': 'ATR se reface (valabilitatea nu e completată — verifică)',
+      'expirat': 'ATR expirat — nu se reface'
+    };
+    var body = rows.map(function (r) {
+      var comp = r.refacut
+        ? (r.selectat ? money(r.compensatieFaraTVA) + ' / ' + money(r.compensatieCuTVA) : '<span class="muted">neselectat ca utilizator nou</span>')
+        : '<span class="muted">—</span>';
+      return '<tr><td>' + esc(r.nume) + '</td><td>' + esc(statusTxt[r.status]) + (r.valabilPana ? ' (până la ' + esc(r.valabilPana) + ')' : '') + '</td>' +
+        '<td class="num">' + comp + '</td>' +
+        '<td class="num">' + (r.tarifInitial > 0 ? money(r.tarifInitial) : '—') + '</td>' +
+        '<td class="num">' + (r.tarifRecalculat !== null ? money(r.tarifRecalculat) : '—') + '</td></tr>';
+    }).join('');
+    return '<details class="card" open><summary>Refacerea avizelor tehnice de racordare (art. 7 alin. 2–3)</summary>' +
+      '<p class="hint">Utilizator care a încheiat contractul (prim utilizator): <strong>' + esc(nameOf(prim)) + '</strong>. ATR-urile celorlalți utilizatori, dacă sunt în perioada de valabilitate, se refac de operator: ' +
+      'a) din oficiu, la solicitarea încheierii contractului; b) cu menționarea tarifului de racordare recalculat și a valorii compensației; c) <strong>fără perceperea unui tarif</strong>.</p>' +
+      '<div class="table-wrap"><table class="grid"><thead><tr><th>Utilizator</th><th>Stare ATR</th><th>Compensație (fără TVA / cu TVA)</th><th>Tarif inițial (lei)</th><th>Tarif recalculat — estimare (lei)</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
+      '<p class="hint">Estimare: tarif recalculat = tarif inițial − compensație (art. 1 alin. 2). Valoarea oficială a tarifului se stabilește conform Metodologiei de stabilire a tarifului de racordare.</p></details>';
   }
 
   function renderPerNou(central, multi) {

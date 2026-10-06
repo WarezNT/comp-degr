@@ -96,6 +96,14 @@ Detalii despre formule și validarea lor: `docs/formule-ocr.md` (material local,
   stații, bifa „Întărire post” limitează compensația la **capacitatea suplimentară** a
   transformatorului existent (S_n − puterile deja racordate); restul îl acoperă noul
   transformator, finanțat de noul utilizator.
+- **Art. 6 alin. 5 — operatorul de rețea:** bifa „Operator de rețea” pe un utilizator îl
+  asimilează unui utilizator nou (inclus automat între cei care plătesc; nu poate fi prim
+  utilizator). Trebuie adăugat pe tronsoanele/stațiile pe care le folosește.
+- **Art. 7 alin. 2–3 — refacerea ATR:** în pasul 2 se marchează utilizatorii cu „ATR emis,
+  contract neîncheiat” (cu valabilitatea și, opțional, tariful inițial). Când un utilizator
+  e bifat ca prim, în Rezultate apare panoul de refacere: ATR-urile valabile se refac din
+  oficiu, fără tarif, cu compensația și un **tarif recalculat estimat** (tarif − compensație,
+  art. 1 alin. 2); cele expirate nu se refac.
 - **Utilizatori noi multipli:** se racordează secvențial (Anexa 1), ordonați după Data ATR;
   cel mai târziu plătește și celor noi racordați înaintea lui.
 - **Export CSV** — centralizatorul (separator `;`, zecimale cu virgulă, pentru Excel RO).

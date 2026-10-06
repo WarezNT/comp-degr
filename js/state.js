@@ -55,7 +55,11 @@
       dataATR: '',
       dataTR: '',
       tipClient: 'noncasnic',
-      prim: false
+      prim: false,
+      operator: false,        // art. 6 alin. 5: operatorul de rețea, asimilat unui utilizator nou
+      faraContract: false,    // art. 7 alin. 2: ATR emis pentru instalația comună, contract neîncheiat
+      atrValabilPana: '',     // sfârșitul perioadei de valabilitate a ATR
+      tarifInitial: 0         // tariful de racordare înainte de refacerea ATR [lei] (opțional)
     };
     Object.keys(data || {}).forEach(function (k) { u[k] = data[k]; });
     p.utilizatori.push(u);
@@ -86,6 +90,11 @@
     var existing = {};
     (p.utilizatori || []).forEach(function (u) { existing[u.id] = true; });
     var list = ids.filter(function (id) { return id && id !== prim && existing[id] !== undefined; });
+    // Art. 6 alin. 5: operatorul de rețea se asimilează unui utilizator nou —
+    // plătește compensație automat, fără să fie bifat separat.
+    (p.utilizatori || []).forEach(function (u) {
+      if (u.operator && u.id !== prim && list.indexOf(u.id) < 0) list.push(u.id);
+    });
     // Ordinea racordării (calcul secvențial, Anexa 1): după data ATR; cei fără
     // dată păstrează ordinea din listă, după cei cu dată (sortare stabilă).
     return list.map(function (id, i) {
@@ -379,6 +388,8 @@
       u.id = safeId(u.id, 'u');
       u.tipClient = u.tipClient === 'casnic' ? 'casnic' : 'noncasnic';
       u.prim = !!u.prim;
+      u.operator = !!u.operator;
+      u.faraContract = !!u.faraContract;
     });
     p.linii.forEach(function (l) {
       l.id = safeId(l.id, 'lin');
