@@ -73,3 +73,12 @@ Recomandare: validare centralizată (`validate(project)` → listă erori/averti
 6. **Ingineria proiectului:** teste noi pentru cele de mai sus, `package.json` cu `eslint` + rulare headless a testelor în CI (GitHub Actions), reparat README (linkuri/`docs`).
 
 *Nu am modificat codul aplicației; singurul fișier adăugat este acest raport (necomis).*
+
+---
+
+## Stare implementare (actualizat)
+
+**Rezolvat:** A1–A10 (escape + sanitizare import + CSP; beneficiar stație; rezultate auto-actualizate; confirmări + undo; detaliu stații; focus păstrat; avertisment utilizator nou neasignat; import robust; stare salvare vizibilă + debounce; rotunjire/CSV), B (validare centralizată în `js/validate.js`), C1 (ani din data PIF), C5 (calea multi-stație), C7 (antet + semnături la print, banner „INFORMATIV” când Art. 8 nu e îndeplinit), D (cost tronson unificat, `bindEvents` idempotent, lint, CI, `npm test`, README corectat), E (ARIA pe tab-uri, etichete, `min=0`, diacritice, favicon, toast în loc de `alert`).
+
+**Netratat intenționat (necesită decizie de specialist, nu s-a schimbat nicio formulă):** C2 (utilizatori noi simultani — doar notă în UI), C3 (Anexa 2: doar primul primește), C4 (echipamente comune în Anexa 3), C6 (TVA pe rând vs. pe total).
+**Nemplementat (extinderi):** export .xlsx, listă de proiecte în UI, refactor `ui.js` către componente.

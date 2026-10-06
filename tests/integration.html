@@ -17,6 +17,7 @@
   <div id="out"></div>
 
   <script src="../js/state.js"></script>
+  <script src="../js/validate.js"></script>
   <script src="../js/engine.js"></script>
   <script src="../js/ui.js"></script>
   <script>
@@ -206,6 +207,152 @@
         if (r.error) throw new Error('nu ar trebui blocat: ' + r.error);
         // linie 20000 + stație 100*250=25000 => 45000
         if (Math.abs(r.payments[u2.id][u1.id] - 45000) > 0.01) throw new Error('U2->U1=' + r.payments[u2.id][u1.id]);
+      });
+
+      test('Import: id-uri și câmpuri periculoase sunt sanitizate (fără XSS)', function () {
+        window.__xss = 0;
+        var evil = {
+          meta: { operator: '<img src=x onerror="window.__xss=1">', model: 'line', nouUtilizatoriIds: ['b"><img src=x onerror="window.__xss=2">'] },
+          utilizatori: [
+            { id: 'a"><img src=x onerror="window.__xss=3">', nume: 'A', prim: true },
+            { id: 'b"><img src=x onerror="window.__xss=2">', nume: 'B' }
+          ],
+          linii: [{ id: 'l"><i>', nume: 'L', IL: 100, L: 10, tronsoane: [
+            { id: 't"><i>', nume: 'T', lungime: 10, utilizatori: ['a"><img src=x onerror="window.__xss=3">', 'b"><img src=x onerror="window.__xss=2">'] }
+          ] }]
+        };
+        var p = window.AppState.migrate(evil);
+        if (/[^A-Za-z0-9_-]/.test(p.utilizatori[0].id)) throw new Error('id nesanitizat: ' + p.utilizatori[0].id);
+        if (p.linii[0].tronsoane[0].utilizatori.length !== 2) throw new Error('referințele nu au fost remapate');
+        if (p.meta.nouUtilizatoriIds.length !== 1 || p.meta.nouUtilizatoriIds[0] !== p.utilizatori[1].id) throw new Error('noul utilizator nu a fost remapat');
+        window.AppUI.setProject(p);
+        window.AppUI.setTab('utilizatori'); window.AppUI.setTab('instalatie');
+        window.AppUI.setTab('rezultate'); window.AppUI.calculate();
+        if (window.__xss) throw new Error('cod executat din date importate: ' + window.__xss);
+        if (document.getElementById('app').innerHTML.indexOf('<img src=x') >= 0) throw new Error('HTML injectat în pagină');
+      });
+
+      test('Import: structuri nevalide sunt respinse / normalizate', function () {
+        ['null', '[]', '"text"', '5'].forEach(function (raw) {
+          var threw = false;
+          try { window.AppState.migrate(JSON.parse(raw)); } catch (e) { threw = true; }
+          if (!threw) throw new Error('ar fi trebuit respins: ' + raw);
+        });
+        var p = window.AppState.migrate({ linii: [{ id: 'x' }], statii: 'nu-lista', meta: { model: 'inexistent' } });
+        if (p.linii[0].tronsoane.length !== 0) throw new Error('tronsoane lipsă nenormalizate');
+        if (p.meta.model !== 'line') throw new Error('model necunoscut nenormalizat');
+        if (!Array.isArray(p.statii)) throw new Error('statii nenormalizat');
+      });
+
+      test('Migrare: câmpul vechi „noul utilizator” devine listă', function () {
+        var p = window.AppState.migrate({
+          utilizatori: [{ id: 'u1', prim: true }, { id: 'u2' }],
+          meta: { noulUtilizatorId: 'u2' }
+        });
+        if (p.meta.nouUtilizatoriIds.join() !== 'u2') throw new Error('migrare: ' + p.meta.nouUtilizatoriIds);
+      });
+
+      test('Rezultatele se actualizează automat la modificarea datelor', function () {
+        window.AppUI.setProject(window.AppState.demoU4());
+        window.AppUI.setTab('rezultate');
+        var r = window.AppUI.calculate();
+        if (Math.abs(r.central.totalFaraTVA - 1500) > 0.01) throw new Error('total inițial ' + r.central.totalFaraTVA);
+        window.AppUI.setTab('instalatie');
+        var el = document.querySelector('[data-bind^="tronson."][data-bind$=".lungime"]');
+        el.value = '50'; el.dispatchEvent(new Event('input', { bubbles: true }));
+        window.AppUI.setTab('rezultate');
+        var txt = document.querySelector('tfoot').textContent;
+        if (txt.indexOf('1.500,00') >= 0) throw new Error('rezultat vechi rămas afișat: ' + txt);
+      });
+
+      test('Validare: date imposibile blochează calculul', function () {
+        function build(mut) {
+          var p = window.AppState.demoU4();
+          mut(p);
+          window.AppUI.setProject(p);
+          return window.AppUI.calculate();
+        }
+        var r = build(function (p) { p.utilizatori[1].putere = -5; });
+        if (!r.error) throw new Error('putere negativă acceptată');
+        r = build(function (p) { p.meta.model = 'station'; p.statii.push({ id: 'S', nume: 'S', Sn: 100, SnRezerva: 200, IT: 1000, elementeComune: 0, utilizatori: [] }); });
+        if (!r.error) throw new Error('rezervă > S_n acceptată');
+        r = build(function (p) { p.meta.model = 'developer'; p.dezvoltator = { Itotal: 100, Ief: 150, dezvoltatori: [{ id: 'd', nume: 'd', putere: 1 }] }; });
+        if (!r.error) throw new Error('I_ef > I_total acceptat');
+        r = build(function (p) { p.meta.model = 'transitional'; p.tranzitoriu = { B: 1000, S: 100, S2: 10, l2: 500, L: 100 }; });
+        if (!r.error) throw new Error('l_2 > L acceptat');
+        r = build(function (p) { p.meta.tva = 150; });
+        if (!r.error) throw new Error('TVA 150% acceptat');
+      });
+
+      test('Avertisment: utilizator nou neasignat pe niciun tronson', function () {
+        var p = window.AppState.demoU4();
+        p.linii[0].tronsoane.forEach(function (t) { t.utilizatori = t.utilizatori.slice(0, 2); });
+        window.AppUI.setProject(p);
+        var v = window.AppUI.validate();
+        if (!v.warnings.some(function (w) { return w.indexOf('niciun tronson') >= 0; })) throw new Error('fără avertisment: ' + JSON.stringify(v));
+      });
+
+      test('Detaliu stație afișează valorile reale (nu 0)', function () {
+        var p = window.AppState.emptyProject();
+        p.meta.model = 'station';
+        var a = window.AppState.addUser(p, { nume: 'A', putere: 100, prim: true });
+        var c = window.AppState.addUser(p, { nume: 'C', putere: 50 });
+        p.statii.push({ id: 'S1', nume: 'PT', Sn: 400, SnRezerva: 0, IT: 100000, elementeComune: 0, utilizatori: [a.id, c.id] });
+        p.meta.nouUtilizatoriIds = [c.id];
+        window.AppUI.setProject(p);
+        window.AppUI.setTab('rezultate');
+        window.AppUI.calculate();
+        var txt = document.querySelector('details').textContent;
+        if (txt.indexOf('250,00') < 0) throw new Error('b_T lipsă din detaliu: ' + txt);
+      });
+
+      test('Operatorul din date apare escapat în rezultate/print', function () {
+        var p = window.AppState.demoU4();
+        p.meta.operator = '<b id="inj">Op</b>';
+        window.AppUI.setProject(p);
+        window.AppUI.setTab('rezultate');
+        window.AppUI.calculate();
+        if (document.getElementById('inj')) throw new Error('operator neescapat');
+        if (document.querySelector('.print-head').textContent.indexOf('<b id="inj">') < 0) throw new Error('antetul nu conține operatorul');
+      });
+
+      test('Focusul rămâne pe câmp după modificare (fără re-randare totală)', function () {
+        window.AppUI.setProject(window.AppState.demoU4());
+        window.AppUI.setTab('date');
+        var el = document.querySelector('[data-bind="meta.operator"]');
+        el.focus();
+        el.value = 'Alt operator';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        if (document.activeElement !== el) throw new Error('focus pierdut / element înlocuit');
+        if (window.AppUI.getState().meta.operator !== 'Alt operator') throw new Error('modelul nu s-a actualizat');
+        // checkbox: se re-randează, dar focusul trebuie refăcut pe același control
+        var cb = document.querySelector('[data-bind="meta.withTva"]');
+        cb.focus(); cb.checked = !cb.checked;
+        cb.dispatchEvent(new Event('change', { bubbles: true }));
+        if (!document.activeElement || document.activeElement.getAttribute('data-bind') !== 'meta.withTva') throw new Error('focus nerefăcut după re-randare');
+      });
+
+      test('Undo: eliminarea unui utilizator de pe tronson poate fi anulată', function () {
+        window.AppUI.setProject(window.AppState.demoU4());
+        window.AppUI.setTab('instalatie');
+        var before = window.AppUI.getState().linii[0].tronsoane[0].utilizatori.length;
+        document.querySelector('[data-action="trs-remove"]').click();
+        var after = window.AppUI.getState().linii[0].tronsoane[0].utilizatori.length;
+        if (after !== before - 1) throw new Error('eliminarea nu a funcționat');
+        window.AppUI.undo();
+        var restored = window.AppUI.getState().linii[0].tronsoane[0].utilizatori.length;
+        if (restored !== before) throw new Error('undo nu a restaurat: ' + restored);
+      });
+
+      test('Export CSV: 2 zecimale, virgulă, coloane aliniate', function () {
+        window.AppUI.setProject(window.AppState.demoU4());
+        window.AppUI.setTab('rezultate');
+        window.AppUI.calculate();
+        var csv = window.AppUI.csv();
+        var lines = csv.replace('\ufeff', '').split('\r\n');
+        var cols = lines[0].split(';').length;
+        lines.forEach(function (l) { if (l.split(';').length !== cols) throw new Error('coloane inegale: ' + l); });
+        if (lines[lines.length - 1] !== 'Total;;1500,00;1785,00') throw new Error('rând total: ' + lines[lines.length - 1]);
       });
 
       var s = document.createElement('div');

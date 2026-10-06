@@ -215,6 +215,39 @@
       eq(assert, res.rows[1].suma, 4687.5, 'suma D2');
     });
 
+    // --- regresii după raportul de verificare ---
+    test('Rotunjire r2 — valori la limită (1,005 / 2,675 / 1234,565)', function (assert) {
+      eq(assert, E.r2(1.005), 1.01, '1.005');
+      eq(assert, E.r2(2.675), 2.68, '2.675');
+      eq(assert, E.r2(1234.565), 1234.57, '1234.565');
+      eq(assert, E.r2(-2.675), -2.68, '-2.675');
+    });
+
+    test('Plățile negative nu sunt transformate în plăți pozitive', function (assert) {
+      var res = E.computeStation({ Sn: 400, IT: 100000, utilizatori: ['A', 'B'], primId: 'A',
+        nouUtilizatori: ['B'], puteri: { A: 100, B: -50 } });
+      if (res.payments['B'] && res.payments['B']['A']) assert('putere negativă a produs plată: ' + res.payments['B']['A']);
+    });
+
+    test('Anexa 2 — primul utilizator primește chiar dacă nu e în lista stației', function (assert) {
+      var res = E.computeStation({ Sn: 400, IT: 100000, utilizatori: ['X', 'N'], primId: 'P',
+        nouUtilizatori: ['N'], puteri: { X: 100, N: 50, P: 100 } });
+      if (!res.payments['N'] || !res.payments['N']['P']) assert('plata trebuie să meargă la P');
+      if (res.payments['N'] && res.payments['N']['X']) assert('plata nu trebuie să meargă la X');
+      eq(assert, res.payments['N']['P'], 12500, 'N -> P');
+    });
+
+    test('Anexa 2 — mai multe stații se însumează (cfg.statii)', function (assert) {
+      var res = E.compute('station', { nouUtilizatori: ['N'], primId: 'P', puteri: { P: 100, N: 100 },
+        statii: [
+          { Sn: 400, IT: 100000, utilizatori: ['P', 'N'] },
+          { Sn: 200, IT: 20000, utilizatori: ['P', 'N'] }
+        ] });
+      eq(assert, res.payments['N']['P'], 25000 + 10000, 'N -> P');
+      eq(assert, res.statii.length, 2, 'nr. stații');
+      eq(assert, res.statii[0].bT, 250, 'b_T stația 1');
+    });
+
     var sum = document.createElement('div');
     sum.className = 'summary ' + (fail === 0 ? 'pass' : 'fail');
     sum.textContent = 'Rezultat: ' + pass + ' trecute, ' + fail + ' eșuate.';
