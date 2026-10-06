@@ -1,0 +1,14 @@
+{
+  "name": "comp-degr",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Compensații bănești — racordare în etape diferite (Metodologia ANRE 2015)",
+  "scripts": {
+    "lint": "eslint js tests/run.js",
+    "test": "node tests/run.js"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "playwright": "^1.50.0"
+  }
+}

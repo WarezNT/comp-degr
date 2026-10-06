@@ -1,6 +1,7 @@
 /*
- * State — modelul de date al aplicației, persistență în localStorage,
- * import/export JSON și date demo (inclusiv scenariul din modelul .xlsx).
+ * State — modelul de date al aplicației, persistență în IndexedDB (cu
+ * fallback în localStorage), import/export JSON cu sanitizare și date demo
+ * (inclusiv scenariul din modelul .xlsx).
  */
 (function (global) {
   'use strict';
@@ -33,6 +34,7 @@
         primCapacitateMaiMare: true,
         capacitateDisponibila: true,
         aniDeLaPF: 0,
+        dataPIF: '',
         clientCasnic: false,
         solutieComuna: true,
         tarifAchitatIntegral: true
@@ -61,6 +63,33 @@
       if (p.utilizatori[i].id === id) return p.utilizatori[i];
     }
     return null;
+  }
+
+  // Primul utilizator (finanțatorul / receptorul compensațiilor). Doar unul
+  // poate avea acest rol; dacă sunt mai mulți bifați, îl luăm pe primul.
+  function primId(p) {
+    var found = null;
+    (p.utilizatori || []).forEach(function (u) { if (u.prim && !found) found = u.id; });
+    return found;
+  }
+
+  // Noii utilizatori (cei care plătesc), fără primul utilizator și fără
+  // id-uri inexistente. Pot fi mai mulți (racordați simultan).
+  function newIds(p) {
+    var prim = primId(p);
+    var ids = p.meta.nouUtilizatoriIds || [];
+    if (!ids.length && p.meta.noulUtilizatorId) ids = [p.meta.noulUtilizatorId];
+    var existing = {};
+    (p.utilizatori || []).forEach(function (u) { existing[u.id] = true; });
+    return ids.filter(function (id) { return id && id !== prim && existing[id] !== undefined; });
+  }
+
+  // Conflict: un utilizator nou este și prim utilizator.
+  function roleConflict(p) {
+    var prim = primId(p);
+    if (!prim) return false;
+    return (p.meta.nouUtilizatoriIds || []).indexOf(prim) >= 0 ||
+      p.meta.noulUtilizatorId === prim;
   }
 
   function demoU6() {
@@ -214,17 +243,16 @@
     return memoryCache;
   }
 
-  // Salvează sincron în cache și asincron în IndexedDB; păstrează și
-  // o copie de siguranță în localStorage (fallback dacă IDB e blocat).
+  // Salvează sincron în cache și asincron în IndexedDB. Dacă IndexedDB nu e
+  // disponibil sau eșuează, se încearcă localStorage. Promisiunea returnată
+  // se rezolvă cu true dacă datele au fost persistate undeva, altfel false.
   function save(p) {
     memoryCache = p;
     var record = { id: CURRENT_ID, proiect: p, actualizat: Date.now() };
     if (idbSupported()) {
-      idbPut(record).catch(function () { fallbackSave(p); });
-    } else {
-      fallbackSave(p);
+      return idbPut(record).then(function () { fallbackClear(); return true; }, function () { return fallbackSave(p); });
     }
-    return Promise.resolve(p);
+    return Promise.resolve(fallbackSave(p));
   }
 
   function clear() {
@@ -247,7 +275,7 @@
         var legacy = fallbackLoad();
         if (legacy) {
           memoryCache = legacy;
-          save(legacy);
+          save(legacy).then(function (ok) { if (ok && idbSupported()) fallbackClear(); });
         }
       }
       return memoryCache;
@@ -259,7 +287,13 @@
 
   /* --- fallback localStorage (dacă IndexedDB nu e disponibil) --- */
   function fallbackSave(p) {
-    try { if (global.localStorage) global.localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); } catch (e) {}
+    try {
+      if (global.localStorage) {
+        global.localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+        return true;
+      }
+    } catch (e) { /* cotă depășită / acces blocat */ }
+    return false;
   }
   function fallbackLoad() {
     try {
@@ -284,7 +318,98 @@
     });
   }
 
+  /* ------------------------------------------------------------------
+   * Sanitizare — folosită la încărcarea oricărui proiect (IndexedDB,
+   * localStorage, import JSON). Un fișier primit din exterior nu trebuie să
+   * poată strica interfața sau injecta HTML prin id-uri/câmpuri:
+   *  - structura este normalizată (tipuri, liste);
+   *  - toate id-urile sunt reduse la [A-Za-z0-9_-] și rămân unice;
+   *  - referințele dintre entități sunt remapate consecvent.
+   * ------------------------------------------------------------------ */
+  var MODELS = ['line', 'station', 'complex', 'transitional', 'developer'];
+
+  function isObj(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+  function arr(v) { return Array.isArray(v) ? v : []; }
+  function str(v) { return v === undefined || v === null ? '' : String(v); }
+
+  function sanitize(raw) {
+    if (!isObj(raw)) throw new Error('Fișierul nu conține un proiect valid (se așteaptă un obiect JSON).');
+    var p = raw;
+
+    var map = {};
+    var used = {};
+    function safeId(id, prefix) {
+      var key = str(id);
+      if (map.hasOwnProperty(key)) return map[key];
+      var base = key.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 40) || (prefix || 'id');
+      var cand = base, i = 1;
+      while (used.hasOwnProperty(cand)) { cand = base + '-' + (i++); }
+      used[cand] = true;
+      map[key] = cand;
+      return cand;
+    }
+    function ref(id) { var k = str(id); return map.hasOwnProperty(k) ? map[k] : null; }
+    function refs(list) {
+      return arr(list).map(ref).filter(function (x) { return x !== null; });
+    }
+
+    p.meta = isObj(p.meta) ? p.meta : {};
+    p.utilizatori = arr(p.utilizatori).filter(isObj);
+    p.linii = arr(p.linii).filter(isObj);
+    p.statii = arr(p.statii).filter(isObj);
+    p.tranzitoriu = isObj(p.tranzitoriu) ? p.tranzitoriu : {};
+    p.dezvoltator = isObj(p.dezvoltator) ? p.dezvoltator : {};
+    p.dezvoltator.dezvoltatori = arr(p.dezvoltator.dezvoltatori).filter(isObj);
+    p.conditii = isObj(p.conditii) ? p.conditii : {};
+    p.complexConfig = isObj(p.complexConfig) ? p.complexConfig : {};
+
+    // 1) id-urile entităților
+    p.utilizatori.forEach(function (u) {
+      u.id = safeId(u.id, 'u');
+      u.tipClient = u.tipClient === 'casnic' ? 'casnic' : 'noncasnic';
+      u.prim = !!u.prim;
+    });
+    p.linii.forEach(function (l) {
+      l.id = safeId(l.id, 'lin');
+      l.tronsoane = arr(l.tronsoane).filter(isObj);
+      l.tronsoane.forEach(function (t) { t.id = safeId(t.id, 't'); });
+    });
+    p.statii.forEach(function (s) { s.id = safeId(s.id, 'st'); });
+    p.dezvoltator.dezvoltatori.forEach(function (d) { d.id = safeId(d.id, 'dev'); });
+
+    // 2) referințele (utilizatori pe tronsoane/stații) — doar către utilizatori
+    var userMap = {};
+    p.utilizatori.forEach(function (u) { userMap[u.id] = true; });
+    function userRefs(list) {
+      return refs(list).filter(function (id) { return userMap[id]; });
+    }
+    p.linii.forEach(function (l) {
+      l.tronsoane.forEach(function (t) { t.utilizatori = userRefs(t.utilizatori); });
+    });
+    p.statii.forEach(function (s) { s.utilizatori = userRefs(s.utilizatori); });
+
+    // Migrare: din vechiul câmp unic „noul utilizator” către listă.
+    if (!Array.isArray(p.meta.nouUtilizatoriIds)) {
+      p.meta.nouUtilizatoriIds = p.meta.noulUtilizatorId ? [p.meta.noulUtilizatorId] : [];
+    }
+    p.meta.nouUtilizatoriIds = userRefs(p.meta.nouUtilizatoriIds);
+    var legacyNou = ref(p.meta.noulUtilizatorId);
+    p.meta.noulUtilizatorId = legacyNou && userMap[legacyNou] ? legacyNou : '';
+    p.complexConfig.liniiIds = refs(p.complexConfig.liniiIds);
+    p.complexConfig.liniiU2Ids = refs(p.complexConfig.liniiU2Ids);
+    p.complexConfig.statiiIds = refs(p.complexConfig.statiiIds);
+
+    // 3) valori enumerate
+    if (MODELS.indexOf(p.meta.model) < 0) p.meta.model = 'line';
+    var v = Number(p.complexConfig.varianta);
+    p.complexConfig.varianta = (v >= 1 && v <= 4) ? Math.floor(v) : 3;
+    p.meta.operator = str(p.meta.operator);
+    p.meta.codOperator = str(p.meta.codOperator);
+    return p;
+  }
+
   function migrate(p) {
+    p = sanitize(p);
     var base = emptyProject();
     Object.keys(base).forEach(function (k) {
       if (p[k] === undefined) p[k] = base[k];
@@ -345,6 +470,10 @@
     clear: clear,
     listProjects: listProjects,
     idbSupported: idbSupported,
-    migrate: migrate
+    migrate: migrate,
+    sanitize: sanitize,
+    primId: primId,
+    newIds: newIds,
+    roleConflict: roleConflict
   };
 })(typeof window !== 'undefined' ? window : this);

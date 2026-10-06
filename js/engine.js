@@ -16,14 +16,22 @@
     return isFinite(n) ? n : 0;
   }
 
+  // Rotunjire la 2 zecimale, robustă la erori de reprezentare binară
+  // (ex. 1.005 · 100 = 100.49999999999999): normalizăm la 12 cifre semnificative.
   function r2(x) {
-    return Math.round((num(x) + Number.EPSILON) * 100) / 100;
+    var v = num(x);
+    var sign = v < 0 ? -1 : 1;
+    return sign * Math.round(parseFloat((Math.abs(v) * 100).toPrecision(12))) / 100;
   }
 
+  // Plățile negative sau nule nu se înregistrează: o valoare negativă indică
+  // o eroare de date (prinsă de validare), nu trebuie transformată în plată.
   function addPay(m, payer, receiver, amount) {
     if (payer === undefined || payer === null || receiver === undefined || receiver === null) return;
+    var a = num(amount);
+    if (a <= EPS) return;
     if (!m[payer]) m[payer] = {};
-    m[payer][receiver] = (m[payer][receiver] || 0) + Math.abs(num(amount));
+    m[payer][receiver] = (m[payer][receiver] || 0) + a;
   }
 
   function mergePayments(target, source) {
@@ -189,6 +197,7 @@
    * ------------------------------------------------------------- */
   function computeStation(cfg) {
     cfg = cfg || {};
+    if (cfg.statii) return computeStations(cfg);
     var Sn = num(cfg.Sn);
     var SnRezerva = num(cfg.SnRezerva);
     // Art. 15 alin. (4): capacitatea transformatorului de rezervă (criteriul
@@ -202,8 +211,10 @@
     var nouList = listNew(cfg);
     var payments = {};
     var cote = {};
-    // Primul utilizator (receptorul) = cel bifat explicit; altfel primul din listă.
-    var prim = (cfg.primId && users.indexOf(cfg.primId) >= 0) ? cfg.primId : users[0];
+    // Primul utilizator (receptorul) = cel bifat explicit, chiar dacă nu apare
+    // în lista stației (el a finanțat instalația); doar dacă nu e indicat
+    // niciunul, se folosește primul din listă.
+    var prim = cfg.primId ? cfg.primId : users[0];
 
     // Compensația pe putere: fiecare utilizator NOU plătește primului
     // utilizator cota proporțională cu puterea sa (art. 13).
@@ -242,6 +253,30 @@
       cote: cote,
       payments: payments,
       prim: prim
+    };
+  }
+
+  // Mai multe stații/PT: compensațiile se însumează. Rezultatul păstrează
+  // detaliul fiecărei stații în `statii`.
+  function computeStations(cfg) {
+    var nouList = listNew(cfg);
+    var payments = {};
+    var statii = (cfg.statii || []).map(function (sc) {
+      var o = {};
+      Object.keys(sc).forEach(function (k) { o[k] = sc[k]; });
+      if (o.nouUtilizatori === undefined) o.nouUtilizatori = nouList;
+      if (o.primId === undefined) o.primId = cfg.primId;
+      if (o.puteri === undefined) o.puteri = cfg.puteri;
+      var res = computeStation(o);
+      mergePayments(payments, res.payments);
+      return res;
+    });
+    return {
+      model: 'station',
+      nouUtilizator: nouList.length === 1 ? nouList[0] : null,
+      nouUtilizatori: nouList,
+      payments: payments,
+      statii: statii
     };
   }
 
@@ -536,6 +571,7 @@
     checkConditions: checkConditions,
     centralizator: centralizator,
     totals: totals,
+    computeStations: computeStations,
     mergePayments: mergePayments,
     r2: r2
   };

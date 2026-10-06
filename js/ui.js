@@ -7,14 +7,18 @@
 
   var E = global.CompEngine;
   var S = global.AppState;
+  var V = global.AppValidate;
 
   var state = null;
   var activeTab = 'date';
   var results = null;
   var initPromise = Promise.resolve(null);
+  var eventsBound = false;
 
-  function $(sel, root) { return (root || document).querySelector(sel); }
-  function $all(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  var undoStack = [];          // instantanee JSON ale proiectului (max 20)
+  var UNDO_MAX = 20;
+  var saveTimer = null;
+  var saveStatus = 'ok';       // 'ok' | 'pending' | 'failed'
 
   function esc(v) {
     return String(v === undefined || v === null ? '' : v)
@@ -22,9 +26,93 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
+  // Aceeași rotunjire ca în motor (E.r2), ca să nu apară diferențe de 1 ban.
   function money(x) {
-    return (Math.round((Number(x) || 0) * 100) / 100)
-      .toLocaleString('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return E.r2(x).toLocaleString('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // Număr cu 2 zecimale, virgulă zecimală, fără separator de mii (CSV pentru Excel RO).
+  function csvNum(x) {
+    return E.r2(x).toFixed(2).replace('.', ',');
+  }
+
+  /* ----------------------- notificări, undo, salvare ----------------------- */
+  var toastTimer = null;
+  function toast(msg, kind) {
+    var el = document.getElementById('toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'toast show ' + (kind || 'info');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.className = 'toast'; }, 6000);
+  }
+
+  function pushUndo() {
+    try {
+      undoStack.push(JSON.stringify(state));
+      if (undoStack.length > UNDO_MAX) undoStack.shift();
+    } catch (e) { /* proiect nesalvabil — fără undo */ }
+    updateUndoButton();
+  }
+
+  function undo() {
+    if (!undoStack.length) return;
+    try {
+      state = S.migrate(JSON.parse(undoStack.pop()));
+    } catch (e) { toast('Nu s-a putut reveni la starea anterioară.', 'error'); updateUndoButton(); return; }
+    deriveAll();
+    recompute();
+    saveNow();
+    render();
+    toast('Ultima modificare a fost anulată.', 'info');
+  }
+
+  function updateUndoButton() {
+    var b = document.querySelector('[data-action="undo"]');
+    if (b) b.disabled = !undoStack.length;
+  }
+
+  function saveStatusHtml() {
+    if (saveStatus === 'failed') return '⚠ Nu s-a putut salva local — folosește „Salvează JSON”';
+    if (saveStatus === 'pending') return 'Se salvează…';
+    return 'Salvat local';
+  }
+
+  function updateSaveStatus() {
+    var el = document.getElementById('save-status');
+    if (!el) return;
+    el.textContent = saveStatusHtml();
+    el.className = 'save-status ' + saveStatus;
+  }
+
+  function flushSave() {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    if (!state) return Promise.resolve(true);
+    return S.save(state).then(function (ok) {
+      saveStatus = ok ? 'ok' : 'failed';
+      updateSaveStatus();
+      return ok;
+    });
+  }
+
+  // Salvare imediată (acțiuni discrete) / amânată (tastare).
+  function saveNow() {
+    saveStatus = 'pending';
+    updateSaveStatus();
+    return flushSave();
+  }
+  function saveSoon() {
+    saveStatus = 'pending';
+    updateSaveStatus();
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flushSave, 400);
+  }
+
+  // Rezultatele afișate trebuie să reflecte mereu datele curente: dacă
+  // există un calcul făcut, îl refacem la orice modificare.
+  function recompute() {
+    if (results) runCalculation();
   }
 
   function nameOf(id) {
@@ -49,16 +137,14 @@
           // Golirea câmpului revine la calculul automat din I_L / L.
           if (value === '' || value === null) {
             l.bLManual = false;
-            var Lb = Number(l.L) || 0;
-            l.bL = Lb > 0 ? (Number(l.IL) || 0) / Lb : 0;
+            l.bL = lineBl(l);
           } else {
             l.bLManual = true;
           }
         }
         // b_L se derivă automat din I_L / L dacă utilizatorul nu l-a fixat manual.
         if ((seg[2] === 'IL' || seg[2] === 'L') && !l.bLManual) {
-          var L = Number(l.L) || 0;
-          l.bL = L > 0 ? (Number(l.IL) || 0) / L : 0;
+          l.bL = lineBl(l);
         }
       }
     }
@@ -94,22 +180,10 @@
 
   // Primul utilizator (finanțatorul / receptorul compensațiilor). Un singur
   // utilizator poate avea acest rol; dacă sunt mai mulți bifați, îl luăm pe primul.
-  function getPrimId() {
-    var found = null;
-    state.utilizatori.forEach(function (u) { if (u.prim && !found) found = u.id; });
-    return found;
-  }
+  function getPrimId() { return S.primId(state); }
 
   // Noii utilizatori (cei care plătesc). Pot fi mai mulți (racordați simultan).
-  function getNewIds() {
-    var prim = getPrimId();
-    var ids = state.meta.nouUtilizatoriIds || [];
-    // Compatibilitate cu vechiul câmp unic.
-    if (!ids.length && state.meta.noulUtilizatorId) ids = [state.meta.noulUtilizatorId];
-    var existing = {};
-    state.utilizatori.forEach(function (u) { existing[u.id] = true; });
-    return ids.filter(function (id) { return id && id !== prim && existing[id] !== undefined; });
-  }
+  function getNewIds() { return S.newIds(state); }
 
   function setNewIds(ids) {
     state.meta.nouUtilizatoriIds = ids.slice();
@@ -117,25 +191,29 @@
   }
 
   // Există conflict dacă un utilizator nou este și prim utilizator.
-  function roleConflict() {
-    var prim = getPrimId();
-    if (!prim) return false;
-    return (state.meta.nouUtilizatoriIds || []).indexOf(prim) >= 0 ||
-      state.meta.noulUtilizatorId === prim;
-  }
 
   // Derivează b_L = I_L / L pentru liniile unde nu a fost fixat manual
   // și costul tronsoanelor în modul automat.
   function deriveAll() {
     (state.linii || []).forEach(function (l) {
-      if (!l.bLManual) {
-        var L = Number(l.L) || 0;
-        l.bL = L > 0 ? (Number(l.IL) || 0) / L : 0;
-      }
+      if (!l.bLManual) l.bL = lineBl(l);
       (l.tronsoane || []).forEach(function (t) {
-        if (!t.costManual) t.cost = (Number(t.lungime) || 0) * (Number(l.bL) || 0);
+        if (!t.costManual) t.cost = tronsonCost(l, t);
       });
     });
+  }
+
+  // Sursa unică pentru costurile liniei: b_L = I_L / L (dacă nu e fixat
+  // manual) și costul tronsonului = lungime × b_L (dacă nu e fixat manual).
+  function lineBl(l) {
+    if (l.bLManual) return Number(l.bL) || 0;
+    var L = Number(l.L) || 0;
+    return L > 0 ? (Number(l.IL) || 0) / L : 0;
+  }
+
+  function tronsonCost(l, t) {
+    if (t.costManual && t.cost !== '' && t.cost !== undefined && t.cost !== null) return Number(t.cost) || 0;
+    return (Number(t.lungime) || 0) * lineBl(l);
   }
 
   /* ----------------------- helpers ----------------------- */
@@ -148,15 +226,11 @@
     var out = [];
     (cfgLines || []).forEach(function (l) {
       (l.tronsoane || []).forEach(function (t) {
-        var bL = Number(l.bL) || (Number(l.L) > 0 ? Number(l.IL) / Number(l.L) : 0);
-        var cost = (t.costManual && t.cost !== '' && t.cost !== undefined && t.cost !== null)
-          ? Number(t.cost)
-          : (Number(t.lungime) || 0) * bL;
         out.push({
           id: t.id,
           nume: (l.nume ? l.nume + ' · ' : '') + (t.nume || ''),
           lungime: t.lungime,
-          cost: cost,
+          cost: tronsonCost(l, t),
           utilizatori: orderByIds(t.utilizatori)
         });
       });
@@ -178,10 +252,12 @@
       return mergeCfg(lcfg, nouCfg);
     }
     if (model === 'station') {
-      // Comasează toate stațiile configurate.
-      var statii = state.statii.map(function (s) { return stationCfg(s, puteri, primId, nouCfg); });
-      if (statii.length === 1) return mergeCfg(statii[0], nouCfg);
-      return { linii: [], statii: statii, nouUtilizatori: nouList, nouUtilizator: nouCfg.nouUtilizator };
+      // Toate stațiile configurate; motorul le însumează.
+      return {
+        statii: state.statii.map(function (s) { return stationCfg(s, puteri, primId, nouCfg); }),
+        puteri: puteri, primId: primId,
+        nouUtilizatori: nouList, nouUtilizator: nouCfg.nouUtilizator
+      };
     }
     if (model === 'complex') {
       var sel = state.complexConfig;
@@ -193,10 +269,10 @@
       return {
         varianta: Number(sel.varianta) || 1,
         liniiU1: liniiU1.map(function (l) {
-          return mergeCfg({ bL: Number(l.bL) || 0, tronsoane: lineTronsoane([l]), primId: primId }, nouCfg);
+          return mergeCfg({ bL: lineBl(l), tronsoane: lineTronsoane([l]), primId: primId }, nouCfg);
         }),
         liniiU2: liniiU2.map(function (l) {
-          return mergeCfg({ bL: Number(l.bL) || 0, tronsoane: lineTronsoane([l]), primId: primId }, nouCfg);
+          return mergeCfg({ bL: lineBl(l), tronsoane: lineTronsoane([l]), primId: primId }, nouCfg);
         }),
         statii: st.map(function (s) { return stationCfg(s, puteri, primId, nouCfg); }),
         echipamenteComune: ec,
@@ -217,28 +293,35 @@
     return {};
   }
 
+  // Anii de la punerea în funcțiune: derivați din data PIF dacă e completată,
+  // altfel valoarea introdusă manual.
+  function effectiveYears() {
+    var c = state.conditii;
+    if (c.dataPIF && state.meta.dataCalcul) {
+      var a = new Date(c.dataPIF), b = new Date(state.meta.dataCalcul);
+      if (!isNaN(a) && !isNaN(b)) {
+        return Math.max(0, Math.round(((b - a) / 86400000 / 365.25) * 100) / 100);
+      }
+    }
+    return Number(c.aniDeLaPF) || 0;
+  }
+
+  function currentConditions() {
+    var c = {};
+    Object.keys(state.conditii).forEach(function (k) { c[k] = state.conditii[k]; });
+    c.aniDeLaPF = effectiveYears();
+    return c;
+  }
+
   function runCalculation() {
-    if (roleConflict()) {
-      results = { error: 'Primul utilizator nu poate fi și utilizator nou (cel care plătește). Scoate-l din lista de utilizatori noi.' };
+    var check = V.validate(state);
+    if (check.errors.length) {
+      results = { error: check.errors.join(' '), errors: check.errors, warnings: check.warnings };
       return;
     }
     var model = state.meta.model;
     var nouList = getNewIds();
-    var res;
-    if (model === 'station') {
-      // Anexa 2: însumează toate stațiile (indiferent de număr).
-      var puteri = {};
-      state.utilizatori.forEach(function (u) { puteri[u.id] = Number(u.putere) || 0; });
-      var primId = getPrimId();
-      var payments = {};
-      state.statii.forEach(function (s) {
-        var sub = E.computeStation(stationCfg(s, puteri, primId, { nouUtilizatori: nouList, nouUtilizator: nouList.length === 1 ? nouList[0] : null }));
-        E.mergePayments(payments, sub.payments);
-      });
-      res = { model: 'station', nouUtilizator: nouList.length === 1 ? nouList[0] : null, nouUtilizatori: nouList, payments: payments };
-    } else {
-      res = E.compute(model, buildConfig(model));
-    }
+    var res = E.compute(model, buildConfig(model));
     if (!res.nouUtilizatori) res.nouUtilizatori = nouList;
     results = res;
 
@@ -248,24 +331,51 @@
       res.totals = E.totals(res.payments, state.utilizatori);
     }
     results.central = central;
-    results.conditions = E.checkConditions(state.conditii);
+    results.conditions = E.checkConditions(currentConditions());
+    results.warnings = check.warnings;
   }
 
   /* ----------------------- rendering ----------------------- */
+  // Selector care identifică elementul focusat după atributele data-*,
+  // ca să-l putem reface după re-randare.
+  function focusSelector(el) {
+    if (!el || !el.dataset || el === document.body) return null;
+    var keys = Object.keys(el.dataset);
+    if (!keys.length) return null;
+    return el.tagName.toLowerCase() + keys.map(function (k) {
+      return '[data-' + k.replace(/[A-Z]/g, function (m) { return '-' + m.toLowerCase(); }) +
+        '="' + String(el.dataset[k]).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"]';
+    }).join('');
+  }
+
   function render() {
-    document.getElementById('app').innerHTML =
+    var app = document.getElementById('app');
+    var sel = focusSelector(document.activeElement);
+    var scrollY = global.scrollY;
+    app.innerHTML =
       renderHeader() +
       renderTabs() +
-      '<main class="content">' + renderTab() + '</main>';
+      '<main class="content" id="panel" role="tabpanel" aria-labelledby="tab-' + activeTab + '">' + renderTab() + '</main>';
+    if (sel) {
+      try {
+        var again = app.querySelector(sel);
+        if (again) again.focus({ preventScroll: true });
+      } catch (e) { /* selector invalid — se renunță la refocalizare */ }
+    }
+    global.scrollTo(0, scrollY);
+    updateUndoButton();
+    updateSaveStatus();
   }
 
   function renderHeader() {
     return '' +
       '<header class="topbar">' +
-      '<div class="brand"><span class="logo">CD</span>' +
-      '<div><h1>Compensatii bănești — racordare în etape diferite</h1>' +
+      '<div class="brand"><span class="logo" aria-hidden="true">CD</span>' +
+      '<div><h1>Compensații bănești — racordare în etape diferite</h1>' +
       '<p class="sub">Metodologie ANRE 2015 · Ordinul nr. 180/2015 · instalație comună, rețele electrice de interes public</p></div></div>' +
       '<div class="topbar-actions">' +
+      '<span id="save-status" class="save-status ok" role="status">Salvat local</span>' +
+      '<button data-action="undo" class="btn ghost" title="Anulează ultima modificare distructivă (ștergere, import, demo, proiect nou)" disabled>↶ Anulează</button>' +
       '<button data-action="demo-u4" class="btn ghost" title="Încarcă scenariul U4 din modelul xlsx">Demo U4</button>' +
       '<button data-action="demo-u6" class="btn ghost" title="Încarcă scenariul U6 din modelul xlsx">Demo U6</button>' +
       '<button data-action="new" class="btn ghost">Proiect nou</button>' +
@@ -281,8 +391,9 @@
       ['instalatie', '3 · Instalație'],
       ['rezultate', '4 · Rezultate']
     ];
-    return '<nav class="tabs">' + tabs.map(function (t) {
-      return '<button data-action="tab" data-tab="' + t[0] + '" class="' + (activeTab === t[0] ? 'active' : '') + '">' + t[1] + '</button>';
+    return '<nav class="tabs" role="tablist" aria-label="Pașii calculului">' + tabs.map(function (t) {
+      var on = activeTab === t[0];
+      return '<button role="tab" id="tab-' + t[0] + '" aria-selected="' + on + '" aria-controls="panel" data-action="tab" data-tab="' + t[0] + '" class="' + (on ? 'active' : '') + '">' + t[1] + '</button>';
     }).join('') + '</nav>';
   }
 
@@ -324,7 +435,7 @@
       field('Operator de rețea', text('meta.operator', m.operator)) +
       field('Cod operator', text('meta.codOperator', m.codOperator)) +
       field('Data întocmirii', '<input type="date" data-bind="meta.dataCalcul" value="' + esc(m.dataCalcul) + '">') +
-      field('Cotă TVA (%)', '<input type="number" step="0.01" min="0" data-bind="meta.tva" value="' + esc(m.tva) + '">') +
+      field('Cotă TVA (%)', '<input type="number" step="0.01" min="0" max="100" data-bind="meta.tva" value="' + esc(m.tva) + '">') +
       field('Aplică TVA în centralizator', checkbox('meta.withTva', m.withTva)) +
       field('Model de calcul', '<select data-bind="meta.model">' + models.map(function (o) {
         return '<option value="' + o[0] + '"' + (m.model === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
@@ -348,10 +459,10 @@
       var label = esc(nume) + pa +
         (isPrim ? ' <span class="muted">(prim utilizator — receptor)</span>' : '');
       return '<label class="chk' + (isPrim ? ' disabled' : '') + '">' +
-        '<input type="checkbox" data-action="new-user" data-id="' + u.id + '"' +
+        '<input type="checkbox" data-action="new-user" data-id="' + esc(u.id) + '"' +
         (checked ? ' checked' : '') + (isPrim ? ' disabled' : '') + '> ' + label + '</label>';
     }).join('') + '</div>' +
-    (sel.length > 1 ? '<p class="hint">Fiecare utilizator nou plătește pe tronsonul/stația pe care este adăugat. Se pot selecta mai mulți.</p>' : '');
+    (sel.length > 1 ? '<p class="hint">Fiecare utilizator nou plătește pe tronsonul/stația pe care este adăugat. Se pot selecta mai mulți. Atenție: fiecare este calculat independent, ca și cum s-ar racorda singur (modelul din anexe); la racordare simultană pe același tronson, sumele cumulate pot diferi de o repartizare unică în cote egale.</p>' : '');
   }
 
   function helperDate() {
@@ -375,15 +486,15 @@
   function renderUsers() {
     var rows = state.utilizatori.map(function (u) {
       return '<tr>' +
-        '<td>' + text('user.' + u.id + '.codPA', u.codPA) + '</td>' +
-        '<td>' + text('user.' + u.id + '.nume', u.nume) + '</td>' +
-        '<td>' + number('user.' + u.id + '.putere', u.putere) + '</td>' +
-        '<td><input type="date" data-bind="user.' + u.id + '.dataATR" value="' + esc(u.dataATR) + '"></td>' +
-        '<td><input type="date" data-bind="user.' + u.id + '.dataTR" value="' + esc(u.dataTR) + '"></td>' +
-        '<td><select data-bind="user.' + u.id + '.tipClient">' +
+        '<td>' + text('user.' + esc(u.id) + '.codPA', u.codPA, 'Cod PA') + '</td>' +
+        '<td>' + text('user.' + esc(u.id) + '.nume', u.nume, 'Nume / denumire') + '</td>' +
+        '<td>' + number('user.' + esc(u.id) + '.putere', u.putere, 'Putere aprobată (kVA)') + '</td>' +
+        '<td><input type="date" aria-label="Data ATR" data-bind="user.' + esc(u.id) + '.dataATR" value="' + esc(u.dataATR) + '"></td>' +
+        '<td><input type="date" aria-label="Data achitare TR" data-bind="user.' + esc(u.id) + '.dataTR" value="' + esc(u.dataTR) + '"></td>' +
+        '<td><select aria-label="Tip client" data-bind="user.' + esc(u.id) + '.tipClient">' +
           opts([['noncasnic', 'Non-casnic'], ['casnic', 'Casnic']], u.tipClient) + '</select></td>' +
-        '<td class="center">' + checkbox('user.' + u.id + '.prim', u.prim) + '</td>' +
-        '<td><button class="btn tiny danger" data-action="del-user" data-id="' + u.id + '">Șterge</button></td>' +
+        '<td class="center">' + checkbox('user.' + esc(u.id) + '.prim', u.prim, 'Prim utilizator') + '</td>' +
+        '<td><button class="btn tiny danger" data-action="del-user" data-id="' + esc(u.id) + '" aria-label="Șterge utilizatorul ' + esc(u.nume || u.codPA || '') + '">Șterge</button></td>' +
         '</tr>';
     }).join('');
 
@@ -428,27 +539,27 @@
 
   function renderLines() {
     var body = state.linii.map(function (l) {
-      var bL = Number(l.bL) || 0;
+      var bL = lineBl(l);
       return '<div class="card">' +
         '<div class="card-head">' +
-          '<input class="line-title" data-bind="line.' + l.id + '.nume" value="' + esc(l.nume) + '" placeholder="Denumire linie">' +
-          '<button class="btn tiny danger" data-action="del-line" data-id="' + l.id + '">Șterge linia</button>' +
+          '<input class="line-title" data-bind="line.' + esc(l.id) + '.nume" value="' + esc(l.nume) + '" placeholder="Denumire linie" aria-label="Denumire linie">' +
+          '<button class="btn tiny danger" data-action="del-line" data-id="' + esc(l.id) + '">Șterge linia</button>' +
         '</div>' +
         '<div class="row3">' +
-          field('① Cost lucrări linie I_L (lei)', number('line.' + l.id + '.IL', l.IL)) +
-          field('② Lungime totală L (m)', number('line.' + l.id + '.L', l.L)) +
+          field('① Cost lucrări linie I_L (lei)', number('line.' + esc(l.id) + '.IL', l.IL)) +
+          field('② Lungime totală L (m)', number('line.' + esc(l.id) + '.L', l.L)) +
           field('③ Cost specific b_L (lei/m) — automat = I_L / L',
-            number('line.' + l.id + '.bL', l.bL) +
-            '<button type="button" class="linkish bL-auto" data-action="line-bl-auto" data-line="' + l.id + '"' +
+            number('line.' + esc(l.id) + '.bL', l.bL) +
+            '<button type="button" class="linkish bL-auto" data-action="line-bl-auto" data-line="' + esc(l.id) + '"' +
             (l.bLManual ? '' : ' hidden') + '>↺ recalcul automat din I_L / L</button>') +
         '</div>' +
         '<p class="hint">Costul fiecărui tronson se calculează automat ca <strong>lungime × b_L = ' +
-          '<span data-line-bl="' + l.id + '">' + money(bL) + '</span> lei/m</strong>. ' +
+          '<span data-line-bl="' + esc(l.id) + '">' + money(bL) + '</span> lei/m</strong>. ' +
           'Completează doar lungimea tronsoanelor; poți trece pe „manual” dacă ai valoarea exactă. ' +
-          '<span data-line-status="' + l.id + '">' + lineStatusHtml(l) + '</span></p>' +
+          '<span data-line-status="' + esc(l.id) + '">' + lineStatusHtml(l) + '</span></p>' +
         '<div class="toolbar"><strong>Tronsoane</strong>' +
-          '<button class="btn tiny" data-action="add-tronson" data-line="' + l.id + '">+ Tronson</button>' +
-          '<button class="btn tiny ghost" data-action="auto-all-tronson" data-line="' + l.id + '" title="Recalculează toate tronsoanele din lungime × b_L">↺ Recalculează toate</button></div>' +
+          '<button class="btn tiny" data-action="add-tronson" data-line="' + esc(l.id) + '">+ Tronson</button>' +
+          '<button class="btn tiny ghost" data-action="auto-all-tronson" data-line="' + esc(l.id) + '" title="Recalculează toate tronsoanele din lungime × b_L">↺ Recalculează toate</button></div>' +
         '<div class="table-wrap"><table class="grid"><thead><tr>' +
           '<th>Denumire</th><th>Lungime (m)</th><th>Cost (lei, auto)</th><th>Utilizatori folosesc tronsonul</th><th></th>' +
         '</tr></thead><tbody>' + (l.tronsoane.map(function (t) { return tronsonRow(l, t); }).join('') ||
@@ -495,73 +606,78 @@
     };
   }
 
-  function tronsonCost(l, t) {
-    if (t.costManual && t.cost !== '' && t.cost !== undefined && t.cost !== null) return Number(t.cost) || 0;
-    return (Number(t.lungime) || 0) * (Number(l.bL) || 0);
-  }
-
   function tronsonRow(l, t) {
     var chips = (t.utilizatori || []).map(function (uid) {
       return '<span class="chip">' + esc(nameOf(uid)) +
-        '<button class="mini" data-action="trs-up" data-line="' + l.id + '" data-trs="' + t.id + '" data-uid="' + uid + '" title="sus">↑</button>' +
-        '<button class="mini" data-action="trs-down" data-line="' + l.id + '" data-trs="' + t.id + '" data-uid="' + uid + '" title="jos">↓</button>' +
-        '<button class="mini danger" data-action="trs-remove" data-line="' + l.id + '" data-trs="' + t.id + '" data-uid="' + uid + '" title="elimină">✕</button>' +
+        '<button class="mini" data-action="trs-up" data-line="' + esc(l.id) + '" data-trs="' + esc(t.id) + '" data-uid="' + esc(uid) + '" title="sus" aria-label="Mută mai sus">↑</button>' +
+        '<button class="mini" data-action="trs-down" data-line="' + esc(l.id) + '" data-trs="' + esc(t.id) + '" data-uid="' + esc(uid) + '" title="jos" aria-label="Mută mai jos">↓</button>' +
+        '<button class="mini danger" data-action="trs-remove" data-line="' + esc(l.id) + '" data-trs="' + esc(t.id) + '" data-uid="' + esc(uid) + '" title="elimină" aria-label="Elimină utilizatorul">✕</button>' +
       '</span>';
     }).join(' ');
     var avail = state.utilizatori.filter(function (u) { return (t.utilizatori || []).indexOf(u.id) < 0; });
-    var addSel = '<select class="add-user-sel" data-action="trs-add" data-line="' + l.id + '" data-trs="' + t.id + '">' +
+    var addSel = '<select class="add-user-sel" data-action="trs-add" data-line="' + esc(l.id) + '" data-trs="' + esc(t.id) + '" aria-label="Adaugă utilizator pe tronson">' +
       '<option value="">+ utilizator…</option>' +
-      avail.map(function (u) { return '<option value="' + u.id + '">' + esc(u.nume || u.codPA) + '</option>'; }).join('') +
+      avail.map(function (u) { return '<option value="' + esc(u.id) + '">' + esc(u.nume || u.codPA) + '</option>'; }).join('') +
       '</select>';
     var costVal = tronsonCost(l, t);
     var costCell;
     if (t.costManual) {
-      costCell = number('tronson.' + l.id + '.' + t.id + '.cost', t.cost) +
-        '<div class="mini-actions"><button class="linkish" data-action="trs-cost-auto" data-line="' + l.id + '" data-trs="' + t.id + '">↺ automat</button></div>';
+      costCell = number('tronson.' + esc(l.id) + '.' + esc(t.id) + '.cost', t.cost, 'Cost tronson (lei)') +
+        '<div class="mini-actions"><button class="linkish" data-action="trs-cost-auto" data-line="' + esc(l.id) + '" data-trs="' + esc(t.id) + '">↺ automat</button></div>';
     } else {
-      costCell = '<span class="auto-val" data-derived-cost="' + l.id + '-' + t.id + '" title="Calculat automat: lungime × b_L">' + money(costVal) + ' lei</span>' +
-        '<div class="mini-actions"><button class="linkish" data-action="trs-cost-manual" data-line="' + l.id + '" data-trs="' + t.id + '">✎ manual</button></div>';
+      costCell = '<span class="auto-val" data-derived-cost="' + esc(l.id) + '-' + esc(t.id) + '" title="Calculat automat: lungime × b_L">' + money(costVal) + ' lei</span>' +
+        '<div class="mini-actions"><button class="linkish" data-action="trs-cost-manual" data-line="' + esc(l.id) + '" data-trs="' + esc(t.id) + '">✎ manual</button></div>';
     }
     return '<tr>' +
-      '<td>' + text('tronson.' + l.id + '.' + t.id + '.nume', t.nume) + '</td>' +
-      '<td>' + number('tronson.' + l.id + '.' + t.id + '.lungime', t.lungime) + '</td>' +
+      '<td>' + text('tronson.' + esc(l.id) + '.' + esc(t.id) + '.nume', t.nume, 'Denumire tronson') + '</td>' +
+      '<td>' + number('tronson.' + esc(l.id) + '.' + esc(t.id) + '.lungime', t.lungime, 'Lungime tronson (m)') + '</td>' +
       '<td class="cost-cell">' + costCell + '</td>' +
       '<td><div class="chips">' + (chips || '<span class="muted">—</span>') + '</div>' + addSel + '</td>' +
-      '<td><button class="btn tiny danger" data-action="del-tronson" data-line="' + l.id + '" data-trs="' + t.id + '">Șterge</button></td>' +
+      '<td><button class="btn tiny danger" data-action="del-tronson" data-line="' + esc(l.id) + '" data-trs="' + esc(t.id) + '">Șterge</button></td>' +
       '</tr>';
+  }
+
+  function stationHintHtml(s) {
+    var SnEf = (Number(s.Sn) || 0) - (Number(s.SnRezerva) || 0);
+    return 'b_T = I_T / S_n efectiv = ' + money(Number(s.IT) || 0) + ' / ' + money(SnEf) +
+      ' = <strong>' + money(SnEf > 0 ? (Number(s.IT) || 0) / SnEf : 0) + ' lei/kVA</strong>' +
+      (Number(s.SnRezerva) > 0 ? ' (S_n efectiv exclude transformatorul de rezervă, art. 15 alin. 4)' : '') +
+      '. Compensația fiecărui utilizator nou = puterea sa aprobată × b_T.';
+  }
+
+  function refreshStationDerived(stId) {
+    var st = byId(state.statii, stId);
+    var node = document.querySelector('[data-st-hint="' + stId + '"]');
+    if (st && node) node.innerHTML = stationHintHtml(st);
   }
 
   function renderStations() {
     var body = state.statii.map(function (s) {
       var chips = (s.utilizatori || []).map(function (uid) {
         return '<span class="chip">' + esc(nameOf(uid)) +
-          '<button class="mini" data-action="st-up" data-st="' + s.id + '" data-uid="' + uid + '" title="sus">↑</button>' +
-          '<button class="mini" data-action="st-down" data-st="' + s.id + '" data-uid="' + uid + '" title="jos">↓</button>' +
-          '<button class="mini danger" data-action="st-remove" data-st="' + s.id + '" data-uid="' + uid + '" title="elimină">✕</button>' +
+          '<button class="mini" data-action="st-up" data-st="' + esc(s.id) + '" data-uid="' + esc(uid) + '" title="sus" aria-label="Mută mai sus">↑</button>' +
+          '<button class="mini" data-action="st-down" data-st="' + esc(s.id) + '" data-uid="' + esc(uid) + '" title="jos" aria-label="Mută mai jos">↓</button>' +
+          '<button class="mini danger" data-action="st-remove" data-st="' + esc(s.id) + '" data-uid="' + esc(uid) + '" title="elimină" aria-label="Elimină utilizatorul">✕</button>' +
         '</span>';
       }).join(' ');
       var avail = state.utilizatori.filter(function (u) { return (s.utilizatori || []).indexOf(u.id) < 0; });
-      var SnEf = (Number(s.Sn) || 0) - (Number(s.SnRezerva) || 0);
       return '<div class="card"><div class="card-head">' +
-        '<input class="line-title" data-bind="stat.' + s.id + '.nume" value="' + esc(s.nume) + '" placeholder="Denumire stație / PT">' +
-        '<button class="btn tiny danger" data-action="del-stat" data-id="' + s.id + '">Șterge</button></div>' +
+        '<input class="line-title" data-bind="stat.' + esc(s.id) + '.nume" value="' + esc(s.nume) + '" placeholder="Denumire stație / PT" aria-label="Denumire stație / PT">' +
+        '<button class="btn tiny danger" data-action="del-stat" data-id="' + esc(s.id) + '">Șterge</button></div>' +
         '<div class="row3">' +
-          field('Capacitate nominală S_n (kVA)', number('stat.' + s.id + '.Sn', s.Sn)) +
-          field('Transformator de rezervă N-1 (kVA) — exclus din b_T', number('stat.' + s.id + '.SnRezerva', s.SnRezerva)) +
-          field('Cost lucrări I_T (lei)', number('stat.' + s.id + '.IT', s.IT)) +
+          field('Capacitate nominală S_n (kVA)', number('stat.' + esc(s.id) + '.Sn', s.Sn)) +
+          field('Transformator de rezervă N-1 (kVA) — exclus din b_T', number('stat.' + esc(s.id) + '.SnRezerva', s.SnRezerva)) +
+          field('Cost lucrări I_T (lei)', number('stat.' + esc(s.id) + '.IT', s.IT)) +
         '</div>' +
         '<div class="row2">' +
-          field('Echipamente comune, altele decât transformatoare (lei)', number('stat.' + s.id + '.elementeComune', s.elementeComune)) +
+          field('Echipamente comune, altele decât transformatoare (lei)', number('stat.' + esc(s.id) + '.elementeComune', s.elementeComune)) +
         '</div>' +
         '<div class="toolbar"><strong>Utilizatori (primul utilizator se bifează la pasul 2 „Utilizatori”)</strong></div>' +
         '<div class="chips">' + (chips || '<span class="muted">—</span>') + '</div>' +
-        '<select data-action="st-add" data-st="' + s.id + '"><option value="">+ utilizator…</option>' +
-          avail.map(function (u) { return '<option value="' + u.id + '">' + esc(u.nume || u.codPA) + '</option>'; }).join('') +
+        '<select aria-label="Adaugă utilizator în stație" data-action="st-add" data-st="' + esc(s.id) + '"><option value="">+ utilizator…</option>' +
+          avail.map(function (u) { return '<option value="' + esc(u.id) + '">' + esc(u.nume || u.codPA) + '</option>'; }).join('') +
         '</select>' +
-        '<p class="hint">b_T = I_T / S_n efectiv = ' + money(Number(s.IT) || 0) + ' / ' + money(SnEf) +
-          ' = <strong>' + money(SnEf > 0 ? (Number(s.IT) || 0) / SnEf : 0) + ' lei/kVA</strong>' +
-          (Number(s.SnRezerva) > 0 ? ' (S_n efectiv exclude transformatorul de rezervă, art. 15 alin. 4)' : '') +
-          '. Compensația fiecărui utilizator nou = puterea sa aprobată × b_T.</p>' +
+        '<p class="hint" data-st-hint="' + esc(s.id) + '">' + stationHintHtml(s) + '</p>' +
       '</div>';
     }).join('');
 
@@ -592,16 +708,16 @@
     var c = state.complexConfig;
     var variants = [1, 2, 3, 4];
     var liniiChk = state.linii.map(function (l) {
-      return '<label class="chk"><input type="checkbox" data-action="cx-line" data-id="' + l.id + '"' +
+      return '<label class="chk"><input type="checkbox" data-action="cx-line" data-id="' + esc(l.id) + '"' +
         (c.liniiIds.indexOf(l.id) >= 0 ? ' checked' : '') + '> ' + esc(l.nume) + '</label>';
     }).join('') || '<span class="muted">Nu există linii configurate.</span>';
     var liniiU2Chk = state.linii.map(function (l) {
-      return '<label class="chk"><input type="checkbox" data-action="cx-line-u2" data-id="' + l.id + '"' +
+      return '<label class="chk"><input type="checkbox" data-action="cx-line-u2" data-id="' + esc(l.id) + '"' +
         (c.liniiU2Ids.indexOf(l.id) >= 0 ? ' checked' : '') + '> ' + esc(l.nume) + '</label>';
     }).join('') || '<span class="muted">—</span>';
     var v = Number(c.varianta) || 1;
     var statiiChk = state.statii.map(function (s) {
-      return '<label class="chk"><input type="checkbox" data-action="cx-stat" data-id="' + s.id + '"' +
+      return '<label class="chk"><input type="checkbox" data-action="cx-stat" data-id="' + esc(s.id) + '"' +
         (c.statiiIds.indexOf(s.id) >= 0 ? ' checked' : '') + '> ' + esc(s.nume) + '</label>';
     }).join('') || '<span class="muted">Nu există stații configurate.</span>';
 
@@ -683,9 +799,9 @@
     var d = state.dezvoltator;
     var rows = (d.dezvoltatori || []).map(function (x) {
       return '<tr>' +
-        '<td>' + text('devitem.' + x.id + '.nume', x.nume) + '</td>' +
-        '<td>' + number('devitem.' + x.id + '.putere', x.putere) + '</td>' +
-        '<td><button class="btn tiny danger" data-action="del-dev" data-id="' + x.id + '">Șterge</button></td>' +
+        '<td>' + text('devitem.' + esc(x.id) + '.nume', x.nume, 'Denumire dezvoltator') + '</td>' +
+        '<td>' + number('devitem.' + esc(x.id) + '.putere', x.putere, 'Putere aprobată (kVA)') + '</td>' +
+        '<td><button class="btn tiny danger" data-action="del-dev" data-id="' + esc(x.id) + '">Șterge</button></td>' +
         '</tr>';
     }).join('');
     return section('Anexa 5 — rețea publică finanțată de un prim dezvoltator',
@@ -719,37 +835,50 @@
   /* ---------- tab: rezultate ---------- */
   function renderResults() {
     var c = state.conditii;
-    var condHtml = E.checkConditions(c).map(function (x, i) {
-      var keys = ['primCapacitateMaiMare', 'capacitateDisponibila', 'aniDeLaPF', 'solutieComuna', 'tarifAchitatIntegral'];
+    var years = effectiveYears();
+    var fromDate = !!(c.dataPIF && state.meta.dataCalcul);
+    var keys = ['primCapacitateMaiMare', 'capacitateDisponibila', 'aniDeLaPF', 'solutieComuna', 'tarifAchitatIntegral'];
+    var condHtml = E.checkConditions(currentConditions()).map(function (x, i) {
       var k = keys[i];
       if (k === 'aniDeLaPF') {
         return '<li class="' + (x.ok ? 'ok' : 'bad') + '">' + esc(x.mesaj) +
-          ' <input type="number" min="0" data-bind="cond.aniDeLaPF" value="' + esc(c.aniDeLaPF) + '" class="inline-num"></li>';
+          '<div class="years-row">' +
+          '<label>Data punerii în funcțiune: <input type="date" data-bind="cond.dataPIF" value="' + esc(c.dataPIF) + '"></label> ' +
+          '<label>sau ani (manual): <input type="number" min="0" step="0.1" data-bind="cond.aniDeLaPF" value="' + esc(c.aniDeLaPF) + '" class="inline-num"' + (fromDate ? ' disabled' : '') + ' aria-label="Ani de la punerea în funcțiune (manual)"></label>' +
+          (fromDate ? ' <span class="hint">calculat din date: ' + esc(years) + ' ani (la data întocmirii)</span>' : '') +
+          '</div></li>';
       }
       return '<li class="' + (x.ok ? 'ok' : 'bad') + '"><label class="chk"><input type="checkbox" data-bind="cond.' + k + '"' + (c[k] ? ' checked' : '') + '> ' + esc(x.mesaj) + '</label></li>';
     }).join('');
 
-    var warnings = readinessWarnings();
-    var warnHtml = warnings.length
-      ? '<div class="card warn-card"><strong>Înainte de calcul</strong><ul class="conds">' +
-        warnings.map(function (w) { return '<li class="bad">' + esc(w) + '</li>'; }).join('') + '</ul></div>'
-      : '';
+    var check = V.validate(state);
+    var listHtml = '';
+    if (check.errors.length) {
+      listHtml += '<div class="card err-card" role="alert"><strong>De corectat înainte de calcul</strong><ul class="conds">' +
+        check.errors.map(function (w) { return '<li class="bad">' + esc(w) + '</li>'; }).join('') + '</ul></div>';
+    }
+    if (check.warnings.length) {
+      listHtml += '<div class="card warn-card"><strong>Atenție</strong><ul class="conds">' +
+        check.warnings.map(function (w) { return '<li class="bad">' + esc(w) + '</li>'; }).join('') + '</ul></div>';
+    }
 
     var resultHtml;
     if (results && results.error) {
-      resultHtml = '<div class="card warn-card"><strong>Nu se poate calcula</strong><p>' + esc(results.error) + '</p></div>';
+      resultHtml = '<div class="card warn-card" role="alert"><strong>Nu se poate calcula</strong><p>' + esc(results.error) + '</p></div>';
     } else {
       resultHtml = results ? renderResultsBody() : '<p class="muted">Apasă butonul „Calculează compensațiile”.</p>';
     }
+    var canExport = !!(results && !results.error && results.central);
+    var canPrint = !!(results && !results.error);
 
     return section('Rezultate',
       '<div class="toolbar">' +
         '<button class="btn primary" data-action="calc">Calculează compensațiile</button>' +
-        '<button class="btn ghost" data-action="export-csv"' + (results ? '' : ' disabled') + '>Export CSV</button>' +
-        '<button class="btn ghost" data-action="print"' + (results ? '' : ' disabled') + '>Printează / PDF</button>' +
-      '</div>' + warnHtml +
+        '<button class="btn ghost" data-action="export-csv"' + (canExport ? '' : ' disabled') + '>Export CSV</button>' +
+        '<button class="btn ghost" data-action="print"' + (canPrint ? '' : ' disabled') + '>Printează / PDF</button>' +
+      '</div>' + (results ? '<p class="hint">Rezultatul se actualizează automat când modifici datele.</p>' : '') + listHtml +
       '<div class="card"><strong>Verificarea condițiilor cumulative (Art. 8)</strong><ul class="conds">' + condHtml + '</ul></div>' +
-      resultHtml,
+      '<div id="results-region" aria-live="polite">' + resultHtml + '</div>',
       helperResults()
     );
   }
@@ -768,30 +897,6 @@
       note: 'Noul utilizator plătește fiecare utilizator anterior; totalul pe coloane = suma primită de fiecare.',
       refs: 'Ref.: art. 7–8 și art. 12–16 din Metodologie.'
     };
-  }
-
-  function readinessWarnings() {
-    var w = [];
-    var model = state.meta.model;
-    if (state.utilizatori.length < 2) w.push('Adaugă cel puțin 2 utilizatori (unul este utilizator nou) în tabul „2 · Utilizatori”.');
-    if (!getPrimId()) w.push('Bifează primul utilizator (finanțatorul, cel care primește compensații) în tabul „2 · Utilizatori”.');
-    if (!getNewIds().length) w.push('Bifează cel puțin un utilizator nou (cel care plătește) în tabul „1 · Date generale”.');
-    if (roleConflict()) w.push('Un utilizator nou nu poate fi și primul utilizator. Scoate-l din noii utilizatori.');
-    if (model === 'line') {
-      if (!state.linii.length) w.push('Adaugă cel puțin o linie în tabul „3 · Instalație”.');
-      var trsCuUser = 0;
-      state.linii.forEach(function (l) {
-        (l.tronsoane || []).forEach(function (t) { if ((t.utilizatori || []).length) trsCuUser++; });
-      });
-      if (state.linii.length && !trsCuUser) w.push('Adaugă utilizatori pe tronsoane (butonul „+ utilizator…” din tabelul tronsoanelor).');
-    } else if (model === 'station') {
-      if (!state.statii.length) w.push('Adaugă o stație / PT în tabul „3 · Instalație”.');
-    } else if (model === 'complex') {
-      if (!state.complexConfig.liniiIds.length && !state.complexConfig.statiiIds.length) w.push('Selectează cel puțin o linie sau o stație în tabul „3 · Instalație”.');
-    } else if (model === 'developer') {
-      if (!(state.dezvoltator.dezvoltatori || []).length) w.push('Adaugă cel puțin un dezvoltator în tabul „3 · Instalație”.');
-    }
-    return w;
   }
 
   function renderResultsBody() {
@@ -824,6 +929,10 @@
 
     var cond = results.conditions;
     var blocante = cond.filter(function (x) { return !x.ok; }).length;
+    var printHead = '<div class="print-head"><strong>' + esc(state.meta.operator || '') + '</strong>' +
+      (state.meta.codOperator ? ' · cod operator ' + esc(state.meta.codOperator) : '') +
+      ' · data întocmirii: ' + esc(state.meta.dataCalcul || '') +
+      ' · ' + esc(modelLabel(state.meta.model)) + '</div>';
 
     var titlu;
     if (central.newList.length === 1) {
@@ -834,7 +943,8 @@
     }
 
     return '<div class="card highlight">' +
-      '<h3>' + titlu + '</h3>' +
+      printHead +
+      '<h3>' + titlu + (blocante ? ' <span class="badge warn">INFORMATIV — condiții Art. 8 neîndeplinite</span>' : '') + '</h3>' +
       '<p class="hint">Utilizatorii noi plătesc compensații utilizatorilor racordați anterior (primul utilizator este receptorul principal).</p>' +
       (blocante ? '<p class="warn">Atenție: ' + blocante + ' condiții (Art. 8) nu sunt îndeplinite. Compensația se calculează doar dacă sunt îndeplinite cumulativ.</p>' : '<p class="okmsg">Toate condițiile Art. 8 sunt îndeplinite.</p>') +
       '<div class="table-wrap"><table class="grid"><thead><tr>' +
@@ -843,8 +953,16 @@
       '<tbody>' + rowHtml + '</tbody><tfoot><tr class="total"><td colspan="' + (multi ? 4 : 2) + '">Total</td><td class="num">' +
         money(central.totalFaraTVA) + '</td><td class="num">' + money(central.totalCuTVA) + '</td></tr></tfoot></table></div>' +
       renderPerNou(central, multi) +
-      '<p class="hint">Semnat: elaborator operator de rețea. Valorile în ' + (state.meta.operator || '') + '</p>' +
+      '<div class="signatures"><span>Întocmit: ' + esc(state.meta.operator || 'operator de rețea') + '</span>' +
+      '<span>Semnătură: ____________________</span></div>' +
       '</div>' + renderDetails();
+  }
+
+  function modelLabel(m) {
+    return {
+      line: 'Anexa 1 — linie electrică', station: 'Anexa 2 — stație / PT', complex: 'Anexa 3 — instalație complexă',
+      transitional: 'Anexa 4 — tranzitoriu', developer: 'Anexa 5 — dezvoltator'
+    }[m] || m;
   }
 
   function renderPerNou(central, multi) {
@@ -871,12 +989,15 @@
       return '<details class="card"><summary>Detaliu pe tronsoane</summary>' + det + '</details>';
     }
     if (res.model === 'station') {
-      var rez = Number(res.SnRezerva) > 0
-        ? '<br>S_n efectiv = ' + money(res.Sn) + ' − ' + money(res.SnRezerva) + ' (rezervă N-1) = ' + money(res.SnEfectiv) + ' kVA'
-        : '';
-      return '<details class="card"><summary>Detaliu stație</summary>' +
-        '<p>b_T = I_T / S_n = ' + money(res.IT) + ' / ' + money(res.SnEfectiv) + ' = <strong>' + money(res.bT) + ' lei/kVA</strong>' + rez + '</p>' +
-        '</details>';
+      var blocks = (res.statii || []).map(function (st, i) {
+        var nm = (state.statii[i] && state.statii[i].nume) || ('Stația ' + (i + 1));
+        var rez = Number(st.SnRezerva) > 0
+          ? '<br>S_n efectiv = ' + money(st.Sn) + ' − ' + money(st.SnRezerva) + ' (rezervă N-1) = ' + money(st.SnEfectiv) + ' kVA'
+          : '';
+        return '<p><strong>' + esc(nm) + '</strong>: b_T = I_T / S_n = ' + money(st.IT) + ' / ' + money(st.SnEfectiv) +
+          ' = <strong>' + money(st.bT) + ' lei/kVA</strong>' + rez + '</p>';
+      }).join('');
+      return '<details class="card"><summary>Detaliu stații</summary>' + blocks + '</details>';
     }
     if (res.model === 'complex') {
       var comps = res.components.map(function (c) {
@@ -890,6 +1011,8 @@
   }
 
   /* ----------------------- export ----------------------- */
+  function csvText(v) { return '"' + String(v === undefined || v === null ? '' : v).replace(/"/g, '""') + '"'; }
+
   function toCsv() {
     var central = results && results.central;
     if (!central) return '';
@@ -899,16 +1022,17 @@
                       : ['Cod PA', 'Nume', 'Valoare fara TVA', 'Valoare cu TVA']).join(';'));
     central.rows.forEach(function (r) {
       var cols = multi
-        ? [r.deLaCodPA, '"' + (r.deLaNume || '').replace(/"/g, '""') + '"', r.codPA, '"' + (r.nume || '').replace(/"/g, '""') + '"']
-        : [r.codPA, '"' + (r.nume || '').replace(/"/g, '""') + '"'];
-      cols.push(String(r.faraTVA).replace('.', ','), String(r.cuTVA).replace('.', ','));
+        ? [csvText(r.deLaCodPA), csvText(r.deLaNume), csvText(r.codPA), csvText(r.nume)]
+        : [csvText(r.codPA), csvText(r.nume)];
+      cols.push(csvNum(r.faraTVA), csvNum(r.cuTVA));
       lines.push(cols.join(';'));
     });
     var tf = ['Total'];
-    if (multi) tf.push('');
-    tf.push('', String(central.totalFaraTVA).replace('.', ','), String(central.totalCuTVA).replace('.', ','));
+    while (tf.length < (multi ? 4 : 2)) tf.push('');
+    tf.push(csvNum(central.totalFaraTVA), csvNum(central.totalCuTVA));
     lines.push(tf.join(';'));
-    return lines.join('\r\n');
+    // BOM UTF-8: Excel recunoaște diacriticele.
+    return '\ufeff' + lines.join('\r\n');
   }
 
   function download(filename, content, mime) {
@@ -940,9 +1064,16 @@
   }
 
   function bindEvents() {
+    if (eventsBound) return;
+    eventsBound = true;
     document.addEventListener('click', onClick);
     document.addEventListener('change', onChange);
     document.addEventListener('input', onInput);
+    // Nu pierdem ultima tastare dacă pagina se închide în fereastra de debounce.
+    global.addEventListener('pagehide', function () { if (saveTimer) flushSave(); });
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden' && saveTimer) flushSave();
+    });
   }
 
   function onInput(e) {
@@ -959,7 +1090,8 @@
     } else {
       return; // checkbox/select -> tratate la 'change'
     }
-    S.save(state);
+    recompute();
+    saveSoon();
 
     // Actualizare țintită a valorilor derivate (b_L, cost tronsoane, status).
     var seg = path.split('.');
@@ -990,7 +1122,7 @@
     if (stNode) stNode.innerHTML = lineStatusHtml(l);
 
     (l.tronsoane || []).forEach(function (t) {
-      var c = document.querySelector('[data-derived-cost="' + lineId + '-' + t.id + '"]');
+      var c = document.querySelector('[data-derived-cost="' + lineId + '-' + esc(t.id) + '"]');
       if (c) c.textContent = money(tronsonCost(l, t)) + ' lei';
     });
   }
@@ -1015,9 +1147,19 @@
         state.utilizatori.forEach(function (u) { if (u.id !== chosen) u.prim = false; });
         setNewIds(getNewIds().filter(function (id) { return id !== chosen; }));
       }
-      S.save(state);
-      if (path === 'meta.model' || /^cond\./.test(path) || mPrim) { render(); return; }
-      if (path === 'meta.withTva' || path === 'meta.tva') { if (results) { runCalculation(); } render(); return; }
+      recompute();
+      saveNow();
+
+      // Câmpurile text/număr/dată nu schimbă structura ecranului: nu re-randăm
+      // (altfel focusul se pierde la Tab și navigarea cu tastatura se rupe).
+      var plain = (t.tagName === 'INPUT' && t.type !== 'checkbox' && t.type !== 'radio');
+      var structural = path === 'meta.model' || path === 'meta.dataCalcul' || /^cond\./.test(path) || !!mPrim;
+      if (plain && !structural) {
+        var seg = path.split('.');
+        if (seg[0] === 'line' || seg[0] === 'tronson') refreshLineDerived(seg[1]);
+        if (seg[0] === 'stat') refreshStationDerived(seg[1]);
+        return;
+      }
       render();
       return;
     }
@@ -1036,9 +1178,19 @@
     if (a === 'tab') { activeTab = el.dataset.tab; render(); return; }
     if (a === 'new-user') { toggleNewUser(el.dataset.id, el.checked); return; }
     if (a === 'add-user') { S.addUser(state); persistRender(); return; }
-    if (a === 'del-user') { delUser(el.dataset.id); return; }
+    if (a === 'undo') { undo(); return; }
+    if (a === 'del-user') {
+      if (confirm('Ștergi utilizatorul „' + nameOf(el.dataset.id) + '” (și apariția lui pe tronsoane/stații)? Poți anula cu „Anulează”.')) delUser(el.dataset.id);
+      return;
+    }
     if (a === 'add-line') { addLine(); return; }
-    if (a === 'del-line') { state.linii = state.linii.filter(function (l) { return l.id !== el.dataset.id; }); persistRender(); return; }
+    if (a === 'del-line') {
+      pushUndo();
+      state.linii = state.linii.filter(function (l) { return l.id !== el.dataset.id; });
+      state.complexConfig.liniiIds = state.complexConfig.liniiIds.filter(function (x) { return x !== el.dataset.id; });
+      state.complexConfig.liniiU2Ids = state.complexConfig.liniiU2Ids.filter(function (x) { return x !== el.dataset.id; });
+      persistRender(); return;
+    }
     if (a === 'add-tronson') { addTronson(el.dataset.line); return; }
     if (a === 'del-tronson') { delTronson(el.dataset.line, el.dataset.trs); return; }
     if (a === 'trs-cost-manual') { setTronsonManual(el.dataset.line, el.dataset.trs, true); return; }
@@ -1049,37 +1201,94 @@
     if (a === 'trs-down') { moveTronson(el.dataset.line, el.dataset.trs, el.dataset.uid, 1); return; }
     if (a === 'trs-remove') { removeTronsonUser(el.dataset.line, el.dataset.trs, el.dataset.uid); return; }
     if (a === 'add-stat') { addStation(); return; }
-    if (a === 'del-stat') { state.statii = state.statii.filter(function (s) { return s.id !== el.dataset.id; }); persistRender(); return; }
+    if (a === 'del-stat') {
+      pushUndo();
+      state.statii = state.statii.filter(function (s) { return s.id !== el.dataset.id; });
+      state.complexConfig.statiiIds = state.complexConfig.statiiIds.filter(function (x) { return x !== el.dataset.id; });
+      persistRender(); return;
+    }
     if (a === 'st-up') { moveStation(el.dataset.st, el.dataset.uid, -1); return; }
     if (a === 'st-down') { moveStation(el.dataset.st, el.dataset.uid, 1); return; }
     if (a === 'st-remove') { removeStationUser(el.dataset.st, el.dataset.uid); return; }
     if (a === 'add-dev') { state.dezvoltator.dezvoltatori.push({ id: S.uid('dev'), nume: 'Dezvoltator', putere: 0 }); persistRender(); return; }
-    if (a === 'del-dev') { state.dezvoltator.dezvoltatori = state.dezvoltator.dezvoltatori.filter(function (d) { return d.id !== el.dataset.id; }); persistRender(); return; }
-    if (a === 'calc') { runCalculation(); render(); return; }
+    if (a === 'del-dev') { pushUndo(); state.dezvoltator.dezvoltatori = state.dezvoltator.dezvoltatori.filter(function (d) { return d.id !== el.dataset.id; }); persistRender(); return; }
+    if (a === 'calc') { runCalculation(); render(); focusResults(); return; }
     if (a === 'export-csv') { download('centralizator-compensatii.csv', toCsv(), 'text/csv;charset=utf-8'); return; }
     if (a === 'print') { window.print(); return; }
     if (a === 'save-json') { download('proiect-compensatii.json', JSON.stringify(state, null, 2), 'application/json'); return; }
-    if (a === 'new') { if (confirm('Ștergi proiectul curent?')) { state = S.emptyProject(); S.save(state); render(); } return; }
-    if (a === 'demo-u4') { state = S.demoU4(); S.save(state); results = null; render(); return; }
-    if (a === 'demo-u6') { state = S.demoU6(); S.save(state); results = null; render(); return; }
-    if (a === 'cx-line') { toggleIn(state.complexConfig.liniiIds, el.dataset.id, el.checked); S.save(state); return; }
-    if (a === 'cx-line-u2') { toggleIn(state.complexConfig.liniiU2Ids, el.dataset.id, el.checked); S.save(state); return; }
-    if (a === 'cx-stat') { toggleIn(state.complexConfig.statiiIds, el.dataset.id, el.checked); S.save(state); return; }
+    if (a === 'new') { replaceProject(S.emptyProject(), 'Ștergi proiectul curent? Poți anula cu „Anulează”.'); return; }
+    if (a === 'demo-u4') { replaceProject(S.demoU4(), 'Încărcarea demo-ului înlocuiește proiectul curent. Continui? (Poți anula cu „Anulează”.)'); return; }
+    if (a === 'demo-u6') { replaceProject(S.demoU6(), 'Încărcarea demo-ului înlocuiește proiectul curent. Continui? (Poți anula cu „Anulează”.)'); return; }
+    if (a === 'cx-line') { toggleIn(state.complexConfig.liniiIds, el.dataset.id, el.checked); recompute(); saveNow(); return; }
+    if (a === 'cx-line-u2') { toggleIn(state.complexConfig.liniiU2Ids, el.dataset.id, el.checked); recompute(); saveNow(); return; }
+    if (a === 'cx-stat') { toggleIn(state.complexConfig.statiiIds, el.dataset.id, el.checked); recompute(); saveNow(); return; }
   }
 
+  var MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+
   function onChangeFile(e) {
-    var f = e.target.files && e.target.files[0];
+    var input = e.target;
+    var f = input.files && input.files[0];
     if (!f) return;
+    if (f.size > MAX_IMPORT_BYTES) {
+      toast('Fișierul este prea mare (max. 5 MB).', 'error');
+      input.value = '';
+      return;
+    }
     var reader = new FileReader();
     reader.onload = function () {
-      try { state = S.migrate(JSON.parse(reader.result)); S.save(state); deriveAll(); results = null; render(); }
-      catch (err) { alert('Fișier JSON invalid.'); }
+      var imported;
+      try {
+        imported = S.migrate(JSON.parse(reader.result));
+      } catch (err) {
+        toast('Import eșuat: ' + (err && err.message ? err.message : 'fișier JSON invalid') + ' — proiectul curent nu a fost modificat.', 'error');
+        input.value = '';
+        return;
+      }
+      if (!confirm('Importul înlocuiește proiectul curent cu „' + f.name + '”. Continui? (Poți anula cu „Anulează”.)')) {
+        input.value = '';
+        return;
+      }
+      pushUndo();
+      state = imported;
+      deriveAll();
+      results = null;
+      // Randăm întâi: dacă datele sunt inutilizabile, nu ajung persistate.
+      try {
+        render();
+      } catch (err2) {
+        undo();
+        toast('Import eșuat: structura proiectului este incompletă. Proiectul curent a fost păstrat.', 'error');
+        input.value = '';
+        return;
+      }
+      saveNow();
+      toast('Proiect importat din „' + f.name + '”.', 'info');
+      // Permite reimportul aceluiași fișier.
+      input.value = '';
     };
+    reader.onerror = function () { toast('Fișierul nu a putut fi citit.', 'error'); input.value = ''; };
     reader.readAsText(f);
   }
 
+  // Înlocuiește tot proiectul (nou / demo), cu confirmare și posibilitate de undo.
+  function replaceProject(next, message) {
+    if (!confirm(message)) return;
+    pushUndo();
+    state = next;
+    deriveAll();
+    results = null;
+    saveNow();
+    render();
+  }
+
+  function focusResults() {
+    var el = document.getElementById('results-region');
+    if (el) { el.setAttribute('tabindex', '-1'); el.focus({ preventScroll: false }); }
+  }
+
   /* ----------------------- mutations ----------------------- */
-  function persistRender() { S.save(state); render(); }
+  function persistRender() { recompute(); saveNow(); render(); }
 
   function toggleNewUser(id, on) {
     var sel = getNewIds();
@@ -1091,6 +1300,7 @@
   }
 
   function delUser(id) {
+    pushUndo();
     state.utilizatori = state.utilizatori.filter(function (u) { return u.id !== id; });
     state.linii.forEach(function (l) {
       l.tronsoane.forEach(function (t) { t.utilizatori = t.utilizatori.filter(function (x) { return x !== id; }); });
@@ -1118,6 +1328,7 @@
   function delTronson(lineId, trsId) {
     var l = byId(state.linii, lineId);
     if (!l) return;
+    pushUndo();
     l.tronsoane = l.tronsoane.filter(function (t) { return t.id !== trsId; });
     persistRender();
   }
@@ -1129,15 +1340,14 @@
     // La trecerea pe „manual” preluăm valoarea calculată curentă, ca punct
     // de plecare, în loc să afișăm un câmp gol/stale.
     if (manual) t.cost = tronsonCost(l, t);
-    else t.cost = (Number(t.lungime) || 0) * (Number(l.bL) || 0);
+    else t.cost = (Number(t.lungime) || 0) * lineBl(l);
     persistRender();
   }
 
   function setLineBlAuto(lineId) {
     var l = byId(state.linii, lineId); if (!l) return;
     l.bLManual = false;
-    var L = Number(l.L) || 0;
-    l.bL = L > 0 ? (Number(l.IL) || 0) / L : 0;
+    l.bL = lineBl(l);
     persistRender();
   }
 
@@ -1145,7 +1355,7 @@
     var l = byId(state.linii, lineId); if (!l) return;
     l.tronsoane.forEach(function (t) {
       t.costManual = false;
-      t.cost = (Number(t.lungime) || 0) * (Number(l.bL) || 0);
+      t.cost = (Number(t.lungime) || 0) * lineBl(l);
     });
     persistRender();
   }
@@ -1160,6 +1370,7 @@
   function removeTronsonUser(lineId, trsId, uid) {
     var l = byId(state.linii, lineId); if (!l) return;
     var t = byId(l.tronsoane, trsId); if (!t) return;
+    pushUndo();
     t.utilizatori = t.utilizatori.filter(function (x) { return x !== uid; });
     persistRender();
   }
@@ -1184,6 +1395,7 @@
 
   function removeStationUser(stId, uid) {
     var s = byId(state.statii, stId); if (!s) return;
+    pushUndo();
     s.utilizatori = s.utilizatori.filter(function (x) { return x !== uid; });
     persistRender();
   }
@@ -1218,16 +1430,19 @@
   function field(label, control) {
     return '<label class="field"><span>' + esc(label) + '</span>' + control + '</label>';
   }
-  function text(bind, val) {
-    return '<input type="text" data-bind="' + bind + '" value="' + esc(val) + '">';
+  function aria(label) { return label ? ' aria-label="' + esc(label) + '"' : ''; }
+  function text(bind, val, label) {
+    return '<input type="text" data-bind="' + bind + '" value="' + esc(val) + '"' + aria(label) + '>';
   }
-  function number(bind, val) {
+  // Valorile din calcul nu pot fi negative: min="0" (browserul semnalează,
+  // iar validarea din aplicație blochează calculul).
+  function number(bind, val, label) {
     var v = (val === undefined || val === null || val === 0 || val === '0' || val === '')
       ? '' : val;
-    return '<input type="number" step="0.01" placeholder="0" data-bind="' + bind + '" value="' + esc(v) + '">';
+    return '<input type="number" step="any" min="0" placeholder="0" data-bind="' + bind + '" value="' + esc(v) + '"' + aria(label) + '>';
   }
-  function checkbox(bind, val) {
-    return '<input type="checkbox" data-bind="' + bind + '"' + (val ? ' checked' : '') + '>';
+  function checkbox(bind, val, label) {
+    return '<input type="checkbox" data-bind="' + bind + '"' + (val ? ' checked' : '') + aria(label) + '>';
   }
   function opts(pairs, val) {
     return pairs.map(function (p) {
@@ -1240,11 +1455,16 @@
     onChangeFile: onChangeFile,
     render: render,
     ready: function () { return initPromise; },
-    setProject: function (p) { state = p; S.save(state); deriveAll(); results = null; render(); },
+    setProject: function (p) { state = p; saveNow(); deriveAll(); results = null; render(); },
+    flushSave: flushSave,
+    undo: undo,
+    validate: function () { return V.validate(state); },
     getState: function () { return state; },
     buildConfig: buildConfig,
     setTab: function (t) { activeTab = t; render(); },
-    calculate: function () { runCalculation(); render(); return results; }
+    calculate: function () { runCalculation(); render(); return results; },
+    undoDepth: function () { return undoStack.length; },
+    csv: toCsv
   };
   document.addEventListener('DOMContentLoaded', function () {
     init();
