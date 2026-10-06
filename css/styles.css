@@ -161,6 +161,11 @@ details.info[open] > summary { background: var(--accent); color: #fff; }
 /* text doar pentru cititoare de ecran */
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
+.tva-picker { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.tva-picker select { flex: 1 1 130px; }
+.tva-manual { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.tva-manual input { width: 90px; }
+
 /* chip „art. …” */
 .ref {
   display: inline-block; border: 1px solid #c7d6f7; background: var(--accent-soft); color: #1e3a8a;

@@ -52,6 +52,32 @@
 
   /* ----------------------- 1 · Date generale ----------------------- */
 
+  // Cota de TVA: 21% (implicit), 19% sau „Altă valoare” (câmp numeric manual).
+  function tvaChoice() {
+    var m = store.state.meta;
+    var t = Number(m.tva);
+    if (m.tvaAlta || (t !== 21 && t !== 19)) return 'alta';
+    return String(t);
+  }
+
+  function TvaPicker() {
+    var choice = tvaChoice();
+    return html`<div class="tva-picker">
+      <select id="f-meta_tvaOpt" data-bind="meta.tvaOpt" aria-label="Cotă TVA" value=${choice}
+        onChange=${function (e) {
+          var v = e.target.value;
+          if (v === 'alta') { store.set('meta.tvaAlta', true); }
+          else { store.set('meta.tvaAlta', false); store.set('meta.tva', Number(v)); }
+          store.commit();
+        }}>
+        <option value="21" selected=${choice === '21'}>21%</option>
+        <option value="19" selected=${choice === '19'}>19%</option>
+        <option value="alta" selected=${choice === 'alta'}>Altă valoare…</option>
+      </select>
+      ${choice === 'alta' ? html`<label class="tva-manual">Cotă (%) <${K.NumInput} path="meta.tva" label="Cotă TVA introdusă manual (%)" /></label>` : null}
+    </div>`;
+  }
+
   function GeneralView() {
     var p = store.state;
     var prim = S.primId(p);
@@ -63,7 +89,7 @@
       </div>
       <div class="row3">
         <${K.Field} label="Data întocmirii" path="meta.dataCalcul" info="meta.dataCalcul"><${K.DateInput} path="meta.dataCalcul" /><//>
-        <${K.Field} label="Cotă TVA (%)" path="meta.tva" info="meta.tva"><${K.NumInput} path="meta.tva" /><//>
+        <${K.Field} label="Cotă TVA" path="meta.tvaOpt" info="meta.tva"><${TvaPicker} /><//>
         <${K.Field} label="Centralizator" info="meta.withTva" id="f-meta_withTva"><${K.CheckInput} path="meta.withTva" label="Afișează și valorile cu TVA" /><//>
       </div>
       <${K.Field} label="Model de calcul" path="meta.model" info="meta.model">

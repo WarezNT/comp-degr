@@ -9,7 +9,7 @@
     'meta.operator': { text: 'Operatorul de rețea care întocmește calculul. Apare pe centralizator și la print.' },
     'meta.codOperator': { text: 'Codul operatorului (opțional). Apare pe centralizator.' },
     'meta.dataCalcul': { text: 'Data întocmirii. Se folosește la verificarea termenelor: anii de la punerea în funcțiune și „Data achitare TR”.' },
-    'meta.tva': { text: 'Cota de TVA folosită în centralizator (ex. 19). Poate fi 0 dacă lucrezi fără TVA.' },
+    'meta.tva': { text: 'Cota de TVA folosită în centralizator: implicit 21%; poți alege 19% sau „Altă valoare” (introdusă manual, între 0 și 100; 0 dacă lucrezi fără TVA).' },
     'meta.withTva': { text: 'Dacă e bifat, centralizatorul are și coloana „cu TVA”.' },
     'meta.model': { text: 'Anexa aplicabilă: linie electrică (Anexa 1), stație/PT (Anexa 2), instalație complexă (Anexa 3), vechea metodologie (Anexa 4 pct. A) sau rețea de dezvoltator (Anexa 5). Prevederile tranzitorii (art. 17–18) se aplică automat la Anexele 1–3 dacă primul utilizator are contractul înainte de 07.01.2016.', rule: 'art11' },
 

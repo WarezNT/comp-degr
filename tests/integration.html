@@ -877,6 +877,45 @@
         if (window.AppUI.store.tab === 'rezultate') throw new Error('linkul nu a schimbat pasul');
       });
 
+      test('TVA: implicit 21% în proiect nou; 19% sau valoare manuală prin selector', function () {
+        var p = window.AppState.emptyProject();
+        if (p.meta.tva !== 21) throw new Error('implicit ' + p.meta.tva);
+        window.AppUI.setProject(p);
+        window.AppUI.setTab('date');
+        var sel = document.querySelector('select[data-bind="meta.tvaOpt"]');
+        if (!sel) throw new Error('selectorul de TVA lipsește');
+        var vals = Array.prototype.map.call(sel.options, function (o) { return o.value; }).join();
+        if (vals !== '21,19,alta') throw new Error('opțiuni: ' + vals);
+        if (sel.value !== '21') throw new Error('selecția implicită: ' + sel.value);
+        if (document.querySelector('.tva-manual')) throw new Error('câmpul manual nu trebuie vizibil la 21%');
+        sel.value = '19'; sel.dispatchEvent(new Event('change', { bubbles: true }));
+        if (window.AppUI.getState().meta.tva !== 19) throw new Error('19% neaplicat');
+        sel = document.querySelector('select[data-bind="meta.tvaOpt"]');
+        sel.value = 'alta'; sel.dispatchEvent(new Event('change', { bubbles: true }));
+        var man = document.querySelector('.tva-manual input');
+        if (!man) throw new Error('câmpul manual lipsește la „Altă valoare”');
+        man.value = '9'; man.dispatchEvent(new Event('input', { bubbles: true }));
+        if (window.AppUI.getState().meta.tva !== 9) throw new Error('manual: ' + window.AppUI.getState().meta.tva);
+        if (document.querySelector('select[data-bind="meta.tvaOpt"]').value !== 'alta') throw new Error('selecția trebuie să rămână „Altă valoare”');
+        // „Altă valoare” cu 21 introdus manual rămâne pe „alta”
+        man = document.querySelector('.tva-manual input');
+        man.value = '21'; man.dispatchEvent(new Event('input', { bubbles: true }));
+        if (document.querySelector('select[data-bind="meta.tvaOpt"]').value !== 'alta') throw new Error('trebuie să rămână „alta” și la 21 manual');
+      });
+
+      test('TVA: o valoare veche (ex. 5%) se afișează ca „Altă valoare”; centralizatorul folosește cota aleasă', function () {
+        var p = window.AppState.demoU4();
+        p.meta.tva = 5;
+        window.AppUI.setProject(p);
+        window.AppUI.setTab('date');
+        if (document.querySelector('select[data-bind="meta.tvaOpt"]').value !== 'alta') throw new Error('5% trebuie să apară ca „alta”');
+        var r = window.AppUI.calculate();
+        if (Math.abs(r.central.totalCuTVA - 1575) > 0.01) throw new Error('1500 + 5% = 1575, obținut ' + r.central.totalCuTVA);
+        var q = window.AppState.demoU4(); q.meta.tva = 21;
+        window.AppUI.setProject(q);
+        if (Math.abs(window.AppUI.calculate().central.totalCuTVA - 1815) > 0.01) throw new Error('1500 + 21% = 1815');
+      });
+
       var s = document.createElement('div');
       s.className = 'summary' + (fail === 0 ? '' : ' fail');
       s.textContent = 'Rezultat: ' + pass + ' trecute, ' + fail + ' eșuate.';
