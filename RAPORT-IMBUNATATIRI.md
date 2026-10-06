@@ -97,4 +97,6 @@ Recomandare: validare centralizată (`validate(project)` → listă erori/averti
 
 Modelat ulterior: art. 15 alin. 1 (element „stâlpi” cu cost propriu, cote egale) și art. 15 alin. 3 (întărire post: compensație = b_T × min(puterea nouă, capacitatea suplimentară a transformatorului existent), consum succesiv pentru mai mulți utilizatori noi).
 
-Nemodelat încă (menționat în norme): art. 6 alin. 5 (operatorul ca utilizator nou), art. 7 alin. 2 (refacerea ATR-urilor).
+Modelat ulterior: art. 6 alin. 5 (operator de rețea = utilizator nou, inclus automat) și art. 7 alin. 2–3 (panou de refacere ATR: doar ATR valabile, fără tarif, tarif recalculat estimat; tariful oficial se stabilește cu Metodologia de stabilire a tarifului de racordare).
+
+Din textul consolidat nu mai rămâne nemodelat niciun articol de calcul; au rămas doar prevederile tranzitorii (art. 17–18, Anexa 4) în forma simplificată existentă.
