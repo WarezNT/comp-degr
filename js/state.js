@@ -59,6 +59,7 @@
       operator: false,        // art. 6 alin. 5: operatorul de rețea, asimilat unui utilizator nou
       faraContract: false,    // art. 7 alin. 2: ATR emis pentru instalația comună, contract neîncheiat
       atrValabilPana: '',     // sfârșitul perioadei de valabilitate a ATR
+      dataContract: '',       // data contractului de racordare (art. 17–18)
       tarifInitial: 0         // tariful de racordare înainte de refacerea ATR [lei] (opțional)
     };
     Object.keys(data || {}).forEach(function (k) { u[k] = data[k]; });
@@ -110,6 +111,30 @@
     if (!prim) return false;
     return (p.meta.nouUtilizatoriIds || []).indexOf(prim) >= 0 ||
       p.meta.noulUtilizatorId === prim;
+  }
+
+  // Data intrării în vigoare a metodologiei (Ord. 180/2015, M.Of. 12/07.01.2016).
+  var DATA_INTRARE_VIGOARE = '2016-01-07';
+
+  // Art. 17–18: dacă primul utilizator a încheiat contractul de racordare înainte
+  // de intrarea în vigoare, se aplică prevederile tranzitorii. Utilizatorii (altii
+  // decât primul și decât cei noi) cu contract tot anterior sunt ignorați la
+  // repartizare: art. 18 alin. 3 — noul utilizator plătește doar primului și celor
+  // cu contract ulterior care au plătit compensație.
+  function tranzitoriu(p) {
+    var prim = findUser(p, primId(p));
+    var activ = !!(prim && prim.dataContract && prim.dataContract < DATA_INTRARE_VIGOARE);
+    var noi = newIds(p);
+    var ignorati = [];
+    var faraData = [];
+    if (activ) {
+      (p.utilizatori || []).forEach(function (u) {
+        if (u.id === prim.id || noi.indexOf(u.id) >= 0) return;
+        if (!u.dataContract) faraData.push(u.id);
+        else if (u.dataContract < DATA_INTRARE_VIGOARE) ignorati.push(u.id);
+      });
+    }
+    return { activ: activ, ignorati: ignorati, faraData: faraData };
   }
 
   function demoU6() {
@@ -389,6 +414,7 @@
       u.tipClient = u.tipClient === 'casnic' ? 'casnic' : 'noncasnic';
       u.prim = !!u.prim;
       u.operator = !!u.operator;
+      u.dataContract = str(u.dataContract);
       u.faraContract = !!u.faraContract;
     });
     p.linii.forEach(function (l) {
@@ -448,6 +474,8 @@
     delete p.conditii.clientCasnic;   // derivat din tipul clientului primului utilizator
     (p.linii || []).forEach(function (l) {
       if (l.bLManual === undefined) l.bLManual = false;
+      if (l.compVeche === undefined) l.compVeche = 0;     // art. 18: compensații primite sub Ord. 28/2003
+      if (l.capacitate === undefined) l.capacitate = 0;   // art. 18 alin. 1 lit. b: capacitatea instalației [kVA]
       (l.tronsoane || []).forEach(function (t) {
         if (t.costManual === undefined) t.costManual = false;
       });
@@ -455,6 +483,7 @@
     (p.statii || []).forEach(function (s) {
       if (s.SnRezerva === undefined) s.SnRezerva = 0;
       s.intarire = !!s.intarire;
+      if (s.compVeche === undefined) s.compVeche = 0;
     });
     // Un singur „prim utilizator”: dacă sunt mai mulți bifați, păstrăm primul.
     if (p.utilizatori && p.utilizatori.length) {
@@ -503,6 +532,8 @@
     migrate: migrate,
     sanitize: sanitize,
     primId: primId,
+    tranzitoriu: tranzitoriu,
+    DATA_INTRARE_VIGOARE: DATA_INTRARE_VIGOARE,
     newIds: newIds,
     roleConflict: roleConflict
   };

@@ -351,6 +351,26 @@
       eq(assert, rows[0].tarifRecalculat, 0, 'tarif');
     });
 
+    // Anexa 4 pct. B: investiția netă 36.500 (50.000 − 13.500), utilizatorul 2 (compensat vechi) ignorat;
+    // noul utilizator la 80 m plătește 14.600 și primul utilizator rămâne cu 21.900.
+    test('Art. 18 / Anexa 4 pct. B — 36.500 lei net, utilizator vechi ignorat → 14.600', function (assert) {
+      var f = E.factorCostNet(50000, 13500);
+      eq(assert, f, 0.73, 'factor');
+      var res = E.computeLine({ nouUtilizatori: ['N'], ignorati: ['U2'],
+        tronsoane: [
+          { id: 'T1', cost: 40000 * f, utilizatori: ['P', 'U2', 'N'] },
+          { id: 'T2', cost: 10000 * f, utilizatori: ['P', 'U2'] }
+        ] });
+      eq(assert, res.payments['N']['P'], 14600, 'N -> P');
+      if (res.payments['N']['U2']) assert('U2 (ignorat) nu trebuie să primească');
+      eq(assert, 36500 - res.payments['N']['P'], 21900, 'primul utilizator rămâne cu');
+    });
+
+    test('Art. 18 — factorul net: B ≤ 0 → 1; compensații > B → 0', function (assert) {
+      eq(assert, E.factorCostNet(0, 100), 1, 'B=0');
+      eq(assert, E.factorCostNet(1000, 5000), 0, 'comp > B');
+    });
+
     var sum = document.createElement('div');
     sum.className = 'summary ' + (fail === 0 ? 'pass' : 'fail');
     sum.textContent = 'Rezultat: ' + pass + ' trecute, ' + fail + ' eșuate.';

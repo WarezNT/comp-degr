@@ -559,6 +559,50 @@
         if (p.utilizatori[0].operator !== true || p.utilizatori[0].faraContract !== true) throw new Error('nu sunt boolean');
       });
 
+      test('Art. 17–18 prin UI: Anexa 4 pct. B (36.500 net, utilizator vechi ignorat) → 14.600', function () {
+        var p = emptyOk();
+        var P = window.AppState.addUser(p, { nume: 'P', prim: true, dataContract: '2015-03-01', dataTR: '2015-04-01' });
+        var U2 = window.AppState.addUser(p, { nume: 'U2', dataContract: '2015-09-01', dataTR: '2015-10-01' });
+        var N = window.AppState.addUser(p, { nume: 'N', dataATR: '2025-01-01' });
+        p.linii.push({ id: 'L', nume: 'L', IL: 50000, L: 100, bL: 0, bLManual: false, compVeche: 13500, tronsoane: [
+          { id: 'T1', nume: 'T1', lungime: 80, cost: 0, costManual: false, utilizatori: [P.id, U2.id, N.id] },
+          { id: 'T2', nume: 'T2', lungime: 20, cost: 0, costManual: false, utilizatori: [P.id, U2.id] }] });
+        p.meta.nouUtilizatoriIds = [N.id];
+        window.AppUI.setProject(p);
+        window.AppUI.setTab('rezultate');
+        var r = window.AppUI.calculate();
+        if (r.error) throw new Error(r.error);
+        if (Math.abs(r.central.totalFaraTVA - 14600) > 0.01) throw new Error('total ' + r.central.totalFaraTVA);
+        if (r.payments[N.id][U2.id]) throw new Error('U2 ignorat nu trebuie să primească');
+        var html = document.getElementById('app').innerHTML;
+        if (html.indexOf('Prevederi tranzitorii aplicate') < 0) throw new Error('panoul art. 17–18 lipsește');
+        if (html.indexOf('36.500,00') < 0) throw new Error('costul net lipsește');
+      });
+
+      test('Art. 17: contract al primului utilizator după 07.01.2016 → fără regim tranzitoriu', function () {
+        var p = window.AppState.demoU4();
+        p.utilizatori[0].dataContract = '2017-01-01';
+        p.linii[0].compVeche = 3000;
+        window.AppUI.setProject(p);
+        if (window.AppState.tranzitoriu(p).activ) throw new Error('nu ar trebui activ');
+        var r = window.AppUI.calculate();
+        if (r.error) throw new Error(r.error);
+        if (Math.abs(r.central.totalFaraTVA - 1500) > 0.01) throw new Error('compVeche nu trebuie aplicată: ' + r.central.totalFaraTVA);
+        if (!window.AppUI.validate().warnings.some(function (w) { return w.indexOf('vechea metodologie') >= 0; })) throw new Error('lipsește avertismentul');
+      });
+
+      test('Art. 18 alin. 3: utilizatorii cu contract anterior sunt ignorați; fără dată = participă (cu avertisment)', function () {
+        var p = window.AppState.demoU4();
+        p.utilizatori[0].dataContract = '2014-01-01';   // prim
+        p.utilizatori[1].dataContract = '2015-01-01';   // U2: ignorat
+        // U3: fără dată → participă
+        var t = window.AppState.tranzitoriu(p);
+        if (!t.activ || t.ignorati.length !== 1 || t.ignorati[0] !== p.utilizatori[1].id) throw new Error('ignorați: ' + JSON.stringify(t));
+        if (t.faraData.length !== 1) throw new Error('faraData: ' + JSON.stringify(t));
+        window.AppUI.setProject(p);
+        if (!window.AppUI.validate().warnings.some(function (w) { return w.indexOf('Data contractului') >= 0; })) throw new Error('avertisment lipsă');
+      });
+
       var s = document.createElement('div');
       s.className = 'summary' + (fail === 0 ? '' : ' fail');
       s.textContent = 'Rezultat: ' + pass + ' trecute, ' + fail + ' eșuate.';

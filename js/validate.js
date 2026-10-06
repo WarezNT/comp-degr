@@ -66,12 +66,37 @@
       });
     }
 
+    /* --- art. 17–18: prevederi tranzitorii --- */
+    if (usesUsers) {
+      var tr = S.tranzitoriu(p);
+      var primU = S.findUser(p, primId);
+      if (tr.activ) {
+        if (tr.faraData.length) {
+          warnings.push('Art. 18: lipsește „Data contractului” pentru ' + tr.faraData.map(nameOf).join(', ') +
+            '; se consideră cu contract ulterior intrării în vigoare (07.01.2016) și participă la repartizare.');
+        }
+        newIds.forEach(function (id) {
+          var uu = S.findUser(p, id);
+          if (uu && uu.dataContract && uu.dataContract < S.DATA_INTRARE_VIGOARE) {
+            warnings.push('Utilizatorul nou „' + nameOf(id) + '” are contractul înainte de 07.01.2016; art. 17–18 privesc utilizatori noi cu contract ulterior.');
+          }
+        });
+      } else if (primU && (p.linii || []).concat(p.statii || []).some(function (x) { return n(x.compVeche) > 0; })) {
+        warnings.push('Sunt completate compensații primite sub vechea metodologie, dar regimul tranzitoriu nu e activ (contractul primului utilizator nu e anterior 07.01.2016); valorile sunt ignorate.');
+      }
+    }
+
     /* --- Anexa 1 --- */
     function checkLine(l) {
       var nm = l.nume || l.id;
       nonNeg('Costul lucrărilor liniei „' + nm + '” (I_L)', l.IL);
       nonNeg('Lungimea liniei „' + nm + '” (L)', l.L);
       nonNeg('Costul specific b_L al liniei „' + nm + '”', l.bL);
+      nonNeg('Compensațiile vechi (art. 18) ale liniei „' + nm + '”', l.compVeche);
+      nonNeg('Capacitatea instalației liniei „' + nm + '”', l.capacitate);
+      if (n(l.compVeche) > n(l.IL) && n(l.IL) > 0) {
+        errors.push('Linia „' + nm + '”: compensațiile primite sub vechea metodologie (' + n(l.compVeche) + ' lei) depășesc I_L (' + n(l.IL) + ' lei).');
+      }
       (l.tronsoane || []).forEach(function (t) {
         var tn = '„' + nm + ' · ' + (t.nume || t.id) + '”';
         nonNeg('Lungimea tronsonului ' + tn, t.lungime);
@@ -101,6 +126,10 @@
       nonNeg('Capacitatea S_n a stației „' + nm + '”', s.Sn);
       nonNeg('Transformatorul de rezervă al stației „' + nm + '”', s.SnRezerva);
       nonNeg('Costul lucrărilor I_T al stației „' + nm + '”', s.IT);
+      nonNeg('Compensațiile vechi (art. 18) ale stației „' + nm + '”', s.compVeche);
+      if (n(s.compVeche) > n(s.IT) && n(s.IT) > 0) {
+        errors.push('Stația „' + nm + '”: compensațiile primite sub vechea metodologie depășesc I_T.');
+      }
       nonNeg('Echipamentele comune ale stației „' + nm + '”', s.elementeComune);
       var efectiv = n(s.Sn) - n(s.SnRezerva);
       if (n(s.SnRezerva) > 0 && efectiv <= 0) {

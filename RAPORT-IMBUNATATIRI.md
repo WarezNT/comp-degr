@@ -99,4 +99,4 @@ Modelat ulterior: art. 15 alin. 1 (element „stâlpi” cu cost propriu, cote e
 
 Modelat ulterior: art. 6 alin. 5 (operator de rețea = utilizator nou, inclus automat) și art. 7 alin. 2–3 (panou de refacere ATR: doar ATR valabile, fără tarif, tarif recalculat estimat; tariful oficial se stabilește cu Metodologia de stabilire a tarifului de racordare).
 
-Din textul consolidat nu mai rămâne nemodelat niciun articol de calcul; au rămas doar prevederile tranzitorii (art. 17–18, Anexa 4) în forma simplificată existentă.
+Modelat ulterior: art. 17–18 + Anexa 4 pct. B (regim tranzitoriu activat de data contractului primului utilizator: cost net = I_L − compensații vechi, utilizatori cu contract anterior ignorați, capacitate suplimentară informativă; exemplul din anexă reproduce 14.600 / 21.900). Din textul consolidat nu mai rămâne nemodelat niciun articol de calcul.

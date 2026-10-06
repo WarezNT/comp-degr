@@ -104,6 +104,11 @@ Detalii despre formule și validarea lor: `docs/formule-ocr.md` (material local,
   e bifat ca prim, în Rezultate apare panoul de refacere: ATR-urile valabile se refac din
   oficiu, fără tarif, cu compensația și un **tarif recalculat estimat** (tarif − compensație,
   art. 1 alin. 2); cele expirate nu se refac.
+- **Art. 17–18 — prevederi tranzitorii (Anexa 4 pct. B):** dacă primul utilizator are
+  „Data contractului” înainte de 07.01.2016, regimul tranzitoriu se activează automat la
+  Anexele 1–3: costul liniei/stației se reduce cu compensațiile primite sub Ord. 28/2003
+  (ex. 50.000 − 13.500 = 36.500), iar utilizatorii cu contract anterior sunt ignorați la
+  repartizare (art. 18 alin. 3). Modelul „Anexa 4 pct. A” rămâne calculatorul vechii metodologii.
 - **Utilizatori noi multipli:** se racordează secvențial (Anexa 1), ordonați după Data ATR;
   cel mai târziu plătește și celor noi racordați înaintea lui.
 - **Export CSV** — centralizatorul (separator `;`, zecimale cu virgulă, pentru Excel RO).

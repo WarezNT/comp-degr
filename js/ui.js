@@ -173,8 +173,8 @@
 
   function stationCfg(s, puteri, primId, nouCfg) {
     return mergeCfg({
-      Sn: s.Sn, SnRezerva: s.SnRezerva || 0, IT: s.IT, elementeComune: s.elementeComune,
-      intarire: !!s.intarire,
+      Sn: s.Sn, SnRezerva: s.SnRezerva || 0, IT: stationIT(s), elementeComune: s.elementeComune,
+      intarire: !!s.intarire, ignorati: tranz().ignorati,
       utilizatori: orderByIds(s.utilizatori), puteri: puteri, primId: primId
     }, nouCfg);
   }
@@ -185,6 +185,18 @@
 
   // Noii utilizatori (cei care plătesc). Pot fi mai mulți (racordați simultan).
   function getNewIds() { return S.newIds(state); }
+
+  // Art. 17–18: regim tranzitoriu (contractul primului utilizator e anterior 07.01.2016).
+  function tranz() { return S.tranzitoriu(state); }
+
+  // Costul net al unei linii în regim tranzitoriu: (I_L − compensații vechi) / I_L.
+  function lineFactor(l) {
+    return tranz().activ ? E.factorCostNet(l.IL, l.compVeche) : 1;
+  }
+  function stationIT(s) {
+    var IT = Number(s.IT) || 0;
+    return tranz().activ ? Math.max(0, IT - Math.max(0, Number(s.compVeche) || 0)) : IT;
+  }
 
   function setNewIds(ids) {
     state.meta.nouUtilizatoriIds = ids.slice();
@@ -232,7 +244,7 @@
           tip: t.tip,
           nume: (l.nume ? l.nume + ' · ' : '') + (t.nume || ''),
           lungime: t.lungime,
-          cost: tronsonCost(l, t),
+          cost: tronsonCost(l, t) * lineFactor(l),
           utilizatori: orderByIds(t.utilizatori)
         });
       });
@@ -250,7 +262,7 @@
     var nouCfg = { nouUtilizatori: nouList, nouUtilizator: nouList.length === 1 ? nouList[0] : null };
 
     if (model === 'line') {
-      var lcfg = { bL: 0, tronsoane: lineTronsoane(state.linii), primId: primId };
+      var lcfg = { bL: 0, tronsoane: lineTronsoane(state.linii), primId: primId, ignorati: tranz().ignorati };
       return mergeCfg(lcfg, nouCfg);
     }
     if (model === 'station') {
@@ -269,13 +281,13 @@
       return {
         varianta: Number(sel.varianta) || 1,
         liniiU1: liniiU1.map(function (l) {
-          return mergeCfg({ bL: lineBl(l), tronsoane: lineTronsoane([l]), primId: primId }, nouCfg);
+          return mergeCfg({ bL: lineBl(l), tronsoane: lineTronsoane([l]), primId: primId, ignorati: tranz().ignorati }, nouCfg);
         }),
         liniiU2: liniiU2.map(function (l) {
-          return mergeCfg({ bL: lineBl(l), tronsoane: lineTronsoane([l]), primId: primId }, nouCfg);
+          return mergeCfg({ bL: lineBl(l), tronsoane: lineTronsoane([l]), primId: primId, ignorati: tranz().ignorati }, nouCfg);
         }),
         statii: st.map(function (s) { return stationCfg(s, puteri, primId, nouCfg); }),
-        puteri: puteri,
+        puteri: puteri, ignorati: tranz().ignorati,
         nouUtilizatori: nouList,
         nouUtilizator: nouCfg.nouUtilizator
       };
@@ -495,7 +507,7 @@
       ['line', 'Anexa 1 — linie electrică / elemente comune'],
       ['station', 'Anexa 2 — stație electrică / post de transformare'],
       ['complex', 'Anexa 3 — instalație de racordare complexă'],
-      ['transitional', 'Anexa 4 — prevederi tranzitorii'],
+      ['transitional', 'Anexa 4 pct. A — compensație după vechea metodologie (Ord. 28/2003)'],
       ['developer', 'Anexa 5 — rețea publică finanțată de un dezvoltator']
     ];
     return section('Date generale',
@@ -543,7 +555,7 @@
         { field: 'Data întocmirii', desc: 'Data la care se emite avizul/cuantumul compensației.' },
         { field: 'Cotă TVA', desc: 'Procentul de TVA folosit în centralizator (ex. 19). Valoarea cotei poate fi pusă 0 dacă lucrezi fără TVA.' },
         { field: 'Aplică TVA în centralizator', desc: 'Bifează pentru a adăuga coloana „cu TVA”. Dacă debifezi, se afișează doar valorile fără TVA.' },
-        { field: 'Model de calcul', desc: 'Anexa aplicabilă: linie electrică (Anexa 1), stație/PT (Anexa 2), instalație complexă (Anexa 3), tranzitoriu (Anexa 4) sau rețea dezvoltator (Anexa 5).' },
+        { field: 'Model de calcul', desc: 'Anexa aplicabilă: linie electrică (Anexa 1), stație/PT (Anexa 2), instalație complexă (Anexa 3), vechea metodologie (Anexa 4 pct. A) sau rețea dezvoltator (Anexa 5). Prevederile tranzitorii (art. 17–18, Anexa 4 pct. B) se aplică automat la Anexele 1–3 dacă primul utilizator are contractul înainte de 07.01.2016.' },
         { field: 'Noii utilizatori', desc: 'Bifează unul sau mai mulți utilizatori care se racordează acum și plătesc compensația. Fiecare plătește pe tronsonul/stația unde este adăugat. Primul utilizator (receptorul) nu poate fi și utilizator nou.' }
       ],
       note: 'Sfat: dacă nu ai încă utilizatori, mergi la pasul 2 „Utilizatori” și adaugă-i.',
@@ -587,14 +599,15 @@
       var prim = u.id === getPrimId();
       return '<tr>' +
         '<td>' + esc(u.nume || u.codPA || u.id) + '</td>' +
+        '<td><input type="date" aria-label="Data contractului de racordare" data-bind="user.' + esc(u.id) + '.dataContract" value="' + esc(u.dataContract) + '"></td>' +
         '<td class="center">' + (prim ? '<span class="muted">— (prim utilizator)</span>' : checkbox('user.' + esc(u.id) + '.faraContract', u.faraContract, 'ATR emis, contract neîncheiat')) + '</td>' +
         '<td><input type="date" aria-label="ATR valabil până la" data-bind="user.' + esc(u.id) + '.atrValabilPana" value="' + esc(u.atrValabilPana) + '"' + (prim ? ' disabled' : '') + '></td>' +
         '<td>' + number('user.' + esc(u.id) + '.tarifInitial', u.tarifInitial, 'Tarif de racordare inițial (lei)') + '</td>' +
         '</tr>';
     }).join('');
-    return '<h3>Avize tehnice emise pentru instalația comună (art. 7 alin. 2)</h3>' +
-      '<p class="hint">Dacă instalația a fost prevăzută în ATR-urile mai multor utilizatori și unul încheie contractul (se bifează „Prim utilizator”), ATR-urile celorlalți — dacă sunt valabile — se refac de operator, fără tarif, cu tariful recalculat și valoarea compensației. Marchează aici utilizatorii cu ATR fără contract.</p>' +
-      '<div class="table-wrap"><table class="grid"><thead><tr><th>Utilizator</th><th class="center">ATR emis, contract neîncheiat</th><th>ATR valabil până la</th><th>Tarif de racordare inițial (lei, opțional)</th></tr></thead><tbody>' +
+    return '<h3>Contracte și avize (art. 7 alin. 2, art. 17–18)</h3>' +
+      '<p class="hint">Dacă instalația a fost prevăzută în ATR-urile mai multor utilizatori și unul încheie contractul (se bifează „Prim utilizator”), ATR-urile celorlalți — dacă sunt valabile — se refac de operator, fără tarif, cu tariful recalculat și valoarea compensației. Marchează aici utilizatorii cu ATR fără contract. <strong>Data contractului</strong> contează pentru prevederile tranzitorii (art. 17–18): dacă primul utilizator a încheiat contractul înainte de 07.01.2016, se aplică art. 18 (vezi pasul 3 și pasul 4).</p>' +
+      '<div class="table-wrap"><table class="grid"><thead><tr><th>Utilizator</th><th>Data contractului de racordare</th><th class="center">ATR emis, contract neîncheiat</th><th>ATR valabil până la</th><th>Tarif de racordare inițial (lei, opțional)</th></tr></thead><tbody>' +
       rows + '</tbody></table></div>';
   }
 
@@ -649,6 +662,7 @@
           '<span data-line-bl="' + esc(l.id) + '">' + money(bL) + '</span> lei/m</strong>. ' +
           'Completează doar lungimea tronsoanelor; poți trece pe „manual” dacă ai valoarea exactă. ' +
           '<span data-line-status="' + esc(l.id) + '">' + lineStatusHtml(l) + '</span></p>' +
+        tranzDetails('line', l) +
         '<div class="toolbar"><strong>Tronsoane</strong>' +
           '<button class="btn tiny" data-action="add-tronson" data-line="' + esc(l.id) + '">+ Tronson</button>' +
           '<button class="btn tiny" data-action="add-stalpi" data-line="' + esc(l.id) + '" title="Art. 15 alin. 1: al doilea circuit montat pe stâlpii unei linii aeriene existente">+ Circuit pe stâlpi existenți</button>' +
@@ -666,6 +680,32 @@
       (body || '<div class="empty card">Nicio linie configurată. Apasă „+ Adaugă linie”.</div>'),
       helperLines()
     );
+  }
+
+  function tranzLineHint(l) {
+    if (!tranz().activ) return 'Regimul tranzitoriu nu e activ (data contractului primului utilizator nu e anterioară 07.01.2016).';
+    var f = lineFactor(l);
+    return 'Regim tranzitoriu activ: costul net = I_L − compensații vechi = <strong>' + money((Number(l.IL) || 0) * f) +
+      ' lei</strong> (factor ' + f.toFixed(4).replace('.', ',') + ' aplicat pe fiecare tronson).';
+  }
+
+  // Art. 18 alin. 1: câmpuri pentru primul utilizator cu contract anterior 07.01.2016.
+  function tranzDetails(kind, x) {
+    var t = tranz();
+    var open = t.activ || Number(x.compVeche) > 0 || (kind === 'line' && Number(x.capacitate) > 0);
+    var key = kind + '.' + esc(x.id);
+    var body = '<div class="row2">' +
+      field('Compensații primite de primul utilizator sub Ord. 28/2003 (lei) — se scad din costul instalației', number(key + '.compVeche', x.compVeche)) +
+      (kind === 'line' ? field('Capacitatea instalației de racordare (kVA) — pentru capacitatea suplimentară (art. 18 alin. 1 lit. b)', number(key + '.capacitate', x.capacitate)) : '') +
+      '</div>';
+    if (kind === 'line') {
+      body += '<p class="hint" data-tranz-line="' + esc(x.id) + '">' + tranzLineHint(x) + '</p>';
+    } else {
+      body += '<p class="hint">' + (t.activ
+        ? 'Regim tranzitoriu activ: I_T net = ' + money(stationIT(x)) + ' lei (I_T − compensații vechi).'
+        : 'Regimul tranzitoriu nu e activ (data contractului primului utilizator nu e anterioară 07.01.2016).') + '</p>';
+    }
+    return '<details class="tranz"' + (open ? ' open' : '') + '><summary>Prevederi tranzitorii (art. 17–18)</summary>' + body + '</details>';
   }
 
   function lineStatusHtml(l) {
@@ -693,6 +733,7 @@
         { field: 'Denumire tronson', desc: 'Numele tronsonului (ex. „Tronson 1 (st.20–21)”).' },
         { field: 'Lungime tronson', desc: 'Lungimea tronsonului, în metri. Din ea se calculează automat costul = lungime × b_L.' },
         { field: 'Cost tronson', desc: 'Afișat automat (lungime × b_L). Buton „✎ manual” pentru valoare impusă, „↺ automat” pentru revenire.' },
+        { field: 'Prevederi tranzitorii (art. 17–18)', desc: 'Dacă primul utilizator a încheiat contractul înainte de 07.01.2016 (Data contractului, pasul 2), costul liniei se reduce cu <strong>compensațiile primite sub vechea metodologie</strong> și utilizatorii cu contract anterior (compensați după Ord. 28/2003) sunt ignorați la repartizare. Opțional: capacitatea instalației, pentru capacitatea suplimentară (art. 18 alin. 1 lit. b).' },
         { field: 'Circuit pe stâlpi existenți', desc: 'Art. 15 alin. 1: dacă noul utilizator montează un al doilea circuit pe stâlpii liniei aeriene a primului utilizator, apasă „+ Circuit pe stâlpi existenți”, introdu <strong>costul stâlpilor</strong> utilizați în comun și adaugă utilizatorii care folosesc stâlpii (inclusiv noul utilizator). Costul se împarte în cote egale.' },
         { field: 'Utilizatori folosesc tronsonul', desc: 'Adaugă utilizatorii care trec prin acel tronson. Ordinea (↑/↓) = ordinea racordării, primul e finanțatorul.' }
       ],
@@ -785,6 +826,7 @@
           field('Echipamente comune, altele decât transformatoare (lei)', number('stat.' + esc(s.id) + '.elementeComune', s.elementeComune)) +
           field('Întărire post — transformator înlocuit / al doilea transformator (art. 15 alin. 3)', checkbox('stat.' + esc(s.id) + '.intarire', s.intarire)) +
         '</div>' +
+        tranzDetails('stat', s) +
         '<div class="toolbar"><strong>Utilizatori (primul utilizator se bifează la pasul 2 „Utilizatori”)</strong></div>' +
         '<div class="chips">' + (chips || '<span class="muted">—</span>') + '</div>' +
         '<select aria-label="Adaugă utilizator în stație" data-action="st-add" data-st="' + esc(s.id) + '"><option value="">+ utilizator…</option>' +
@@ -809,6 +851,7 @@
         { field: 'Denumire stație / PT', desc: 'Numele stației sau postului de transformare.' },
         { field: 'Capacitate nominală S_n', desc: 'Capacitatea transformatoarelor, în kVA (ex. 400).' },
         { field: 'Cost lucrări I_T', desc: 'Valoarea lucrărilor stației/PT achitată de primul utilizator.' },
+        { field: 'Prevederi tranzitorii (art. 17–18)', desc: 'La contract anterior 07.01.2016: I_T net = I_T − compensațiile primite sub vechea metodologie; compensația se plătește doar primului utilizator (art. 18 alin. 3 lit. b).' },
         { field: 'Întărire post (art. 15 alin. 3)', desc: 'Bifează dacă pentru noul utilizator se înlocuiește transformatorul cu unul mai mare sau se montează al doilea transformator. Completează S_n și I_T ale transformatorului <strong>existent</strong>; noul utilizator plătește primului doar pentru capacitatea suplimentară a acestuia.' },
         { field: 'Echipamente comune', desc: 'Opțional: valoarea echipamentelor (altele decât transformatoarele) folosite în comun; se împarte în cote egale.' },
         { field: 'Utilizatori', desc: 'Adaugă utilizatorii racordați la stație/PT. Primul utilizator (finanțatorul) se bifează în tabul „Utilizatori”; ceilalți îi plătesc compensație.' }
@@ -880,7 +923,7 @@
 
   function renderTransitional() {
     var t = state.tranzitoriu;
-    return section('Anexa 4 — prevederi tranzitorii (Ord. 28/2003)',
+    return section('Anexa 4 pct. A — compensație după vechea metodologie (Ord. 28/2003)',
       '<div class="row3">' +
         field('Componenta B din tariful de racordare (lei)', number('tranz.B', t.B)) +
         field('Capacitatea instalației S (kVA)', number('tranz.S', t.S)) +
@@ -896,7 +939,7 @@
   function helperTransitional() {
     return {
       title: 'Ce completezi în acest pas',
-      intro: 'Pentru situațiile tranzitorii (instalații finanțate înainte de 2016, sub vechea metodologie Ord. 28/2003).',
+      intro: 'Anexa 4 pct. A: compensația stabilită sub vechea metodologie (Ord. 28/2003), pentru contracte încheiate înainte de 07.01.2016. Valoarea obținută o treci apoi la linia/stația primului utilizator, în „Prevederi tranzitorii (art. 17–18)”, ca să fie scăzută din costul instalației (pct. B).',
       items: [
         { field: 'Componenta B', desc: 'Componenta din tariful de racordare achitată de primul utilizator (lei).' },
         { field: 'Capacitatea S', desc: 'Capacitatea instalației de racordare aferentă tarifului achitat (kVA).' },
@@ -905,7 +948,7 @@
         { field: 'Lungimea totală L', desc: 'Lungimea totală a liniei (m).' }
       ],
       note: 'b = B/S [lei/kVA]; C_2 = S_2 · b · (l_2/L).',
-      refs: 'Ref.: Anexa nr. 4 și art. 18 din Metodologie.'
+      refs: 'Ref.: Anexa nr. 4 și art. 17–18 din Metodologie.'
     };
   }
 
@@ -1099,14 +1142,50 @@
       renderPerNou(central, multi) +
       '<div class="signatures"><span>Întocmit: ' + esc(state.meta.operator || 'operator de rețea') + '</span>' +
       '<span>Semnătură: ____________________</span></div>' +
-      '</div>' + renderDetails() + renderAtrRefacute(central);
+      '</div>' + renderTranzitoriu() + renderDetails() + renderAtrRefacute(central);
   }
 
   function modelLabel(m) {
     return {
       line: 'Anexa 1 — linie electrică', station: 'Anexa 2 — stație / PT', complex: 'Anexa 3 — instalație complexă',
-      transitional: 'Anexa 4 — tranzitoriu', developer: 'Anexa 5 — dezvoltator'
+      transitional: 'Anexa 4 pct. A — vechea metodologie', developer: 'Anexa 5 — dezvoltator'
     }[m] || m;
+  }
+
+  // Art. 17–18: ce s-a aplicat în regimul tranzitoriu.
+  function renderTranzitoriu() {
+    var t = tranz();
+    if (!t.activ) return '';
+    var prim = S.findUser(state, getPrimId());
+    var items = [];
+    items.push('Primul utilizator („' + esc(nameOf(prim.id)) + '”) a încheiat contractul la <strong>' + esc(prim.dataContract) +
+      '</strong>, înainte de intrarea în vigoare a metodologiei (' + S.DATA_INTRARE_VIGOARE + ') → se aplică art. 18 (art. 17: metodologia se aplică direct doar contractelor ulterioare).');
+    items.push(t.ignorati.length
+      ? 'Art. 18 alin. 3 lit. a: noul utilizator plătește doar primului utilizator și celor cu contract ulterior intrării în vigoare. <strong>Ignorați</strong> (contract anterior, compensați după vechea metodologie): ' + esc(t.ignorati.map(nameOf).join(', ')) + '.'
+      : 'Niciun alt utilizator cu contract anterior intrării în vigoare nu a fost exclus din repartizare.');
+    if (t.faraData.length) {
+      items.push('<span class="warn">Fără „Data contractului” (considerați cu contract ulterior): ' + esc(t.faraData.map(nameOf).join(', ')) + '.</span>');
+    }
+    (state.linii || []).forEach(function (l) {
+      if (state.meta.model === 'complex' && state.complexConfig.liniiIds.indexOf(l.id) < 0 && state.complexConfig.liniiU2Ids.indexOf(l.id) < 0) return;
+      if (!(Number(l.IL) > 0)) return;
+      var f = lineFactor(l);
+      var sup = '';
+      if (Number(l.capacitate) > 0) {
+        var occ = state.utilizatori.reduce(function (sum, u) {
+          return (u.id !== prim.id && t.ignorati.indexOf(u.id) >= 0) ? sum + (Number(u.putere) || 0) : sum;
+        }, 0);
+        sup = '; capacitate suplimentară (art. 18 alin. 1 lit. b) = ' + money(l.capacitate) + ' − ' + money(occ) + ' = <strong>' + money(Math.max(0, Number(l.capacitate) - occ)) + ' kVA</strong>';
+      }
+      items.push('Linia „' + esc(l.nume) + '”: I_L ' + money(l.IL) + ' − compensații vechi ' + money(l.compVeche) + ' = <strong>' + money((Number(l.IL) || 0) * f) + ' lei</strong> (art. 18 alin. 1 lit. a)' + sup + '.');
+    });
+    (state.statii || []).forEach(function (s2) {
+      if (Number(s2.compVeche) > 0) {
+        items.push('Stația „' + esc(s2.nume) + '”: I_T ' + money(s2.IT) + ' − ' + money(s2.compVeche) + ' = <strong>' + money(stationIT(s2)) + ' lei</strong>; compensația se plătește doar primului utilizator (art. 18 alin. 3 lit. b).');
+      }
+    });
+    return '<details class="card" open><summary>Prevederi tranzitorii aplicate (art. 17–18)</summary><ul>' +
+      items.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul></details>';
   }
 
   // Art. 6 alin. 5: operatorul de rețea asimilat unui utilizator nou.
@@ -1153,6 +1232,7 @@
       '<p class="hint">Utilizator care a încheiat contractul (prim utilizator): <strong>' + esc(nameOf(prim)) + '</strong>. ATR-urile celorlalți utilizatori, dacă sunt în perioada de valabilitate, se refac de operator: ' +
       'a) din oficiu, la solicitarea încheierii contractului; b) cu menționarea tarifului de racordare recalculat și a valorii compensației; c) <strong>fără perceperea unui tarif</strong>.</p>' +
       '<div class="table-wrap"><table class="grid"><thead><tr><th>Utilizator</th><th>Stare ATR</th><th>Compensație (fără TVA / cu TVA)</th><th>Tarif inițial (lei)</th><th>Tarif recalculat — estimare (lei)</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
+      (tranz().activ ? '<p class="hint">Art. 18 alin. 2: pentru ATR-urile valabile, fără contract încheiat, operatorul recalculează compensația și le refă în 3 luni de la intrarea în vigoare a metodologiei (' + S.DATA_INTRARE_VIGOARE + ' → 2016-04-07), fără tarif.</p>' : '') +
       '<p class="hint">Estimare: tarif recalculat = tarif inițial − compensație (art. 1 alin. 2). Valoarea oficială a tarifului se stabilește conform Metodologiei de stabilire a tarifului de racordare.</p></details>';
   }
 
@@ -1319,6 +1399,9 @@
     // Linkul „recalcul automat” apare doar când b_L este manual.
     var autoLink = document.querySelector('[data-action="line-bl-auto"][data-line="' + lineId + '"]');
     if (autoLink) autoLink.hidden = !l.bLManual;
+
+    var trNode = document.querySelector('[data-tranz-line="' + lineId + '"]');
+    if (trNode) trNode.innerHTML = tranzLineHint(l);
 
     var blNode = document.querySelector('[data-line-bl="' + lineId + '"]');
     if (blNode) blNode.textContent = money(l.bL);

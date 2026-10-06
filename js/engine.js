@@ -81,6 +81,7 @@
    *   bL: number,                       // cost specific lei/m (opțional)
    *   nouUtilizator: userId,            // UN singur utilizator nou (compatibil)
    *   nouUtilizatori: [userId, ...],    // MAI MULȚI utilizatori noi racordați simultan
+   *   ignorati: [userId, ...],          // art. 18: excluși din repartizare (contract anterior metodologiei)
    *   echipamentComun: number,          // A — echipamente de racordare (opțional)
    *   tronsoane: [{
    *     id, nume, lungime, cost,        // cost explicit SAU lungime * bL
@@ -103,6 +104,9 @@
     var tronsoane = cfg.tronsoane || [];
     var nouList = listNew(cfg);
     var echipamentComun = num(cfg.echipamentComun);
+    // Art. 18 alin. 3 lit. a: utilizatorii cu contract înainte de intrarea în vigoare
+    // (compensați sub vechea metodologie) nu participă la repartizare și nu primesc.
+    var ignorati = cfg.ignorati || [];
 
     function isNou(u) { return nouList.indexOf(u) >= 0; }
 
@@ -115,7 +119,7 @@
     function touch(u) { if (u !== undefined && u !== null && u !== '' && allUsers.indexOf(u) < 0) allUsers.push(u); }
 
     tronsoane.forEach(function (t) {
-      var users = (t.utilizatori || []).slice();
+      var users = (t.utilizatori || []).filter(function (u) { return ignorati.indexOf(u) < 0 || isNou(u); });
       var cost = (t.cost !== undefined && t.cost !== null && t.cost !== '')
         ? num(t.cost)
         : num(t.lungime) * bL;
@@ -208,10 +212,13 @@
     var SnEfectiv = Sn - SnRezerva;
     var IT = num(cfg.IT);
     var bT = SnEfectiv > 0 ? IT / SnEfectiv : 0;
-    var users = (cfg.utilizatori || []).slice();
+    var nouList = listNew(cfg);
+    var ignorati = cfg.ignorati || [];
+    var users = (cfg.utilizatori || []).filter(function (u) {
+      return ignorati.indexOf(u) < 0 || nouList.indexOf(u) >= 0 || u === cfg.primId;
+    });
     var puteri = cfg.puteri || {};
     var elementeComune = num(cfg.elementeComune);
-    var nouList = listNew(cfg);
     var payments = {};
     var cote = {};
     // Primul utilizator (receptorul) = cel bifat explicit, chiar dacă nu apare
@@ -293,6 +300,7 @@
       if (o.nouUtilizatori === undefined) o.nouUtilizatori = nouList;
       if (o.primId === undefined) o.primId = cfg.primId;
       if (o.puteri === undefined) o.puteri = cfg.puteri;
+      if (o.ignorati === undefined) o.ignorati = cfg.ignorati;
       var res = computeStation(o);
       mergePayments(payments, res.payments);
       return res;
@@ -338,6 +346,7 @@
       if (o.nouUtilizator === undefined) o.nouUtilizator = nouList.length === 1 ? nouList[0] : null;
       if (o.primId === undefined) o.primId = cfg.primId;
       if (o.puteri === undefined) o.puteri = puteri;
+      if (o.ignorati === undefined) o.ignorati = cfg.ignorati;
       return o;
     }
 
@@ -397,8 +406,19 @@
 
   function orderList(a) { return (a || []).slice(); }
 
+  /* Art. 18 alin. 1 lit. a: investiția pentru care primul utilizator poate primi
+   * compensații după metodologia nouă = componenta din tariful achitat, MINUS
+   * compensațiile primite sub vechea metodologie. Returnează factorul cu care se
+   * înmulțesc costurile elementelor (Anexa 4 pct. B: 36.500 / 50.000 = 0,73). */
+  function factorCostNet(brut, compensatiiVechi) {
+    var b = num(brut);
+    if (b <= 0) return 1;
+    return Math.max(0, b - Math.max(0, num(compensatiiVechi))) / b;
+  }
+
   /* ---------------------------------------------------------------
-   * Anexa 4 — prevederi tranzitorii (Metodologia Ord. 28/2003).
+   * Anexa 4 pct. A — compensația după vechea metodologie (Ord. 28/2003),
+   * aplicabilă contractelor încheiate înainte de 07.01.2016 (art. 17–18).
    * b = B / S ;  C2 = S2 * b * (l2 / L)
    * cfg = { B, S, S2, l2, L }
    * ------------------------------------------------------------- */
@@ -627,6 +647,7 @@
     computeDeveloper: computeDeveloper,
     checkConditions: checkConditions,
     refaceAtr: refaceAtr,
+    factorCostNet: factorCostNet,
     centralizator: centralizator,
     totals: totals,
     computeStations: computeStations,
