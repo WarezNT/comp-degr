@@ -264,8 +264,6 @@
       var liniiU1 = state.linii.filter(function (l) { return sel.liniiIds.indexOf(l.id) >= 0; });
       var liniiU2 = state.linii.filter(function (l) { return sel.liniiU2Ids.indexOf(l.id) >= 0; });
       var st = state.statii.filter(function (s) { return sel.statiiIds.indexOf(s.id) >= 0; });
-      // Echipamentele comune (varianta 2) = suma echipamentelor stațiilor bifate.
-      var ec = st.reduce(function (sum, s) { return sum + (Number(s.elementeComune) || 0); }, 0);
       return {
         varianta: Number(sel.varianta) || 1,
         liniiU1: liniiU1.map(function (l) {
@@ -275,7 +273,6 @@
           return mergeCfg({ bL: lineBl(l), tronsoane: lineTronsoane([l]), primId: primId }, nouCfg);
         }),
         statii: st.map(function (s) { return stationCfg(s, puteri, primId, nouCfg); }),
-        echipamenteComune: ec,
         puteri: puteri,
         nouUtilizatori: nouList,
         nouUtilizator: nouCfg.nouUtilizator
@@ -306,11 +303,64 @@
     return Number(c.aniDeLaPF) || 0;
   }
 
+  var CHECK_MODELS = ['line', 'station', 'complex'];
+
+  // Beneficiarii compensațiilor (cei care primesc): din plățile calculate;
+  // dacă nu se poate calcula încă, toți utilizatorii care nu sunt noi.
+  function receiverIds() {
+    var ids = {};
+    var model = state.meta.model;
+    if (CHECK_MODELS.indexOf(model) >= 0 && !V.validate(state).errors.length) {
+      try {
+        var r = E.compute(model, buildConfig(model));
+        Object.keys(r.payments || {}).forEach(function (payer) {
+          Object.keys(r.payments[payer]).forEach(function (rec) { ids[rec] = true; });
+        });
+      } catch (e) { /* se folosește lista de rezervă */ }
+    }
+    var list = Object.keys(ids);
+    if (!list.length) {
+      var nou = getNewIds();
+      list = state.utilizatori.map(function (u) { return u.id; }).filter(function (id) { return nou.indexOf(id) < 0; });
+    }
+    return list;
+  }
+
+  // Art. 7 alin. (1): fiecare beneficiar trebuie să fi achitat integral tariful.
+  // Se verifică din „Data achitare TR” (completată și nu ulterioară datei
+  // întocmirii); bifa din Rezultate confirmă manual când data lipsește.
+  function tariffStatus() {
+    var dc = state.meta.dataCalcul;
+    var missing = receiverIds().filter(function (id) {
+      var u = S.findUser(state, id);
+      return u && (!u.dataTR || (dc && u.dataTR > dc));
+    });
+    return {
+      missing: missing.map(nameOf),
+      ok: !missing.length || !!state.conditii.tarifAchitatIntegral
+    };
+  }
+
   function currentConditions() {
     var c = {};
     Object.keys(state.conditii).forEach(function (k) { c[k] = state.conditii[k]; });
     c.aniDeLaPF = effectiveYears();
+    var prim = S.findUser(state, getPrimId());
+    c.clientCasnic = !!(prim && prim.tipClient === 'casnic');   // art. 8 alin. 2: prag 10 ani
+    c.tarifAchitatIntegral = tariffStatus().ok;
     return c;
+  }
+
+  // Condițiile care se aplică modelului ales: art. 8 (+ art. 7) pentru Anexele
+  // 1–3; pentru Anexa 5, termenul de 5 ani (pct. 1); nimic pentru Anexa 4.
+  function conditionsFor() {
+    var model = state.meta.model;
+    if (CHECK_MODELS.indexOf(model) >= 0) return E.checkConditions(currentConditions());
+    if (model === 'developer') {
+      var ani = effectiveYears();
+      return [{ ok: ani <= 5, mesaj: 'Anexa 5 pct. 1: contractul de finanțare/racordare se încheie în cel mult 5 ani de la punerea în funcțiune a rețelei finanțate de primul dezvoltator (în caz: ' + ani + ' ani).' }];
+    }
+    return [];
   }
 
   function runCalculation() {
@@ -325,13 +375,28 @@
     if (!res.nouUtilizatori) res.nouUtilizatori = nouList;
     results = res;
 
+    var conds = conditionsFor();
+    var failed = conds.filter(function (x) { return !x.ok; });
+    if (failed.length && !state.conditii.calcInformativ) {
+      // Art. 8 alin. 1: compensația se calculează și se plătește NUMAI dacă
+      // sunt îndeplinite cumulativ condițiile.
+      results = {
+        error: 'Compensația se calculează și se plătește numai dacă sunt îndeplinite cumulativ condițiile (art. 8 alin. 1). Neîndeplinite: ' +
+          failed.map(function (x) { return x.mesaj; }).join(' | ') +
+          (tariffStatus().ok ? '' : ' Beneficiari fără „Data achitare TR”: ' + tariffStatus().missing.join(', ') + '.') +
+          ' — Dacă vrei totuși o valoare orientativă, bifează „Calculează oricum (informativ)” în lista de condiții.',
+        blocked: true, conditions: conds, warnings: check.warnings
+      };
+      return;
+    }
+
     var central = null;
     if (res.model === 'line' || res.model === 'station' || res.model === 'complex') {
       central = E.centralizator(res.payments, nouList, state.utilizatori, state.meta.tva, state.meta.withTva);
       res.totals = E.totals(res.payments, state.utilizatori);
     }
     results.central = central;
-    results.conditions = E.checkConditions(currentConditions());
+    results.conditions = conds;
     results.warnings = check.warnings;
   }
 
@@ -462,7 +527,7 @@
         '<input type="checkbox" data-action="new-user" data-id="' + esc(u.id) + '"' +
         (checked ? ' checked' : '') + (isPrim ? ' disabled' : '') + '> ' + label + '</label>';
     }).join('') + '</div>' +
-    (sel.length > 1 ? '<p class="hint">Fiecare utilizator nou plătește pe tronsonul/stația pe care este adăugat. Se pot selecta mai mulți. Atenție: fiecare este calculat independent, ca și cum s-ar racorda singur (modelul din anexe); la racordare simultană pe același tronson, sumele cumulate pot diferi de o repartizare unică în cote egale.</p>' : '');
+    (sel.length > 1 ? '<p class="hint">Fiecare utilizator nou plătește pe tronsonul/stația pe care este adăugat. Se pot selecta mai mulți: se racordează <strong>pe rând</strong> (Anexa 1), în ordinea Datei ATR (dacă lipsește, ordinea din listă); cel racordat mai târziu plătește și celor racordați înaintea lui.</p>' : '');
   }
 
   function helperDate() {
@@ -516,12 +581,12 @@
         { field: 'Cod PA', desc: 'Codul de punct de racordare / identificatorul utilizatorului (ex. 1000000004).' },
         { field: 'Nume / denumire', desc: 'Numele persoanei sau denumirea firmei. Apare în centralizator.' },
         { field: 'Putere aprobată (kVA)', desc: 'Puterea aprobată prin avizul tehnic. Se folosește la stații/PT (Anexa 2) și la rețeaua de dezvoltator (Anexa 5).' },
-        { field: 'Data ATR', desc: 'Data emiterii avizului tehnic de racordare. Ajută la verificarea termenului de 5/10 ani (art. 8).' },
-        { field: 'Data achitare TR', desc: 'Data la care a fost achitat tariful de racordare. Condiție pentru a primi compensație.' },
-        { field: 'Tip client', desc: 'Casnic sau non-casnic. Pentru client casnic termenul de la art. 8 se extinde la 10 ani.' },
+        { field: 'Data ATR', desc: 'Data emiterii avizului tehnic de racordare. Nu intră în verificarea termenului de 5/10 ani (acela se măsoară de la punerea în funcțiune, pasul 4); se folosește doar pentru <strong>ordinea racordării</strong> a utilizatorilor noi (calcul secvențial, Anexa 1).' },
+        { field: 'Data achitare TR', desc: 'Data la care a fost achitat integral tariful de racordare. <strong>Obligatorie pentru beneficiarii compensației</strong> (art. 7 alin. 1): fără ea, condiția nu e îndeplinită decât prin confirmare manuală la pasul 4.' },
+        { field: 'Tip client', desc: 'Casnic sau non-casnic. Contează tipul <strong>primului utilizator</strong>: dacă e casnic, termenul din art. 8 se extinde automat la 10 ani (art. 8 alin. 2).' },
         { field: 'Prim utilizator', desc: 'Bifează utilizatorul care a finanțat inițial instalația (cel care primește compensații la stații/PT).' }
       ],
-      note: 'Nu uita să selectezi „Noul utilizator” la pasul 1.',
+      note: 'Nu uita să selectezi utilizatorii noi la pasul 1. Dacă sunt mai mulți, ordinea racordării se ia după Data ATR.',
       refs: 'Ref.: art. 3 (definiții), art. 8 din Metodologie.'
     };
   }
@@ -724,15 +789,15 @@
     // Descrierea componentelor în funcție de variantă.
     var compDesc = {
       1: 'Varianta 1 — noul utilizator se racordează pe linia U1, în amonte de stație. Se aplică <strong>doar Anexa 1</strong> pentru l_U1.',
-      2: 'Varianta 2 — racordare la bara U1 a stației. Se aplică <strong>Anexa 1 (l_U1)</strong> + <strong>echipamentele stației</strong> (altele decât transformatoarele), în cote egale (art. 12 alin. 1).',
-      3: 'Varianta 3 — racordare pe linia U2, în aval de stație. Se aplică <strong>Anexa 1 (l_U1)</strong> + <strong>Anexa 2 (stație/PT)</strong>.',
-      4: 'Varianta 4 — racordare pe linia U2, mai departe. Se aplică <strong>Anexa 1 (l_U1)</strong> + <strong>Anexa 2 (stație/PT)</strong> + <strong>Anexa 1 (l_U2)</strong>.'
+      2: 'Varianta 2 — racordare la bara U1 a stației. Se aplică <strong>Anexa 1 (l_U1)</strong> + <strong>echipamentele stației</strong> (altele decât transformatoarele), în cote egale între toți utilizatorii care au contribuit (art. 12 alin. 1, art. 6 alin. 1 lit. a).',
+      3: 'Varianta 3 — racordare pe linia U2, în aval de stație. Se aplică <strong>Anexa 1 (l_U1)</strong> + <strong>Anexa 2 (transformator)</strong>. Conform Anexei 3, echipamentele comune ale stației NU se adaugă aici (de confirmat cu un specialist).',
+      4: 'Varianta 4 — racordare pe linia U2, mai departe. Se aplică <strong>Anexa 1 (l_U1)</strong> + <strong>Anexa 2 (transformator)</strong> + <strong>Anexa 1 (l_U2)</strong>. Echipamentele comune ale stației nu se adaugă (de confirmat).'
     }[v];
 
     var staBlock = (v === 3 || v === 4)
       ? '<div class="card"><strong>Stații / posturi de transformare (Anexa 2)</strong><div class="list-chk">' + statiiChk + '</div></div>'
       : (v === 2
-        ? '<div class="card"><strong>Echipamente comune ale stației</strong><p class="hint">Valorile „Echipamente comune" din stații se împart în cote egale între utilizatori. Bifează stația folosită:</p><div class="list-chk">' + statiiChk + '</div></div>'
+        ? '<div class="card"><strong>Echipamente comune ale stației</strong><p class="hint">Valorile „Echipamente comune" din stații se împart în cote egale între toți utilizatorii stației. Bifează stația folosită:</p><div class="list-chk">' + statiiChk + '</div></div>'
         : '');
 
     var u2Block = (v === 4)
@@ -838,18 +903,45 @@
     var years = effectiveYears();
     var fromDate = !!(c.dataPIF && state.meta.dataCalcul);
     var keys = ['primCapacitateMaiMare', 'capacitateDisponibila', 'aniDeLaPF', 'solutieComuna', 'tarifAchitatIntegral'];
-    var condHtml = E.checkConditions(currentConditions()).map(function (x, i) {
-      var k = keys[i];
-      if (k === 'aniDeLaPF') {
-        return '<li class="' + (x.ok ? 'ok' : 'bad') + '">' + esc(x.mesaj) +
-          '<div class="years-row">' +
-          '<label>Data punerii în funcțiune: <input type="date" data-bind="cond.dataPIF" value="' + esc(c.dataPIF) + '"></label> ' +
-          '<label>sau ani (manual): <input type="number" min="0" step="0.1" data-bind="cond.aniDeLaPF" value="' + esc(c.aniDeLaPF) + '" class="inline-num"' + (fromDate ? ' disabled' : '') + ' aria-label="Ani de la punerea în funcțiune (manual)"></label>' +
-          (fromDate ? ' <span class="hint">calculat din date: ' + esc(years) + ' ani (la data întocmirii)</span>' : '') +
-          '</div></li>';
-      }
-      return '<li class="' + (x.ok ? 'ok' : 'bad') + '"><label class="chk"><input type="checkbox" data-bind="cond.' + k + '"' + (c[k] ? ' checked' : '') + '> ' + esc(x.mesaj) + '</label></li>';
-    }).join('');
+    var model = state.meta.model;
+    var conds = conditionsFor();
+    var tariff = tariffStatus();
+
+    function yearsLi(x) {
+      return '<li class="' + (x.ok ? 'ok' : 'bad') + '">' + esc(x.mesaj) +
+        '<div class="years-row">' +
+        '<label>Data punerii în funcțiune: <input type="date" data-bind="cond.dataPIF" value="' + esc(c.dataPIF) + '"></label> ' +
+        '<label>sau ani (manual): <input type="number" min="0" step="0.1" data-bind="cond.aniDeLaPF" value="' + esc(c.aniDeLaPF) + '" class="inline-num"' + (fromDate ? ' disabled' : '') + ' aria-label="Ani de la punerea în funcțiune (manual)"></label>' +
+        (fromDate ? ' <span class="hint">calculat din date: ' + esc(years) + ' ani (la data întocmirii)</span>' : '') +
+        '</div></li>';
+    }
+
+    var condHtml;
+    if (CHECK_MODELS.indexOf(model) >= 0) {
+      condHtml = conds.map(function (x, i) {
+        var k = keys[i];
+        if (k === 'aniDeLaPF') return yearsLi(x);
+        if (k === 'tarifAchitatIntegral') {
+          return '<li class="' + (x.ok ? 'ok' : 'bad') + '">' + esc(x.mesaj) +
+            (tariff.missing.length
+              ? '<div class="hint">Fără „Data achitare TR” (sau ulterioară datei întocmirii): ' + esc(tariff.missing.join(', ')) + '.</div>'
+              : '<div class="hint">Toți beneficiarii au data achitării TR completată.</div>') +
+            '<label class="chk"><input type="checkbox" data-bind="cond.tarifAchitatIntegral"' + (c.tarifAchitatIntegral ? ' checked' : '') + '> Confirm manual că toți beneficiarii au achitat integral tariful</label></li>';
+        }
+        return '<li class="' + (x.ok ? 'ok' : 'bad') + '"><label class="chk"><input type="checkbox" data-bind="cond.' + k + '"' + (c[k] ? ' checked' : '') + '> ' + esc(x.mesaj) + '</label></li>';
+      }).join('') +
+        '<li class="' + (c.fonduriPublice ? 'bad' : 'ok') + '"><label class="chk"><input type="checkbox" data-bind="cond.fonduriPublice"' + (c.fonduriPublice ? ' checked' : '') + '> Instalația primului utilizator a fost finanțată din fonduri publice nerambursabile (art. 19 — metodologia nu se aplică)</label></li>';
+    } else if (model === 'developer') {
+      condHtml = conds.map(yearsLi).join('');
+    } else {
+      condHtml = '';
+    }
+    var condCard = condHtml
+      ? '<div class="card"><strong>Verificarea condițiilor cumulative' + (model === 'developer' ? ' (Anexa 5)' : ' (Art. 8)') + '</strong>' +
+        '<p class="hint">Calculul este blocat cât timp o condiție nu e îndeplinită (art. 8 alin. 1: „numai dacă sunt îndeplinite cumulativ”).</p>' +
+        '<ul class="conds">' + condHtml + '</ul>' +
+        '<label class="chk"><input type="checkbox" data-bind="cond.calcInformativ"' + (c.calcInformativ ? ' checked' : '') + '> Calculează oricum (informativ — valorile nu sunt datorate dacă o condiție nu e îndeplinită)</label></div>'
+      : '';
 
     var check = V.validate(state);
     var listHtml = '';
@@ -877,7 +969,7 @@
         '<button class="btn ghost" data-action="export-csv"' + (canExport ? '' : ' disabled') + '>Export CSV</button>' +
         '<button class="btn ghost" data-action="print"' + (canPrint ? '' : ' disabled') + '>Printează / PDF</button>' +
       '</div>' + (results ? '<p class="hint">Rezultatul se actualizează automat când modifici datele.</p>' : '') + listHtml +
-      '<div class="card"><strong>Verificarea condițiilor cumulative (Art. 8)</strong><ul class="conds">' + condHtml + '</ul></div>' +
+      condCard +
       '<div id="results-region" aria-live="polite">' + resultHtml + '</div>',
       helperResults()
     );
@@ -888,8 +980,10 @@
       title: 'Ce faci în acest pas',
       intro: 'Bifezi condițiile legale, apeși „Calculează compensațiile” și verifici centralizatorul.',
       items: [
-        { field: 'Verificarea condițiilor (Art. 8)', desc: 'Bifează situațiile reale. Compensația se datorează numai dacă TOATE condițiile sunt îndeplinite cumulativ.' },
-        { field: 'Ani de la punerea în funcțiune', desc: 'Introdu numărul de ani. Termen: 5 ani (10 ani pentru client casnic).' },
+        { field: 'Verificarea condițiilor (Art. 8)', desc: 'Bifează situațiile reale. Compensația se calculează și se plătește <strong>numai dacă</strong> toate condițiile sunt îndeplinite cumulativ; altfel calculul este blocat (poți cere o valoare orientativă cu „Calculează oricum”).' },
+        { field: 'Punerea în funcțiune / ani', desc: 'Completează data punerii în funcțiune (anii se calculează la data întocmirii) sau introdu anii manual. Termen: 5 ani (10 ani dacă primul utilizator e casnic — se aplică automat din tipul clientului).' },
+        { field: 'Tariful achitat (art. 7)', desc: 'Se verifică din „Data achitare TR” a fiecărui beneficiar; poți confirma manual dacă data lipsește.' },
+        { field: 'Fonduri publice (art. 19)', desc: 'Dacă instalația primului utilizator a fost finanțată din fonduri nerambursabile, metodologia nu se aplică.' },
         { field: 'Calculează compensațiile', desc: 'Generează centralizatorul: cine plătește cui, cu și fără TVA.' },
         { field: 'Export CSV', desc: 'Descarcă centralizatorul pentru Excel (separator „;”, zecimale cu virgulă).' },
         { field: 'Printează / PDF', desc: 'Tipărește sau salvează ca PDF, doar conținutul rezultatelor.' }

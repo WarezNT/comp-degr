@@ -35,9 +35,13 @@
         capacitateDisponibila: true,
         aniDeLaPF: 0,
         dataPIF: '',
-        clientCasnic: false,
         solutieComuna: true,
-        tarifAchitatIntegral: true
+        // Art. 7 alin. 1: tariful achitat integral de cei care primesc compensația.
+        // Se verifică din „Data achitare TR” a fiecărui beneficiar; bifa de aici
+        // este confirmarea manuală când data lipsește.
+        tarifAchitatIntegral: false,
+        fonduriPublice: false,      // art. 19: instalația finanțată din fonduri nerambursabile
+        calcInformativ: false       // calculează oricum, chiar dacă art. 8 nu e îndeplinit
       }
     };
   }
@@ -81,7 +85,14 @@
     if (!ids.length && p.meta.noulUtilizatorId) ids = [p.meta.noulUtilizatorId];
     var existing = {};
     (p.utilizatori || []).forEach(function (u) { existing[u.id] = true; });
-    return ids.filter(function (id) { return id && id !== prim && existing[id] !== undefined; });
+    var list = ids.filter(function (id) { return id && id !== prim && existing[id] !== undefined; });
+    // Ordinea racordării (calcul secvențial, Anexa 1): după data ATR; cei fără
+    // dată păstrează ordinea din listă, după cei cu dată (sortare stabilă).
+    return list.map(function (id, i) {
+      var u = findUser(p, id);
+      return { id: id, d: (u && u.dataATR) || '9999-99-99', i: i };
+    }).sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : a.i - b.i; })
+      .map(function (x) { return x.id; });
   }
 
   // Conflict: un utilizator nou este și prim utilizator.
@@ -103,8 +114,8 @@
     var u1 = addUser(p, { codPA: '1000000001', nume: 'U1', putere: 100, prim: true, dataATR: '2017-12-20', dataTR: '2018-03-09' });
     var u2 = addUser(p, { codPA: '1000000002', nume: 'U2', putere: 100, dataATR: '2020-10-19', dataTR: '2020-11-19' });
     var u3 = addUser(p, { codPA: '1000000003', nume: 'U3', putere: 100, dataATR: '2020-12-19', dataTR: '2020-12-20' });
-    var u4 = addUser(p, { codPA: '1000000004', nume: 'U4', putere: 100 });
-    var u5 = addUser(p, { codPA: '1000000005', nume: 'U5', putere: 100 });
+    var u4 = addUser(p, { codPA: '1000000004', nume: 'U4', putere: 100, dataATR: '2021-02-10', dataTR: '2021-03-15' });
+    var u5 = addUser(p, { codPA: '1000000005', nume: 'U5', putere: 100, dataATR: '2021-06-10', dataTR: '2021-07-15' });
     var u6 = addUser(p, { codPA: '1000000006', nume: 'U6', putere: 100 });
 
     var linie = {
@@ -130,9 +141,9 @@
     // Rezultat așteptat: U4 plătește 500 lei către fiecare din U1,U2,U3.
     var p = emptyProject();
     p.meta.model = 'line';
-    var u1 = addUser(p, { codPA: '1000000001', nume: 'U1', putere: 100, prim: true });
-    var u2 = addUser(p, { codPA: '1000000002', nume: 'U2', putere: 100 });
-    var u3 = addUser(p, { codPA: '1000000003', nume: 'U3', putere: 100 });
+    var u1 = addUser(p, { codPA: '1000000001', nume: 'U1', putere: 100, prim: true, dataATR: '2023-01-10', dataTR: '2023-02-10' });
+    var u2 = addUser(p, { codPA: '1000000002', nume: 'U2', putere: 100, dataATR: '2023-05-10', dataTR: '2023-06-10' });
+    var u3 = addUser(p, { codPA: '1000000003', nume: 'U3', putere: 100, dataATR: '2023-09-10', dataTR: '2023-10-10' });
     var u4 = addUser(p, { codPA: '1000000004', nume: 'U4', putere: 100 });
     var linie = {
       id: uid('lin'),
@@ -417,6 +428,10 @@
     Object.keys(base.meta).forEach(function (k) {
       if (p.meta[k] === undefined) p.meta[k] = base.meta[k];
     });
+    Object.keys(base.conditii).forEach(function (k) {
+      if (p.conditii[k] === undefined) p.conditii[k] = base.conditii[k];
+    });
+    delete p.conditii.clientCasnic;   // derivat din tipul clientului primului utilizator
     (p.linii || []).forEach(function (l) {
       if (l.bLManual === undefined) l.bLManual = false;
       (l.tronsoane || []).forEach(function (t) {

@@ -61,7 +61,7 @@ Butoane rapide în bara de sus: **Demo U4**, **Demo U6** (scenarii din modelul `
 
 | Model | Anexă | Principiu |
 |------|-------|-----------|
-| Linie electrică / elemente comune | Anexa 1 (art. 12) | Costul fiecărui tronson se împarte în **cote egale** între utilizatorii care îl folosesc. Compensația noului utilizator către unul existent = cost_înainte − cost_după. |
+| Linie electrică / elemente comune | Anexa 1 (art. 12) | Costul fiecărui tronson se împarte în **cote egale** între utilizatorii care îl folosesc. Compensația noului utilizator către unul existent = cost_înainte − cost_după (utilizatorii noi, pe rând). |
 | Stație electrică / post de transformare | Anexa 2 (art. 13) | Repartizare **proporțională cu puterea aprobată**: `b_T = I_T / S_n`, `C_k = S_k · b_T`. |
 | Instalație de racordare complexă | Anexa 3 | Sumă de componente după varianta punctului de racordare (1–4): linie `l_U1`, echipamente stație, stație (Anexa 2), linie `l_U2`. |
 | Prevederi tranzitorii | Anexa 4 (art. 18) | Fosta metodologie Ord. 28/2003: `b = B / S`, `C_2 = S_2 · b · (l_2 / L)`. |
@@ -85,7 +85,14 @@ Detalii despre formule și validarea lor: `docs/formule-ocr.md` (material local,
   l₂ > L, TVA în afara 0–100 etc. blochează calculul; avertismente pentru utilizatori
   noi neasignați pe niciun tronson/stație sau primul utilizator care lipsește din stație.
 - Rezultatele se **actualizează automat** la orice modificare după primul calcul.
-- Art. 8: „ani de la punerea în funcțiune” se poate deriva din data PIF.
+- **Art. 8 / art. 7 (conform textului consolidat al metodologiei):** compensația se
+  calculează „numai dacă sunt îndeplinite cumulativ” condițiile — calculul e blocat altfel
+  (cu opțiunea „Calculează oricum (informativ)”). Anii de la punerea în funcțiune se pot
+  deriva din data PIF; pragul e 10 ani dacă primul utilizator e casnic (art. 8 alin. 2);
+  „Data achitare TR” se verifică pentru fiecare beneficiar (art. 7 alin. 1); art. 19
+  (fonduri publice nerambursabile) exclude aplicarea metodologiei; Anexa 5 pct. 1: 5 ani.
+- **Utilizatori noi multipli:** se racordează secvențial (Anexa 1), ordonați după Data ATR;
+  cel mai târziu plătește și celor noi racordați înaintea lui.
 - **Export CSV** — centralizatorul (separator `;`, zecimale cu virgulă, pentru Excel RO).
 - **Printează / PDF** — print CSS curat al rezultatelor.
 - **Salvează / Import JSON** — backup și partajare proiect.
@@ -149,9 +156,9 @@ metodologie ca documente conexe.
 
 - Anexa 5 (rețeaua dezvoltatorului) este implementată pe baza modelului de calcul din
   metodologie; partea de analiză de eficiență economică nu este automatizată.
-- De clarificat cu un specialist (metodologic, nemodificat în cod): calculul „ca și cum
-  ar veni singur” pentru mai mulți utilizatori noi pe același tronson; Anexa 2 plătește
-  doar primului utilizator; tratamentul echipamentelor comune în Anexa 3 (var. 2 vs 3/4).
+- De confirmat cu un specialist: Anexa 3, variantele 3 și 4 — conform textului literal al
+  Anexei 3 se aplică doar Anexa 1 + Anexa 2 (transformator), deci echipamentele comune ale
+  stației nu se adaugă (art. 6 alin. 1 lit. a pct. ii ar putea susține includerea lor).
 - Nu există autentificare/multi-utilizator; datele sunt locale, per browser.
 - Posibile extinderi: import direct din `.xlsx`, export `.xlsx`, proiecte multiple
   selectabile în UI, istoric/versiuni per proiect, grafice pentru schemă.

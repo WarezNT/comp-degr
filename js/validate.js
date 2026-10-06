@@ -37,6 +37,9 @@
       if (users.length < 2) errors.push('Adaugă cel puțin 2 utilizatori (primul utilizator și unul nou) în tabul „2 · Utilizatori”.');
       if (!primId) warnings.push('Nu este bifat primul utilizator (finanțatorul, cel care primește compensații) în tabul „2 · Utilizatori”.');
       if (!newIds.length) errors.push('Bifează cel puțin un utilizator nou (cel care plătește) în tabul „1 · Date generale”.');
+      if (p.conditii && p.conditii.fonduriPublice) {
+        errors.push('Art. 19: metodologia nu se aplică dacă instalația primului utilizator a fost finanțată din fonduri publice nerambursabile.');
+      }
       if (S.roleConflict(p)) errors.push('Primul utilizator nu poate fi și utilizator nou (cel care plătește). Scoate-l din lista de utilizatori noi.');
 
       users.forEach(function (u) {
@@ -88,10 +91,16 @@
         errors.push('Stația „' + nm + '”: S_n efectiv trebuie să fie mai mare decât 0 pentru a calcula b_T.');
       }
       var seen = {};
+      var sumP = 0;
       (s.utilizatori || []).forEach(function (u) {
         if (seen[u]) errors.push('Utilizatorul „' + nameOf(u) + '” apare de două ori în stația „' + nm + '”.');
         seen[u] = true;
+        var uu = S.findUser(p, u);
+        if (uu) sumP += n(uu.putere);
       });
+      if (efectiv > 0 && sumP > efectiv) {
+        warnings.push('Stația „' + nm + '”: suma puterilor aprobate (' + sumP + ' kVA) depășește S_n efectiv (' + efectiv + ' kVA); Anexa 2 presupune puteri în limita capacității transformatorului.');
+      }
       if (primId && (s.utilizatori || []).indexOf(primId) < 0) {
         warnings.push('Primul utilizator („' + nameOf(primId) + '”) nu este în lista stației „' + nm + '”; compensația se plătește totuși lui. Adaugă-l în stație dacă e racordat la ea.');
       }

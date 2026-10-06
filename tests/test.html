@@ -116,7 +116,7 @@
     });
 
     // Doi utilizatori noi simultan (pe tronsoane diferite): plățile se cumulează
-    test('Anexa 1 — doi utilizatori noi simultan', function (assert) {
+    test('Anexa 1 — doi utilizatori noi pe tronsoane diferite', function (assert) {
       var res = E.computeLine({
         bL: 300, nouUtilizatori: ['U3', 'U4'],
         tronsoane: [
@@ -125,23 +125,33 @@
           { id: 'T3', lungime: 40, cost: 12000, utilizatori: ['U2', 'U4'] }
         ]
       });
-      var total = E.allPayments('line', function (single) {
-        return {
-          bL: 300, nouUtilizatori: single ? [single] : ['U3', 'U4'],
-          tronsoane: [
-            { id: 'T1', lungime: 80, cost: 40000, utilizatori: ['U1', 'U2'] },
-            { id: 'T2', lungime: 20, cost: 10000, utilizatori: ['U2', 'U3'] },
-            { id: 'T3', lungime: 40, cost: 12000, utilizatori: ['U2', 'U4'] }
-          ]
-        };
-      });
-      // U3 plătește pe T2 către U2 și (T1) către U1,U2; U4 pe T3.
-      if (!total['U3'] || !total['U4']) assert('ambii utilizatori noi trebuie să plătească');
-      if (!(total['U3']['U2'] > 0)) assert('U3 -> U2 lipsă');
-      if (!(total['U4']['U2'] > 0)) assert('U4 -> U2 lipsă');
+      eq(assert, res.payments['U3']['U2'], 5000, 'U3 -> U2');
+      eq(assert, res.payments['U4']['U2'], 6000, 'U4 -> U2');
     });
 
-    // Anexa 2: transformatorul de rezervă N-1 se exclude din b_T (art. 15 alin. 4)
+    // Art. 12 alin. 1 + Anexa 1: racordare secvențială. 4 utilizatori pe un tronson de 12.000 lei,
+    // N1 și N2 noi (în ordine). Cei vechi primesc 12000/2 − 12000/4 = 3000 fiecare în total;
+    // N2 plătește și lui N1 (racordat înaintea lui).
+    test('Anexa 1 — doi utilizatori noi pe ACELAȘI tronson (secvențial)', function (assert) {
+      var res = E.computeLine({
+        nouUtilizatori: ['N1', 'N2'],
+        tronsoane: [{ id: 'T', cost: 12000, utilizatori: ['U1', 'U2', 'N1', 'N2'] }]
+      });
+      var p = res.payments;
+      eq(assert, p['N1']['U1'], 2000, 'N1 -> U1');
+      eq(assert, p['N1']['U2'], 2000, 'N1 -> U2');
+      eq(assert, p['N2']['U1'], 1000, 'N2 -> U1');
+      eq(assert, p['N2']['U2'], 1000, 'N2 -> U2');
+      eq(assert, p['N2']['N1'], 1000, 'N2 -> N1');
+      eq(assert, p['N1']['U1'] + p['N2']['U1'], 3000, 'total primit de U1');
+    });
+
+    test('Anexa 1 — rezultatul unui utilizator nou unic nu s-a schimbat', function (assert) {
+      var res = E.computeLine({ nouUtilizatori: ['U4'],
+        tronsoane: [{ id: 'T', cost: 3000, utilizatori: ['U1', 'U2', 'U3', 'U4'] }] });
+      eq(assert, res.payments['U4']['U1'], 250, 'U4 -> U1');
+    });
+
     test('Anexa 2 — S_n exclude transformatorul de rezervă N-1', function (assert) {
       var res = E.computeStation({
         Sn: 1000, SnRezerva: 400, IT: 300000,
@@ -166,6 +176,28 @@
       // linie: U2 -> U1 = 20000; echipamente: 12000/2=6000 după, 12000/1=12000 înainte -> 6000
       eq(assert, res.payments['U2']['U1'], 26000, 'U2 -> U1 (linie + echipamente)');
       eq(assert, res.varianta, 2, 'varianta');
+    });
+
+    test('Anexa 3 — varianta 2: echipamentele comune se plătesc TUTUROR utilizatorilor existenți', function (assert) {
+      var res = E.computeComplex({
+        varianta: 2,
+        liniiU1: [],
+        statii: [{ Sn: 400, IT: 100000, elementeComune: 12000, utilizatori: ['U1', 'U2', 'U3'], primId: 'U1' }],
+        primId: 'U1', nouUtilizatori: ['U3']
+      });
+      // 12000/2 − 12000/3 = 2000 către fiecare dintre U1 și U2
+      eq(assert, res.payments['U3']['U1'], 2000, 'U3 -> U1');
+      eq(assert, res.payments['U3']['U2'], 2000, 'U3 -> U2');
+    });
+
+    test('Anexa 3 — varianta 3: echipamentele comune NU se adaugă (Anexa 3 literal)', function (assert) {
+      var res = E.computeComplex({
+        varianta: 3,
+        liniiU1: [{ bL: 500, tronsoane: [{ id: 'T1', lungime: 80, cost: 40000, utilizatori: ['U1', 'U2'] }] }],
+        statii: [{ Sn: 400, IT: 100000, elementeComune: 12000, utilizatori: ['U1', 'U2'], primId: 'U1' }],
+        puteri: { U1: 0, U2: 100 }, primId: 'U1', nouUtilizatori: ['U2']
+      });
+      eq(assert, res.payments['U2']['U1'], 45000, 'U2 -> U1 (fără echipamente comune)');
     });
 
     test('Anexa 3 — varianta 3: linie U1 + stație (Anexa 2)', function (assert) {

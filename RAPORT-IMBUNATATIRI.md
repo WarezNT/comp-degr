@@ -82,3 +82,17 @@ Recomandare: validare centralizată (`validate(project)` → listă erori/averti
 
 **Netratat intenționat (necesită decizie de specialist, nu s-a schimbat nicio formulă):** C2 (utilizatori noi simultani — doar notă în UI), C3 (Anexa 2: doar primul primește), C4 (echipamente comune în Anexa 3), C6 (TVA pe rând vs. pe total).
 **Nemplementat (extinderi):** export .xlsx, listă de proiecte în UI, refactor `ui.js` către componente.
+
+
+## Actualizare — verificare față de textul consolidat al metodologiei (Ord. 180/2015, cu Ord. 10/2016 și 16/2019)
+
+| Punct | Ce spune norma | Ce s-a făcut |
+|---|---|---|
+| Art. 8 blochează? | Art. 8 alin. 1: „se calculează și se plătește **numai dacă** sunt îndeplinite cumulativ” (4 condiții, lit. a–d) | Calcul blocat; opțiune explicită „Calculează oricum (informativ)”. Condiția a 5-a din aplicație = art. 7 alin. 1 (reetichetată). Prag 10 ani pentru prim casnic (art. 8 alin. 2) derivat din tipul clientului (înainte nu putea fi activat). Art. 19 (fonduri publice) adăugat ca excludere. Anexa 5 pct. 1 (5 ani) verificat. |
+| dataATR / dataTR | Termenul curge de la punerea în funcțiune, nu de la ATR; art. 7 alin. 1 cere tariful achitat de fiecare beneficiar | `dataTR` verificată per beneficiar (confirmare manuală posibilă); `dataATR` folosită doar pentru ordinea racordării; text de ajutor corectat. |
+| Utilizatori noi multipli | Anexa 1: un singur utilizator nou pe rând (n−1 → n), exemple secvențiale | Calcul secvențial (`sequentialPayments`), ordine după Data ATR; noii plătesc și celor racordați înaintea lor. Total primit de un utilizator vechi = cost/n_vechi − cost/n_final. |
+| Echipamente comune Anexa 3 | Var. 2: art. 12 alin. 1 (cote egale, toți cei care au contribuit); var. 3/4: doar Anexa 1 + Anexa 2 | Var. 2 plătește tuturor; var. 3/4 nu mai adaugă echipamente comune (notă în UI, de confirmat). |
+| Antet/semnături | Norma nu impune format; valoarea se precizează în ATR (art. 6 alin. 2) | Neschimbat (practică, nu obligație). |
+| Anexa 2 (doar primul primește) | Art. 6 alin. 1 lit. b, art. 13 | Confirmat — corect în aplicație. |
+
+Nemodelat încă (menționat în norme): art. 15 alin. 1 (al doilea circuit pe stâlpi), art. 15 alin. 3 (întărire post), art. 6 alin. 5 (operatorul ca utilizator nou), art. 7 alin. 2 (refacerea ATR-urilor).

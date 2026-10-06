@@ -41,6 +41,14 @@
       ready.then(runTests, runTests);
     });
 
+    // Proiect gol cu „tariful achitat integral” confirmat manual (art. 7 alin. 1),
+    // ca testele care nu completează „Data achitare TR” să nu fie blocate de art. 8.
+    function emptyOk() {
+      var p = window.AppState.emptyProject();
+      p.conditii.tarifAchitatIntegral = true;
+      return p;
+    }
+
     function runTests() {
       test('UI se inițializează', function () {
         if (!document.querySelector('.tabs')) throw new Error('tabs lipsă');
@@ -67,7 +75,7 @@
       });
 
       test('Cost tronson se calculează automat din lungime × b_L', function () {
-        var p = window.AppState.emptyProject();
+        var p = emptyOk();
         p.meta.model = 'line';
         var u1 = window.AppState.addUser(p, { nume: 'U1' });
         var u2 = window.AppState.addUser(p, { nume: 'U2' });
@@ -91,7 +99,7 @@
       });
 
       test('b_L derivat automat din I_L / L', function () {
-        var p = window.AppState.emptyProject();
+        var p = emptyOk();
         p.linii.push({ id: 'L1', nume: 'L', IL: 6000, L: 200, bL: 0, bLManual: false, tronsoane: [] });
         window.AppUI.setProject(p);
         var st = window.AppUI.getState();
@@ -99,7 +107,7 @@
       });
 
       test('Tastarea cifrelor nu le amestecă și nu re-randează inputul', function () {
-        var p = window.AppState.emptyProject();
+        var p = emptyOk();
         p.meta.model = 'line';
         window.AppState.addUser(p, { nume: 'U1' });
         window.AppState.addUser(p, { nume: 'U2' });
@@ -139,7 +147,7 @@
       });
 
       test('Blochează calculul dacă primul utilizator = utilizator nou', function () {
-        var p = window.AppState.emptyProject();
+        var p = emptyOk();
         p.meta.model = 'line';
         var u1 = window.AppState.addUser(p, { nume: 'U1', prim: true });
         var u2 = window.AppState.addUser(p, { nume: 'U2' });
@@ -150,7 +158,7 @@
       });
 
       test('Anexa 2 prin UI — primul bifat primește, nu plătește', function () {
-        var p = window.AppState.emptyProject();
+        var p = emptyOk();
         p.meta.model = 'station';
         var a = window.AppState.addUser(p, { nume: 'A', putere: 100, prim: true });
         var b = window.AppState.addUser(p, { nume: 'B', putere: 100 });
@@ -165,7 +173,7 @@
       });
 
       test('Doi utilizatori noi pe tronsoane diferite (prin UI)', function () {
-        var p = window.AppState.emptyProject();
+        var p = emptyOk();
         p.meta.model = 'line';
         var u1 = window.AppState.addUser(p, { nume: 'U1', prim: true });
         var u2 = window.AppState.addUser(p, { nume: 'U2' });
@@ -189,7 +197,7 @@
       });
 
       test('Anexa 3 (complex) prin UI — varianta 3 = linie + stație', function () {
-        var p = window.AppState.emptyProject();
+        var p = emptyOk();
         p.meta.model = 'complex';
         p.complexConfig.varianta = 3;
         var u1 = window.AppState.addUser(p, { nume: 'U1', putere: 0, prim: true });
@@ -293,7 +301,7 @@
       });
 
       test('Detaliu stație afișează valorile reale (nu 0)', function () {
-        var p = window.AppState.emptyProject();
+        var p = emptyOk();
         p.meta.model = 'station';
         var a = window.AppState.addUser(p, { nume: 'A', putere: 100, prim: true });
         var c = window.AppState.addUser(p, { nume: 'C', putere: 50 });
@@ -353,6 +361,115 @@
         var cols = lines[0].split(';').length;
         lines.forEach(function (l) { if (l.split(';').length !== cols) throw new Error('coloane inegale: ' + l); });
         if (lines[lines.length - 1] !== 'Total;;1500,00;1785,00') throw new Error('rând total: ' + lines[lines.length - 1]);
+      });
+
+      test('Art. 8: condiție neîndeplinită blochează calculul (cumulativ)', function () {
+        var p = window.AppState.demoU4();
+        p.conditii.capacitateDisponibila = false;
+        window.AppUI.setProject(p);
+        var r = window.AppUI.calculate();
+        if (!r.error || !r.blocked) throw new Error('calculul trebuia blocat');
+        if (r.error.indexOf('art. 8') < 0) throw new Error('mesaj fără referință la art. 8: ' + r.error);
+      });
+
+      test('Art. 8: „Calculează oricum (informativ)” permite calculul', function () {
+        var p = window.AppState.demoU4();
+        p.conditii.capacitateDisponibila = false;
+        p.conditii.calcInformativ = true;
+        window.AppUI.setProject(p);
+        var r = window.AppUI.calculate();
+        if (r.error) throw new Error('nu ar trebui blocat: ' + r.error);
+        if (Math.abs(r.central.totalFaraTVA - 1500) > 0.01) throw new Error('total ' + r.central.totalFaraTVA);
+        window.AppUI.setTab('rezultate');
+        if (document.getElementById('app').innerHTML.indexOf('INFORMATIV') < 0) throw new Error('lipsește marcajul INFORMATIV');
+      });
+
+      test('Art. 8 alin. 2: prag 10 ani dacă primul utilizator e casnic', function () {
+        var p = window.AppState.demoU4();
+        p.conditii.aniDeLaPF = 7;
+        window.AppUI.setProject(p);
+        var r = window.AppUI.calculate();
+        if (!r.blocked) throw new Error('7 ani, client non-casnic: trebuia blocat');
+        p.utilizatori[0].tipClient = 'casnic';
+        window.AppUI.setProject(p);
+        r = window.AppUI.calculate();
+        if (r.error) throw new Error('7 ani, prim casnic: nu trebuia blocat: ' + r.error);
+        p.conditii.aniDeLaPF = 11;
+        window.AppUI.setProject(p);
+        r = window.AppUI.calculate();
+        if (!r.blocked) throw new Error('11 ani: trebuia blocat chiar și pentru casnic');
+      });
+
+      test('Art. 8 lit. c: anii se derivă din data punerii în funcțiune', function () {
+        var p = window.AppState.demoU4();
+        p.meta.dataCalcul = '2026-10-01';
+        p.conditii.dataPIF = '2019-01-01';
+        window.AppUI.setProject(p);
+        if (!window.AppUI.calculate().blocked) throw new Error('7,7 ani non-casnic: trebuia blocat');
+        p.conditii.dataPIF = '2023-01-01';
+        window.AppUI.setProject(p);
+        if (window.AppUI.calculate().error) throw new Error('3,7 ani: nu trebuia blocat');
+      });
+
+      test('Art. 7 alin. 1: Data achitare TR se verifică pentru fiecare beneficiar', function () {
+        var p = window.AppState.demoU4();
+        p.utilizatori[1].dataTR = '';            // un beneficiar fără dată
+        window.AppUI.setProject(p);
+        var r = window.AppUI.calculate();
+        if (!r.blocked) throw new Error('beneficiar fără dataTR: trebuia blocat');
+        if (r.error.indexOf(p.utilizatori[1].nume) < 0 && r.error.indexOf('art. 7') < 0) throw new Error('mesaj: ' + r.error);
+        p.conditii.tarifAchitatIntegral = true;  // confirmare manuală
+        window.AppUI.setProject(p);
+        if (window.AppUI.calculate().error) throw new Error('confirmarea manuală trebuia să deblocheze');
+      });
+
+      test('Art. 19: fonduri publice nerambursabile — metodologia nu se aplică', function () {
+        var p = window.AppState.demoU4();
+        p.conditii.fonduriPublice = true;
+        p.conditii.calcInformativ = true;
+        window.AppUI.setProject(p);
+        var r = window.AppUI.calculate();
+        if (!r.error || r.error.indexOf('Art. 19') < 0) throw new Error('art. 19 trebuia să blocheze: ' + JSON.stringify(r.error));
+      });
+
+      test('Utilizatori noi: ordinea racordării după Data ATR', function () {
+        var p = window.AppState.emptyProject();
+        var a = window.AppState.addUser(p, { nume: 'A', prim: true });
+        var b = window.AppState.addUser(p, { nume: 'B', dataATR: '2024-06-01' });
+        var c = window.AppState.addUser(p, { nume: 'C', dataATR: '2024-01-01' });
+        p.meta.nouUtilizatoriIds = [b.id, c.id];
+        var ids = window.AppState.newIds(p);
+        if (ids.join() !== c.id + ',' + b.id) throw new Error('ordine: ' + ids);
+      });
+
+      test('Anexa 5: termenul de 5 ani blochează calculul', function () {
+        var p = window.AppState.emptyProject();
+        p.meta.model = 'developer';
+        p.dezvoltator = { Itotal: 1000, Ief: 500, dezvoltatori: [{ id: 'd1', nume: 'D', putere: 10 }] };
+        p.conditii.aniDeLaPF = 6;
+        window.AppUI.setProject(p);
+        if (!window.AppUI.calculate().blocked) throw new Error('6 ani: trebuia blocat');
+        p.conditii.aniDeLaPF = 3;
+        window.AppUI.setProject(p);
+        if (window.AppUI.calculate().error) throw new Error('3 ani: nu trebuia blocat');
+      });
+
+      test('Anexa 1 prin UI: doi utilizatori noi pe același tronson plătesc secvențial', function () {
+        var p = emptyOk();
+        var u1 = window.AppState.addUser(p, { nume: 'U1', prim: true });
+        var u2 = window.AppState.addUser(p, { nume: 'U2' });
+        var n1 = window.AppState.addUser(p, { nume: 'N1', dataATR: '2025-01-01' });
+        var n2 = window.AppState.addUser(p, { nume: 'N2', dataATR: '2025-06-01' });
+        p.linii.push({ id: 'L', nume: 'L', IL: 12000, L: 100, bL: 0, bLManual: false, tronsoane: [
+          { id: 'T', nume: 'T', lungime: 100, cost: 0, costManual: false, utilizatori: [u1.id, u2.id, n1.id, n2.id] }] });
+        p.meta.nouUtilizatoriIds = [n2.id, n1.id];   // ordinea din listă nu contează: se folosește Data ATR
+        window.AppUI.setProject(p);
+        var r = window.AppUI.calculate();
+        if (r.error) throw new Error(r.error);
+        if (Math.abs(r.payments[n2.id][n1.id] - 1000) > 0.01) throw new Error('N2 -> N1 = ' + (r.payments[n2.id][n1.id]));
+        if (r.payments[n1.id][n2.id]) throw new Error('N1 nu trebuie să plătească lui N2');
+        var primit = r.totals.primite[u1.id];
+        if (Math.abs(primit - 3000) > 0.01) throw new Error('U1 primește ' + primit);
       });
 
       var s = document.createElement('div');
