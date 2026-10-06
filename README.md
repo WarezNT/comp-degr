@@ -1,6 +1,6 @@
 # Compensatii bănești — racordare în etape diferite
 
-Aplicație web (HTML + CSS + JavaScript vanilla, fără build tooling) pentru stabilirea
+Aplicație web (HTML + CSS + JavaScript, interfață Preact + htm vendorizate, **fără build**) pentru stabilirea
 **compensațiilor bănești** între utilizatorii racordați în etape diferite, prin
 **instalație comună**, la rețele electrice de interes public.
 
@@ -29,7 +29,8 @@ publicată în M.Of. nr. 12 din 07.01.2016), anexele nr. 1–5.
 - Verifică **condițiile cumulative Art. 8** și avertizează când nu sunt îndeplinite.
 - Calcul automat al costului pe tronsoane (`lungime × b_L`) și al costului specific
   `b_L = I_L / L`, cu posibilitate de suprascriere manuală.
-- Interfață integral în română, cu **coloană de ajutor** pe fiecare pas.
+- Interfață integral în română, cu **ghid pas cu pas**, ajutor la fiecare câmp (ⓘ) și
+  **referința legală** (chip „art. 8 alin. (1) lit. c”, cu textul normei) la fiecare regulă.
 
 ## Cum se rulează
 
@@ -40,22 +41,31 @@ browser modern (Chrome, Edge, Firefox):
 index.html
 ```
 
-Aplicația este 100% offline (fără CDN-uri, fără dependențe externe).
+Aplicația este 100% offline: nu folosește CDN-uri. Singurele biblioteci sunt copiile
+vendorizate din `vendor/` (Preact, htm — vezi `vendor/README.md`); funcționează direct de pe
+`file://`, fără build.
 
 ## Fluxul de utilizare
 
-1. **Date generale** — operator, dată, cotă TVA, alegerea modelului de calcul (Anexa
-   1–5) și selectarea **noului utilizator** (cel care plătește compensația).
-2. **Utilizatori** — adaugă toți utilizatorii (cod PA, nume, putere aprobată, date
-   ATR/TR, tip client, cine este primul utilizator).
-3. **Instalație** — descrie elementele rețelei în funcție de modelul ales:
-   linii + tronsoane și utilizatorii care le folosesc, stații/PT, configurația
-   instalației complexe etc. Costurile se calculează automat.
-4. **Rezultate** — bifează condițiile Art. 8, apasă **Calculează compensațiile**,
-   verifică centralizatorul și exportă.
+La prima deschidere apare un **ecran de start** (Proiect nou / Exemplu / Import). „Proiect nou”
+pornește **ghidul pas cu pas**: o bară din josul ecranului spune ce mai trebuie completat,
+evidențiază câmpul respectiv (contur galben), mută cursorul pe el și, după ce îl completezi
+(Enter / Tab / click), te duce automat la următorul — inclusiv între pași. Poți sări pașii
+opționali, opri mutarea automată a focusului sau ascunde ghidul (meniul „Proiect”).
 
-Butoane rapide în bara de sus: **Demo U4**, **Demo U6** (scenarii din modelul `.xlsx`),
-**Proiect nou**, **Salvează JSON**, **Import JSON**.
+1. **Date generale** — modelul de calcul (Anexa 1–5), operator, dată, cotă TVA.
+2. **Utilizatori** — fiecare utilizator are **un singur rol**: *prim utilizator* (finanțator,
+   primește), *nou* (plătește), *existent* sau *operator de rețea* (art. 6 alin. 5). Primul
+   adăugat devine prim, al doilea nou. Contract/avize (art. 7, 17–18) într-un rând extensibil.
+3. **Instalație** — linii cu **grilă de alocare** utilizatori × tronsoane (bifezi cine folosește
+   fiecare tronson), stații/PT, instalație complexă (rol per linie: l_U1 / l_U2), vechea
+   metodologie, rețea de dezvoltator.
+4. **Rezultate** — stare (probleme cu link „Mergi la câmp”), rezumat (totaluri), centralizator cu
+   **„Cum s-a calculat”** pe fiecare sumă (formulă + articol), condițiile art. 8 (restrânse când
+   sunt îndeplinite), export CSV, print.
+
+Indicatorii de pe pași arată starea: ✓ completat, număr = pași rămași, ✕ = probleme de corectat.
+Exemplele U4/U6 (meniul „Proiect”) se deschid fără ghid, cu un banner „Exemplu”.
 
 ## Modele de calcul (anexe)
 
@@ -96,9 +106,9 @@ Detalii despre formule și validarea lor: `docs/formule-ocr.md` (material local,
   stații, bifa „Întărire post” limitează compensația la **capacitatea suplimentară** a
   transformatorului existent (S_n − puterile deja racordate); restul îl acoperă noul
   transformator, finanțat de noul utilizator.
-- **Art. 6 alin. 5 — operatorul de rețea:** bifa „Operator de rețea” pe un utilizator îl
-  asimilează unui utilizator nou (inclus automat între cei care plătesc; nu poate fi prim
-  utilizator). Trebuie adăugat pe tronsoanele/stațiile pe care le folosește.
+- **Art. 6 alin. 5 — operatorul de rețea:** rolul „Operator de rețea” al unui utilizator îl
+  asimilează unui utilizator nou (plătește compensație). Trebuie bifat pe tronsoanele/stațiile
+  pe care le folosește.
 - **Art. 7 alin. 2–3 — refacerea ATR:** în pasul 2 se marchează utilizatorii cu „ATR emis,
   contract neîncheiat” (cu valabilitatea și, opțional, tariful inițial). Când un utilizator
   e bifat ca prim, în Rezultate apare panoul de refacere: ATR-urile valabile se refac din
@@ -118,20 +128,34 @@ Detalii despre formule și validarea lor: `docs/formule-ocr.md` (material local,
 ## Structura proiectului
 
 ```
-index.html               # punctul de intrare
-css/styles.css           # stiluri (inclusiv layout cu coloană de ajutor, print)
-js/engine.js             # motorul de calcul (Anexa 1–5, condiții, centralizator)
-js/state.js              # model de date, IndexedDB, sanitizare import, demo
-js/validate.js           # validarea datelor proiectului înainte de calcul
-js/ui.js                 # interfață: formulare, tabele, calcul, export
+index.html               # punctul de intrare (CSP restrictiv, fără scripturi inline)
+css/styles.css           # stiluri (responsive, print)
+vendor/                  # Preact, hooks, htm (copii nemodificate) + licențe
+js/norma.js              # fragmente din textul consolidat al metodologiei (informativ)
+js/rules.js              # registrul unic de reguli/referințe (id → „art. …”, textul normei)
+js/help.js               # texte de ajutor pe câmp și pe pas
+js/state.js              # model de date (roluri), IndexedDB, sanitizare import, demo
+js/validate.js           # validare → probleme { rule, tab, target, text }
+js/engine.js             # motorul de calcul (Anexa 1–5, condiții, centralizator, explicații)
+js/calc.js               # configurații pentru motor, costuri, condiții, calcul complet, CSV
+js/guide.js              # ghidul: lista de pași derivată din stare (funcții pure)
+js/store.js              # starea aplicației + acțiuni (undo, salvare, ghid, import/export)
+js/ui/core.js            # componente: câmpuri legate de stare, ⓘ, chip-uri de referință, ferestre
+js/ui/views_*.js         # vederile: Date generale/Utilizatori, Instalație, Rezultate
+js/ui/app.js             # antet, pași, bara de ghid, ecran de start, API-ul AppUI
 tests/test.html          # teste unitare motor (în browser)
-tests/integration.html   # teste de integrare UI + motor + securitate (în browser)
-tests/run.js             # rulează ambele pagini headless (npm test)
+tests/integration.html   # teste de integrare UI + motor + ghid + securitate (în browser)
+tests/run.js             # rulează ambele pagini headless
+tests/e2e.js             # e2e Playwright: ghid cu tastatură reală, focus, mobil, contrast
 .github/workflows/ci.yml # lint + teste la fiecare push
 # locale, nepublicate (în .gitignore): docs/, ajutatoare/ (documente sursă, PDF/xlsx)
 ```
 
 Scripturile sunt **clasice** (nu module ES), pentru a funcționa direct de pe `file://`.
+
+**Registrul de reguli** (`js/rules.js`) este singura sursă pentru referințele legale: validarea,
+condițiile, ghidul și explicațiile de calcul trimit la o regulă prin id; interfața o afișează
+uniform, iar un test verifică faptul că toate id-urile folosite există și au text în normă.
 
 ## Testare
 
@@ -139,9 +163,11 @@ Testele rulează în browser. Deschide:
 
 - `tests/test.html` — teste unitare ale motorului (exemplele numerice din metodologie
   și din modelul `.xlsx`).
-- `tests/integration.html` — teste de integrare (UI + motor + IndexedDB).
+- `tests/integration.html` — teste de integrare (UI + motor + ghid + securitate).
+- `tests/e2e.js` — scenarii e2e cu Playwright (nu rulează în browser).
 
-Din linia de comandă (Chromium headless prin Playwright):
+Din linia de comandă (Chromium headless prin Playwright; `npm test` rulează paginile de test
+și apoi scenariile e2e):
 
 ```
 npm install
@@ -156,7 +182,8 @@ GitHub Actions rulează lint + teste la fiecare push.
 Acoperire: exemple din metodologie și din modelul `.xlsx` (20.000; 6.666,67/11.666,67;
 `b_T`=250 → 25.000; `C_2`=13.500; 87,5%/9,375%; U4 → 500/500/500), calcul automat al costului
 pe tronsoane, rotunjire, sanitizarea importului (XSS), validări, actualizarea automată a
-rezultatelor, păstrarea focusului, undo și formatul CSV.
+rezultatelor, păstrarea focusului, undo, formatul CSV, ghidul pas cu pas (inclusiv un parcurs
+complet cu tastatură reală), consistența referințelor legale, mobil (fără scroll orizontal) și contrast.
 
 ## Documente sursă
 

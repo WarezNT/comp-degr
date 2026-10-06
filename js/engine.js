@@ -34,6 +34,15 @@
     m[payer][receiver] = (m[payer][receiver] || 0) + a;
   }
 
+  // Explicații de calcul (pentru „Cum s-a calculat”): fiecare plată elementară
+  // păstrează sursa, formula și regula (id din AppRules) pe care se sprijină.
+  function explain(list, p, info) {
+    var o = { de: p.de, catre: p.catre, suma: p.suma };
+    Object.keys(info || {}).forEach(function (k) { o[k] = info[k]; });
+    if (p.cost !== undefined) { o.cost = p.cost; o.inainte = p.inainte; o.dupa = p.dupa; }
+    list.push(o);
+  }
+
   function mergePayments(target, source) {
     Object.keys(source || {}).forEach(function (payer) {
       Object.keys(source[payer]).forEach(function (receiver) {
@@ -48,7 +57,7 @@
    * celor deja prezenți (vechi sau noi racordați înaintea lui) diferența dintre
    * cota lor înainte (n−1 utilizatori) și după (n utilizatori).
    * Suma primită de un utilizator vechi = cost/n_vechi − cost/n_final.
-   * Returnează [{ de, catre, suma }]. */
+   * Returnează [{ de, catre, suma, cost, inainte, dupa }]. */
   function sequentialPayments(cost, users, nouList) {
     var uniq = [];
     (users || []).forEach(function (u) { if (uniq.indexOf(u) < 0) uniq.push(u); });
@@ -61,7 +70,9 @@
       if (!before.length || cost <= 0) return;
       var per = cost / before.length - cost / present.length;
       if (per > EPS) {
-        before.forEach(function (x) { out.push({ de: nou, catre: x, suma: per }); });
+        before.forEach(function (x) {
+          out.push({ de: nou, catre: x, suma: per, cost: cost, inainte: before.length, dupa: present.length });
+        });
       }
     });
     return out;
@@ -111,6 +122,7 @@
     function isNou(u) { return nouList.indexOf(u) >= 0; }
 
     var payments = {};
+    var explicatii = [];
     var finalShare = {};   // costul cu noii utilizatori racordați
     var oldShare = {};     // costul înainte de racordarea noilor utilizatori
     var allUsers = [];
@@ -153,6 +165,10 @@
       sequentialPayments(cost, users, nouList).forEach(function (p) {
         addPay(payments, p.de, p.catre, p.suma);
         det.plati.push({ deLa: p.de, catre: p.catre, suma: p.suma });
+        explain(explicatii, p, {
+          tip: t.tip === 'stalpi' ? 'stalpi' : 'tronson', sursa: t.nume || t.id,
+          rule: t.tip === 'stalpi' ? 'art15.1' : 'art12.1'
+        });
       });
       tronsoaneDetalii.push(det);
     });
@@ -171,6 +187,7 @@
     if (echipamentComun > 0) {
       sequentialPayments(echipamentComun, allUsers, nouList).forEach(function (p) {
         addPay(payments, p.de, p.catre, p.suma);
+        explain(explicatii, p, { tip: 'echipamente', sursa: 'echipamente de racordare', rule: 'art12.1' });
       });
     }
 
@@ -180,6 +197,7 @@
       nouUtilizator: nouList.length === 1 ? nouList[0] : null,
       nouUtilizatori: nouList.slice(),
       payments: payments,
+      explicatii: explicatii,
       finalShare: finalShare,
       oldShare: oldShare,
       tronsoaneDetalii: tronsoaneDetalii
@@ -220,6 +238,7 @@
     var puteri = cfg.puteri || {};
     var elementeComune = num(cfg.elementeComune);
     var payments = {};
+    var explicatii = [];
     var cote = {};
     // Primul utilizator (receptorul) = cel bifat explicit, chiar dacă nu apare
     // în lista stației (el a finanțat instalația); doar dacă nu e indicat
@@ -260,6 +279,10 @@
       cote[u] = Pc * bT;
       if (nouList.indexOf(u) >= 0 && u !== prim && prim !== undefined) {
         addPay(payments, u, prim, Pc * bT);
+        if (Pc * bT > EPS) {
+          explicatii.push({ de: u, catre: prim, suma: Pc * bT, tip: intarire ? 'intarire' : 'transformator',
+            sursa: 'transformator', putere: Pc, bT: bT, rule: intarire ? 'art15.3' : 'art13' });
+        }
       }
     });
 
@@ -268,6 +291,7 @@
     if (elementeComune > 0 && users.length > 0) {
       sequentialPayments(elementeComune, users, nouList).forEach(function (p) {
         addPay(payments, p.de, p.catre, p.suma);
+        explain(explicatii, p, { tip: 'echipamente', sursa: 'echipamente comune ale stației', rule: 'art12.1' });
       });
     }
 
@@ -283,6 +307,7 @@
       nouUtilizatori: nouList.slice(),
       cote: cote,
       payments: payments,
+      explicatii: explicatii,
       prim: prim,
       intarire: intarire,
       suplimentara: suplimentara
@@ -294,6 +319,7 @@
   function computeStations(cfg) {
     var nouList = listNew(cfg);
     var payments = {};
+    var explicatii = [];
     var statii = (cfg.statii || []).map(function (sc) {
       var o = {};
       Object.keys(sc).forEach(function (k) { o[k] = sc[k]; });
@@ -303,6 +329,7 @@
       if (o.ignorati === undefined) o.ignorati = cfg.ignorati;
       var res = computeStation(o);
       mergePayments(payments, res.payments);
+      (res.explicatii || []).forEach(function (e) { explicatii.push(e); });
       return res;
     });
     return {
@@ -310,6 +337,7 @@
       nouUtilizator: nouList.length === 1 ? nouList[0] : null,
       nouUtilizatori: nouList,
       payments: payments,
+      explicatii: explicatii,
       statii: statii
     };
   }
@@ -336,6 +364,7 @@
     var v = num(cfg.varianta) || 1;
     var components = [];
     var payments = {};
+    var explicatii = [];
     var nouList = listNew(cfg);
     var puteri = cfg.puteri || {};
 
@@ -355,6 +384,7 @@
         var res = computeLine(withNou(l));
         components.push(res);
         mergePayments(payments, res.payments);
+        (res.explicatii || []).forEach(function (e) { explicatii.push(e); });
       });
     }
     function addStation(list) {
@@ -362,6 +392,7 @@
         var res = computeStation(withNou(s));
         components.push(res);
         mergePayments(payments, res.payments);
+        (res.explicatii || []).forEach(function (e) { explicatii.push(e); });
       });
     }
 
@@ -378,6 +409,7 @@
         if (ec <= 0) return;
         sequentialPayments(ec, orderList(st.utilizatori), nouList).forEach(function (pp) {
           addPay(payments, pp.de, pp.catre, pp.suma);
+          explain(explicatii, pp, { tip: 'echipamente', sursa: 'echipamentele stației (altele decât transformatoarele)', rule: 'art12.1' });
         });
       });
     } else if (v === 3 || v === 4) {
@@ -399,6 +431,7 @@
       model: 'complex',
       varianta: v,
       payments: payments,
+      explicatii: explicatii,
       components: components,
       nouUtilizatori: nouList
     };
@@ -533,22 +566,22 @@
     var limita = c.clientCasnic ? 10 : 5;
     var ani = num(c.aniDeLaPF);
     return [
-      cond(c.primCapacitateMaiMare,
-        'Art. 8 alin. 1 lit. a: primul utilizator a contribuit, prin tariful de racordare achitat integral, la o instalație cu capacitate mai mare decât puterea sa aprobată (art. 4).'),
-      cond(c.capacitateDisponibila,
-        'Art. 8 alin. 1 lit. b: capacitatea instalației nu a fost ocupată integral și permite racordarea noului utilizator.'),
-      cond(ani <= limita,
-        'Art. 8 alin. 1 lit. c: instalația se află în primii ' + limita + ' ani de la punerea în funcțiune' +
-        (c.clientCasnic ? ' (prag extins la 10 ani — prim utilizator casnic, art. 8 alin. 2)' : '') + ' (în caz: ' + ani + ' ani).'),
-      cond(c.solutieComuna,
-        'Art. 8 alin. 1 lit. d: soluția pentru noul utilizator prevede utilizarea parțială sau totală, în comun, a instalației.'),
-      cond(c.tarifAchitatIntegral,
-        'Art. 7 alin. 1: tariful de racordare aferent elementelor utilizate în comun a fost achitat integral de utilizatorii care primesc compensația.')
+      cond(c.primCapacitateMaiMare, 'art8.1a',
+        'Primul utilizator a contribuit, prin tariful de racordare achitat integral, la o instalație cu capacitate mai mare decât puterea sa aprobată (art. 4).'),
+      cond(c.capacitateDisponibila, 'art8.1b',
+        'Capacitatea instalației nu a fost ocupată integral și permite racordarea noului utilizator.'),
+      cond(ani <= limita, c.clientCasnic ? 'art8.2' : 'art8.1c',
+        'Instalația se află în primii ' + limita + ' ani de la punerea în funcțiune' +
+        (c.clientCasnic ? ' (prag extins la 10 ani — primul utilizator e client casnic)' : '') + ' (în caz: ' + ani + ' ani).'),
+      cond(c.solutieComuna, 'art8.1d',
+        'Soluția pentru noul utilizator prevede utilizarea parțială sau totală, în comun, a instalației.'),
+      cond(c.tarifAchitatIntegral, 'art7.1',
+        'Tariful de racordare aferent elementelor utilizate în comun a fost achitat integral de utilizatorii care primesc compensația.')
     ];
   }
 
-  function cond(ok, mesaj) {
-    return { ok: !!ok, mesaj: mesaj };
+  function cond(ok, rule, mesaj) {
+    return { ok: !!ok, rule: rule, mesaj: mesaj };
   }
 
   /* ---------------------------------------------------------------

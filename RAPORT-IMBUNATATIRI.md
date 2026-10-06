@@ -100,3 +100,27 @@ Modelat ulterior: art. 15 alin. 1 (element „stâlpi” cu cost propriu, cote e
 Modelat ulterior: art. 6 alin. 5 (operator de rețea = utilizator nou, inclus automat) și art. 7 alin. 2–3 (panou de refacere ATR: doar ATR valabile, fără tarif, tarif recalculat estimat; tariful oficial se stabilește cu Metodologia de stabilire a tarifului de racordare).
 
 Modelat ulterior: art. 17–18 + Anexa 4 pct. B (regim tranzitoriu activat de data contractului primului utilizator: cost net = I_L − compensații vechi, utilizatori cu contract anterior ignorați, capacitate suplimentară informativă; exemplul din anexă reproduce 14.600 / 21.900). Din textul consolidat nu mai rămâne nemodelat niciun articol de calcul.
+
+
+---
+
+## Refactor UI/UX (Preact + htm vendorizate)
+
+Motivat de revizuirea din perspectiva utilizatorului (referințe legale inconsistente, pornire cu date demo, erori
+duplicate, rezultat sub condiții, roluri împrăștiate pe 3 locuri, alocare prin chip-uri, mobil, contrast, flash la
+fiecare acțiune). Realizat:
+
+| Problemă | Soluție |
+|---|---|
+| Referințe legale la unele mesaje, la altele nu | Registru unic `js/rules.js`; fiecare issue/condiție/pas/explicație are `rule`; chip uniform + textul normei într-o fereastră; test de consistență |
+| Prima deschidere cu date demo | Ecran de start (Proiect nou / Exemplu / Import); exemplele au banner „Exemplu” și fără ghid |
+| Utilizatorul nu știe ce completează | **Ghid pas cu pas**: bară cu pasul următor, câmp evidențiat, focus mutat automat după completare, schimbă singur pasul; „Sari”, „Mută-mă automat”, ascundere |
+| Erori triplicate, rezultat sub condiții | O singură listă de probleme cu „Mergi la câmp”; rezumat → centralizator → condiții (restrânse când sunt îndeplinite) |
+| Roluri în 3 locuri | Rol unic per utilizator (prim / nou / existent / operator); migrare automată din formatul vechi |
+| Alocare cu chip-uri și săgeți | Grilă utilizatori × tronsoane cu „Toți” |
+| Sumele fără explicație | „Cum s-a calculat”: formulă + articol pe fiecare sumă |
+| Flash la fiecare acțiune, focus pierdut | Re-randare diferențială (Preact); animația doar la schimbarea pasului; testat e2e (Tab, panou neremontat) |
+| Mobil | Carduri în loc de tabele, ajutor sub conținut și restrâns, fără scroll orizontal (testat la 390 px) |
+| Contrast / etichete | `--muted` 6,98:1; toate câmpurile au etichetă; ⓘ accesibil prin `aria-describedby` |
+| Ajutor lung în coloană | ⓘ la fiecare câmp + introducere scurtă pe pas |
+| Formate numerice | Virgulă zecimală, separator de mii la părăsirea câmpului, text invalid marcat |

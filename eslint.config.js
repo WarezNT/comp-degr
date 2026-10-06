@@ -19,6 +19,15 @@ module.exports = [
     }
   },
   {
+    files: ['tests/e2e.js'],
+    languageOptions: {
+      ecmaVersion: 2022, sourceType: 'commonjs',
+      globals: { require: 'readonly', process: 'readonly', __dirname: 'readonly', console: 'readonly', module: 'writable',
+        document: 'readonly', window: 'readonly', getComputedStyle: 'readonly' }
+    },
+    rules: { 'no-undef': 'error', 'no-unused-vars': 'warn' }
+  },
+  {
     files: ['tests/run.js', 'eslint.config.js'],
     languageOptions: {
       ecmaVersion: 2022, sourceType: 'commonjs',

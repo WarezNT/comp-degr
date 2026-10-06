@@ -16,10 +16,23 @@
   <div id="app"></div>
   <div id="out"></div>
 
+  <script src="../vendor/preact.min.js"></script>
+  <script src="../vendor/preact-hooks.js"></script>
+  <script src="../vendor/htm.js"></script>
+  <script src="../js/norma.js"></script>
+  <script src="../js/rules.js"></script>
+  <script src="../js/help.js"></script>
   <script src="../js/state.js"></script>
   <script src="../js/validate.js"></script>
   <script src="../js/engine.js"></script>
-  <script src="../js/ui.js"></script>
+  <script src="../js/calc.js"></script>
+  <script src="../js/guide.js"></script>
+  <script src="../js/store.js"></script>
+  <script src="../js/ui/core.js"></script>
+  <script src="../js/ui/views_basic.js"></script>
+  <script src="../js/ui/views_install.js"></script>
+  <script src="../js/ui/views_results.js"></script>
+  <script src="../js/ui/app.js"></script>
   <script>
     var out = document.getElementById('out');
     var pass = 0, fail = 0;
@@ -49,8 +62,26 @@
       return p;
     }
 
+    // Caută un element după selector și text conținut.
+    function byText(sel, text) {
+      var l = document.querySelectorAll(sel);
+      for (var i = 0; i < l.length; i++) if (l[i].textContent.indexOf(text) >= 0) return l[i];
+      return null;
+    }
+    function detailsOf(summaryText) {
+      var l = document.querySelectorAll('details');
+      for (var i = 0; i < l.length; i++) {
+        var sm = l[i].querySelector('summary');
+        if (sm && sm.textContent.indexOf(summaryText) >= 0) return l[i];
+      }
+      return null;
+    }
+
     function runTests() {
-      test('UI se inițializează', function () {
+      test('UI se inițializează: ecran de start fără proiect, apoi pașii', function () {
+        if (!document.querySelector('.start-card')) throw new Error('ecranul de start lipsește (fără proiect salvat)');
+        if (document.querySelector('.tabs')) throw new Error('pașii nu trebuie afișați fără proiect');
+        window.AppUI.setProject(window.AppState.demoU4());
         if (!document.querySelector('.tabs')) throw new Error('tabs lipsă');
       });
 
@@ -146,15 +177,15 @@
         if (!span || span.textContent.indexOf('3.000') < 0) throw new Error('cost live: ' + (span && span.textContent));
       });
 
-      test('Blochează calculul dacă primul utilizator = utilizator nou', function () {
+      test('Un singur prim utilizator: alegerea rolului „prim” îl demotează pe cel anterior', function () {
         var p = emptyOk();
-        p.meta.model = 'line';
         var u1 = window.AppState.addUser(p, { nume: 'U1', prim: true });
         var u2 = window.AppState.addUser(p, { nume: 'U2' });
-        p.meta.nouUtilizatoriIds = [u1.id]; // conflict: primul utilizator nu poate plăti
         window.AppUI.setProject(p);
-        var r = window.AppUI.calculate();
-        if (!r || !r.error) throw new Error('calculul ar trebui blocat (așteptat r.error)');
+        window.AppUI.store.set('user.' + u2.id + '.rol', 'prim');
+        var st = window.AppUI.getState();
+        var prims = st.utilizatori.filter(function (u) { return u.rol === 'prim'; });
+        if (prims.length !== 1 || prims[0].id !== u2.id) throw new Error('roluri: ' + st.utilizatori.map(function (u) { return u.rol; }));
       });
 
       test('Anexa 2 prin UI — primul bifat primește, nu plătește', function () {
@@ -232,7 +263,7 @@
         var p = window.AppState.migrate(evil);
         if (/[^A-Za-z0-9_-]/.test(p.utilizatori[0].id)) throw new Error('id nesanitizat: ' + p.utilizatori[0].id);
         if (p.linii[0].tronsoane[0].utilizatori.length !== 2) throw new Error('referințele nu au fost remapate');
-        if (p.meta.nouUtilizatoriIds.length !== 1 || p.meta.nouUtilizatoriIds[0] !== p.utilizatori[1].id) throw new Error('noul utilizator nu a fost remapat');
+        if (p.utilizatori[1].rol !== 'nou' || p.utilizatori[0].rol !== 'prim') throw new Error('rolurile nu au fost migrate: ' + p.utilizatori.map(function (u) { return u.rol; }));
         window.AppUI.setProject(p);
         window.AppUI.setTab('utilizatori'); window.AppUI.setTab('instalatie');
         window.AppUI.setTab('rezultate'); window.AppUI.calculate();
@@ -257,7 +288,8 @@
           utilizatori: [{ id: 'u1', prim: true }, { id: 'u2' }],
           meta: { noulUtilizatorId: 'u2' }
         });
-        if (p.meta.nouUtilizatoriIds.join() !== 'u2') throw new Error('migrare: ' + p.meta.nouUtilizatoriIds);
+        if (p.utilizatori[1].rol !== 'nou' || p.utilizatori[0].rol !== 'prim') throw new Error('migrare: ' + p.utilizatori.map(function (u) { return u.rol; }));
+        if (p.meta.nouUtilizatoriIds !== undefined) throw new Error('câmpul vechi trebuia eliminat');
       });
 
       test('Rezultatele se actualizează automat la modificarea datelor', function () {
@@ -297,7 +329,7 @@
         p.linii[0].tronsoane.forEach(function (t) { t.utilizatori = t.utilizatori.slice(0, 2); });
         window.AppUI.setProject(p);
         var v = window.AppUI.validate();
-        if (!v.warnings.some(function (w) { return w.indexOf('niciun tronson') >= 0; })) throw new Error('fără avertisment: ' + JSON.stringify(v));
+        if (!v.warnings.some(function (w) { return w.text.indexOf('niciun tronson') >= 0; })) throw new Error('fără avertisment: ' + JSON.stringify(v));
       });
 
       test('Detaliu stație afișează valorile reale (nu 0)', function () {
@@ -310,7 +342,7 @@
         window.AppUI.setProject(p);
         window.AppUI.setTab('rezultate');
         window.AppUI.calculate();
-        var txt = document.querySelector('details').textContent;
+        var txt = detailsOf('Detaliu stații').textContent;
         if (txt.indexOf('250,00') < 0) throw new Error('b_T lipsă din detaliu: ' + txt);
       });
 
@@ -340,16 +372,16 @@
         if (!document.activeElement || document.activeElement.getAttribute('data-bind') !== 'meta.withTva') throw new Error('focus nerefăcut după re-randare');
       });
 
-      test('Undo: eliminarea unui utilizator de pe tronson poate fi anulată', function () {
+      test('Undo: ștergerea unui tronson poate fi anulată', function () {
         window.AppUI.setProject(window.AppState.demoU4());
         window.AppUI.setTab('instalatie');
-        var before = window.AppUI.getState().linii[0].tronsoane[0].utilizatori.length;
-        document.querySelector('[data-action="trs-remove"]').click();
-        var after = window.AppUI.getState().linii[0].tronsoane[0].utilizatori.length;
-        if (after !== before - 1) throw new Error('eliminarea nu a funcționat');
+        var st = window.AppUI.getState();
+        var before = st.linii[0].tronsoane.length;
+        window.AppUI.store.delTronson(st.linii[0].id, st.linii[0].tronsoane[0].id);
+        if (window.AppUI.getState().linii[0].tronsoane.length !== before - 1) throw new Error('ștergerea nu a funcționat');
+        if (window.AppUI.undoDepth() < 1) throw new Error('undo indisponibil');
         window.AppUI.undo();
-        var restored = window.AppUI.getState().linii[0].tronsoane[0].utilizatori.length;
-        if (restored !== before) throw new Error('undo nu a restaurat: ' + restored);
+        if (window.AppUI.getState().linii[0].tronsoane.length !== before) throw new Error('undo nu a restaurat');
       });
 
       test('Export CSV: 2 zecimale, virgulă, coloane aliniate', function () {
@@ -369,7 +401,7 @@
         window.AppUI.setProject(p);
         var r = window.AppUI.calculate();
         if (!r.error || !r.blocked) throw new Error('calculul trebuia blocat');
-        if (r.error.indexOf('art. 8') < 0) throw new Error('mesaj fără referință la art. 8: ' + r.error);
+        if (!/art\. 8/i.test(r.error)) throw new Error('mesaj fără referință la art. 8: ' + r.error);
       });
 
       test('Art. 8: „Calculează oricum (informativ)” permite calculul', function () {
@@ -417,7 +449,7 @@
         window.AppUI.setProject(p);
         var r = window.AppUI.calculate();
         if (!r.blocked) throw new Error('beneficiar fără dataTR: trebuia blocat');
-        if (r.error.indexOf(p.utilizatori[1].nume) < 0 && r.error.indexOf('art. 7') < 0) throw new Error('mesaj: ' + r.error);
+        if (r.error.indexOf(p.utilizatori[1].nume) < 0 && !/art\. 7/i.test(r.error)) throw new Error('mesaj: ' + r.error);
         p.conditii.tarifAchitatIntegral = true;  // confirmare manuală
         window.AppUI.setProject(p);
         if (window.AppUI.calculate().error) throw new Error('confirmarea manuală trebuia să deblocheze');
@@ -434,10 +466,9 @@
 
       test('Utilizatori noi: ordinea racordării după Data ATR', function () {
         var p = window.AppState.emptyProject();
-        var a = window.AppState.addUser(p, { nume: 'A', prim: true });
-        var b = window.AppState.addUser(p, { nume: 'B', dataATR: '2024-06-01' });
-        var c = window.AppState.addUser(p, { nume: 'C', dataATR: '2024-01-01' });
-        p.meta.nouUtilizatoriIds = [b.id, c.id];
+        window.AppState.addUser(p, { nume: 'A', prim: true });
+        var b = window.AppState.addUser(p, { nume: 'B', dataATR: '2024-06-01', rol: 'nou' });
+        var c = window.AppState.addUser(p, { nume: 'C', dataATR: '2024-01-01', rol: 'nou' });
         var ids = window.AppState.newIds(p);
         if (ids.join() !== c.id + ',' + b.id) throw new Error('ordine: ' + ids);
       });
@@ -476,7 +507,7 @@
         var p = window.AppState.demoU4();
         window.AppUI.setProject(p);
         window.AppUI.setTab('instalatie');
-        document.querySelector('[data-action="add-stalpi"]').click();
+        byText('button', 'Circuit pe stâlpi existenți').click();
         var st = window.AppUI.getState();
         var t = st.linii[0].tronsoane[st.linii[0].tronsoane.length - 1];
         if (t.tip !== 'stalpi' || !t.costManual) throw new Error('elementul pe stâlpi nu a fost creat corect');
@@ -503,7 +534,7 @@
         if (r.error) throw new Error(r.error);
         if (Math.abs(r.central.totalFaraTVA - 35000) > 0.01) throw new Error('total ' + r.central.totalFaraTVA);
         window.AppUI.setTab('rezultate');
-        if (document.querySelector('details').textContent.indexOf('art. 15 alin. 3') < 0) throw new Error('detaliul nu menționează art. 15 alin. 3');
+        if (detailsOf('Detaliu stații').textContent.indexOf('Art. 15 alin. (3)') < 0) throw new Error('detaliul nu menționează art. 15 alin. 3');
       });
 
       test('Import: tipul „stalpi” e păstrat, alte valori sunt eliminate', function () {
@@ -527,15 +558,7 @@
         // 3000/2 − 3000/3 = 500 către fiecare dintre U1 și U2
         if (!r.payments[op.id] || Math.abs(r.payments[op.id][u1.id] - 500) > 0.01) throw new Error('OD -> U1 lipsă/greșit');
         window.AppUI.setTab('rezultate');
-        if (document.getElementById('app').innerHTML.indexOf('Art. 6 alin. 5') < 0) throw new Error('nota art. 6 alin. 5 lipsește');
-      });
-
-      test('Art. 6 alin. 5: operatorul nu poate fi prim utilizator', function () {
-        var p = window.AppState.demoU4();
-        p.utilizatori[0].operator = true;      // U1 este și prim
-        window.AppUI.setProject(p);
-        var r = window.AppUI.calculate();
-        if (!r.error || r.error.indexOf('art. 6 alin. 5') < 0) throw new Error('trebuia blocat: ' + JSON.stringify(r.error));
+        if (document.getElementById('app').textContent.indexOf('asimilat unui utilizator nou') < 0) throw new Error('nota art. 6 alin. 5 lipsește');
       });
 
       test('Art. 7 alin. 2: panoul de refacere a ATR apare și respectă valabilitatea', function () {
@@ -547,8 +570,8 @@
         window.AppUI.setTab('rezultate');
         var r = window.AppUI.calculate();
         if (r.error) throw new Error(r.error);
-        var html = document.getElementById('app').innerHTML;
-        if (html.indexOf('art. 7 alin. 2') < 0) throw new Error('panoul lipsește');
+        var html = document.getElementById('app').textContent;
+        if (html.indexOf('Refacerea avizelor tehnice') < 0) throw new Error('panoul lipsește');
         if (html.indexOf('ATR expirat') < 0) throw new Error('ATR expirat neindicat');
         if (html.indexOf('2.500,00') < 0) throw new Error('tarif recalculat (4000 − 1500) lipsă');
         if (html.indexOf('fără perceperea unui tarif') < 0) throw new Error('mențiunea „fără tarif” lipsește');
@@ -556,7 +579,7 @@
 
       test('Import: câmpurile operator / faraContract sunt booleene', function () {
         var p = window.AppState.migrate({ utilizatori: [{ id: 'u', operator: 'da', faraContract: 1 }] });
-        if (p.utilizatori[0].operator !== true || p.utilizatori[0].faraContract !== true) throw new Error('nu sunt boolean');
+        if (p.utilizatori[0].rol !== 'operator' || p.utilizatori[0].faraContract !== true) throw new Error('rol/boolean: ' + p.utilizatori[0].rol);
       });
 
       test('Art. 17–18 prin UI: Anexa 4 pct. B (36.500 net, utilizator vechi ignorat) → 14.600', function () {
@@ -588,7 +611,7 @@
         var r = window.AppUI.calculate();
         if (r.error) throw new Error(r.error);
         if (Math.abs(r.central.totalFaraTVA - 1500) > 0.01) throw new Error('compVeche nu trebuie aplicată: ' + r.central.totalFaraTVA);
-        if (!window.AppUI.validate().warnings.some(function (w) { return w.indexOf('vechea metodologie') >= 0; })) throw new Error('lipsește avertismentul');
+        if (!window.AppUI.validate().warnings.some(function (w) { return w.text.indexOf('vechea metodologie') >= 0; })) throw new Error('lipsește avertismentul');
       });
 
       test('Art. 18 alin. 3: utilizatorii cu contract anterior sunt ignorați; fără dată = participă (cu avertisment)', function () {
@@ -600,7 +623,258 @@
         if (!t.activ || t.ignorati.length !== 1 || t.ignorati[0] !== p.utilizatori[1].id) throw new Error('ignorați: ' + JSON.stringify(t));
         if (t.faraData.length !== 1) throw new Error('faraData: ' + JSON.stringify(t));
         window.AppUI.setProject(p);
-        if (!window.AppUI.validate().warnings.some(function (w) { return w.indexOf('Data contractului') >= 0; })) throw new Error('avertisment lipsă');
+        if (!window.AppUI.validate().warnings.some(function (w) { return w.text.indexOf('Data contractului') >= 0; })) throw new Error('avertisment lipsă');
+      });
+
+      /* ---------- refactor: registru de reguli, ghid, roluri, grilă, norma ---------- */
+
+      test('Registru de reguli: toate referințele folosite există în AppRules', function () {
+        var R = window.AppRules, bad = [];
+        function chk(id, where) { if (id && !R.get(id)) bad.push(where + ':' + id); }
+        var projects = [window.AppState.demoU4(), window.AppState.demoU6(), window.AppState.emptyProject()];
+        ['line', 'station', 'complex', 'transitional', 'developer'].forEach(function (m) {
+          var p = window.AppState.demoU4(); p.meta.model = m; projects.push(p);
+        });
+        projects.forEach(function (p, i) {
+          window.AppUI.setProject(p);
+          var v = window.AppUI.validate();
+          v.errors.concat(v.warnings).forEach(function (x) { chk(x.rule, 'validate#' + i); });
+          window.AppGuide.steps(window.AppUI.getState(), {}).forEach(function (st) { chk(st.rule, 'guide#' + i); });
+          window.AppCalc.conditionsFor(window.AppUI.getState()).forEach(function (c) { chk(c.rule, 'cond#' + i); });
+        });
+        var res = window.AppUI.store;
+        window.AppUI.setProject(window.AppState.demoU4());
+        var r = window.AppUI.calculate();
+        r.explicatii.forEach(function (e) { chk(e.rule, 'explicatie'); });
+        Object.keys(window.AppRules.RULES).forEach(function (id) {
+          if (!window.AppRules.text(id)) bad.push('fără text în normă: ' + id);
+        });
+        if (bad.length) throw new Error(bad.join(', '));
+        if (!res) throw new Error('store lipsă');
+      });
+
+      test('Fiecare regulă legală din validare are referință (nu rămân mesaje „goale”)', function () {
+        var p = window.AppState.emptyProject();
+        p.meta.model = 'station';
+        p.statii.push({ id: 'S', nume: 'S', Sn: 100, SnRezerva: 200, IT: 1000, elementeComune: 0, utilizatori: [] });
+        window.AppState.addUser(p, { nume: 'A', prim: true });
+        window.AppState.addUser(p, { nume: 'B', rol: 'nou' });
+        window.AppUI.setProject(p);
+        var errs = window.AppUI.validate().errors;
+        var rez = errs.filter(function (e) { return e.text.indexOf('rezervă') >= 0; })[0];
+        if (!rez || rez.rule !== 'art15.4') throw new Error('rezerva N-1 fără art. 15 alin. 4: ' + JSON.stringify(rez));
+        if (!errs.every(function (e) { return e.tab && e.severity === 'error'; })) throw new Error('issue fără tab');
+      });
+
+      test('Chip-urile cu referințe apar în interfață și deschid textul normei', function () {
+        window.AppUI.setProject(window.AppState.demoU4());
+        window.AppUI.setTab('rezultate');
+        window.AppUI.calculate();
+        var chip = document.querySelector('.ref[data-ref="art8.1"]');
+        if (!chip) throw new Error('chip art. 8 lipsă');
+        chip.click();
+        var modal = document.querySelector('.modal[data-norma="art8.1"]');
+        if (!modal) throw new Error('fereastra normei nu s-a deschis');
+        if (modal.textContent.indexOf('cumulativ') < 0) throw new Error('textul normei lipsește');
+        window.AppUI.store.closeNorma();
+        if (document.querySelector('.modal')) throw new Error('fereastra nu s-a închis');
+      });
+
+      test('Roluri: primul utilizator adăugat = prim, al doilea = nou, apoi existent', function () {
+        var p = window.AppState.emptyProject();
+        window.AppUI.setProject(p);
+        window.AppUI.store.addUser(); window.AppUI.store.addUser(); window.AppUI.store.addUser();
+        var r = window.AppUI.getState().utilizatori.map(function (u) { return u.rol; });
+        if (r.join() !== 'prim,nou,existent') throw new Error('roluri: ' + r);
+      });
+
+      test('Grila de alocare: bifarea unei căsuțe adaugă utilizatorul pe tronson', function () {
+        var p = emptyOk();
+        var u1 = window.AppState.addUser(p, { nume: 'U1', prim: true });
+        var u2 = window.AppState.addUser(p, { nume: 'U2', rol: 'nou' });
+        p.linii.push({ id: 'L', nume: 'L', IL: 1000, L: 10, bL: 0, bLManual: false, tronsoane: [{ id: 'T', nume: 'T', lungime: 10, cost: 0, costManual: false, utilizatori: [] }] });
+        window.AppUI.setProject(p);
+        window.AppUI.setTab('instalatie');
+        var cell = document.querySelector('[data-guide="cell:L:T:' + u2.id + '"]');
+        if (!cell) throw new Error('căsuța lipsește');
+        cell.click();
+        if (window.AppUI.getState().linii[0].tronsoane[0].utilizatori.join() !== u2.id) throw new Error('utilizatori: ' + window.AppUI.getState().linii[0].tronsoane[0].utilizatori);
+        byText('button', 'Toți').click();
+        if (window.AppUI.getState().linii[0].tronsoane[0].utilizatori.length !== 2) throw new Error('„Toți” nu a bifat toți utilizatorii');
+        if (!u1) throw new Error('u1');
+      });
+
+      test('Câmp numeric: virgulă zecimală, separator de mii și text invalid', function () {
+        var K = window.AppKit;
+        if (K.parseNum('1.234,5') !== 1234.5) throw new Error('1.234,5');
+        if (K.parseNum('1234,5') !== 1234.5) throw new Error('1234,5');
+        if (K.parseNum('1234.5') !== 1234.5) throw new Error('1234.5');
+        if (K.parseNum('1.234') !== 1234) throw new Error('1.234 (mii)');
+        if (K.parseNum('') !== '') throw new Error('gol');
+        if (K.parseNum('abc') !== null) throw new Error('invalid');
+        var p = emptyOk(); p.linii.push({ id: 'L', nume: 'L', IL: 0, L: 0, bL: 0, bLManual: false, tronsoane: [] });
+        window.AppUI.setProject(p);
+        window.AppUI.setTab('instalatie');
+        var el = document.querySelector('[data-bind="line.L.IL"]');
+        el.value = '1,5'; el.dispatchEvent(new Event('input', { bubbles: true }));
+        if (window.AppUI.getState().linii[0].IL !== 1.5) throw new Error('IL=' + window.AppUI.getState().linii[0].IL);
+        if (el.value !== '1,5') throw new Error('textul tastat a fost rescris: ' + el.value);
+        el.value = 'abc'; el.dispatchEvent(new Event('input', { bubbles: true }));
+        if (window.AppUI.getState().linii[0].IL !== 1.5) throw new Error('text invalid a modificat starea');
+        if (!document.querySelector('[data-bind="line.L.IL"]').classList.contains('invalid')) throw new Error('câmpul nu e marcat invalid');
+      });
+
+      test('Pașii (taburi) arată starea: probleme / pași rămași / complet', function () {
+        window.AppUI.setProject(window.AppState.demoU4());
+        var marks = Array.prototype.map.call(document.querySelectorAll('.tabs .tabst'), function (m) { return m.className; });
+        if (marks.length !== 4) throw new Error('indicatori: ' + marks.length);
+        var p = window.AppState.emptyProject();
+        window.AppUI.setProject(p);
+        var errTab = document.querySelectorAll('.tabs .tabst.err').length + document.querySelectorAll('.tabs .tabst.todo').length;
+        if (errTab < 1) throw new Error('un proiect gol trebuie să arate pași de făcut');
+      });
+
+      /* ---------- ghid pas cu pas ---------- */
+
+      test('Ghid: un proiect nou cere întâi modelul, apoi utilizatorii, în ordine', function () {
+        var st = window.AppState.emptyProject();
+        var g = window.AppGuide;
+        var n = g.next(st, {});
+        if (n.step.id !== 'model' || n.step.target !== 'meta.model' || n.step.tab !== 'date') throw new Error('primul pas: ' + n.step.id);
+        st.meta.modelConfirmat = true;
+        st.meta.operator = 'OD';
+        n = g.next(st, {});
+        if (n.step.id !== 'user-add-1' || n.step.target !== 'btn:add-user' || n.step.tab !== 'utilizatori') throw new Error('pasul 2: ' + n.step.id);
+        window.AppState.addUserAuto(st);
+        n = g.next(st, {});
+        if (n.step.id !== 'user-add-2' && n.step.id.indexOf('user-nume') !== 0) throw new Error('pasul 3: ' + n.step.id);
+      });
+
+      test('Ghid: pașii opționali pot fi săriți; confirmarea completează pasul', function () {
+        var st = window.AppState.emptyProject();
+        var g = window.AppGuide;
+        var steps = g.steps(st, {});
+        var op = steps.filter(function (s) { return s.id === 'operator'; })[0];
+        if (!op || !op.optional) throw new Error('operatorul trebuie să fie opțional');
+        var sk = g.steps(st, { skipped: { operator: true } }).filter(function (s) { return s.id === 'operator'; })[0];
+        if (!sk.done) throw new Error('pasul sărit trebuie considerat rezolvat');
+        var m = steps.filter(function (s) { return s.id === 'model'; })[0];
+        if (!m.confirm || m.confirm.path !== 'meta.modelConfirmat') throw new Error('confirmarea modelului lipsește');
+      });
+
+      test('Ghid: „Proiect nou” pornește ghidul, evidențiază câmpul și mută focusul', function () {
+        window.AppUI.setProject(window.AppState.demoU4());
+        var K = window.AppUI.store;
+        var origConfirm = window.confirm;
+        window.confirm = function () { return true; };
+        try { K.newProject(); } finally { window.confirm = origConfirm; }
+        if (!K.guide.on || !K.guide.auto) throw new Error('ghidul nu e pornit în modul automat');
+        var bar = document.querySelector('.guidebar');
+        if (!bar || bar.textContent.indexOf('Pasul 1') < 0) throw new Error('bara de ghid lipsește: ' + (bar && bar.textContent));
+        var el = document.querySelector('[data-guide-active]');
+        if (!el || el.getAttribute('data-bind') !== 'meta.model') throw new Error('câmpul indicat nu e evidențiat');
+        if (document.activeElement !== el) throw new Error('focusul nu a fost mutat pe câmpul indicat');
+      });
+
+      test('Ghid: după completarea unui câmp, avansează singur la pasul următor (cu schimbare de tab)', function () {
+        var K = window.AppUI.store;
+        K.confirmStep(K.guideNext().step);                       // model confirmat → operator
+        var n = K.guideNext();
+        if (n.step.id !== 'operator') throw new Error('după model: ' + n.step.id);
+        K.set('meta.operator', 'OD Test');
+        K.commit();                                              // câmp completat → pasul următor
+        n = K.guideNext();
+        if (n.step.id !== 'user-add-1') throw new Error('după operator: ' + n.step.id);
+        if (K.tab !== 'utilizatori') throw new Error('tabul nu s-a schimbat: ' + K.tab);
+        var active = document.querySelector('[data-guide-active]');
+        if (!active || active.getAttribute('data-guide') !== 'btn:add-user') throw new Error('butonul „Adaugă utilizator” nu e evidențiat');
+        active.click();                                          // primul utilizator → urmează „Adaugă utilizatorul nou”
+        n = K.guideNext();
+        if (n.step.id !== 'user-add-2') throw new Error('după primul utilizator: ' + n.step.id);
+        document.querySelector('[data-guide="btn:add-user"]').click();   // al doilea → pasul „nume” primește focusul
+        n = K.guideNext();
+        if (n.step.id.indexOf('user-nume') !== 0) throw new Error('după adăugare: ' + n.step.id);
+        if (document.activeElement.getAttribute('data-bind') !== n.step.target) throw new Error('focus pe ' + document.activeElement.getAttribute('data-bind'));
+      });
+
+      test('Ghid: nu mută focusul dacă utilizatorul și-a ales deja alt câmp; modul manual nu mută focusul', function () {
+        var K = window.AppUI.store;
+        K.setAuto(false);
+        var before = document.activeElement;
+        K.set('meta.operator', 'OD Alt');
+        K.commit();
+        if (document.activeElement !== before && document.activeElement.getAttribute('data-guide-active')) throw new Error('focus mutat în modul manual');
+        var bar = document.querySelector('.guidebar');
+        if (!bar) throw new Error('bara de ghid dispărută');
+      });
+
+      test('Ghid: ghidul poate fi ascuns/pornit; demo-urile nu au ghid', function () {
+        var K = window.AppUI.store;
+        K.setGuide(false);
+        if (!document.querySelector('.guidebar.mini')) throw new Error('butonul „Pornește ghidul” lipsește');
+        K.setGuide(true);
+        if (!document.querySelector('.guidebar:not(.mini)')) throw new Error('ghidul nu a revenit');
+        window.AppUI.setProject(window.AppState.demoU4());
+        if (document.querySelector('.guidebar')) throw new Error('un exemplu nu trebuie să aibă ghid');
+        if (!document.querySelector('.demo-banner')) throw new Error('bannerul „Exemplu” lipsește');
+        window.AppUI.store.keepAsOwn();
+        if (document.querySelector('.demo-banner')) throw new Error('bannerul trebuia să dispară');
+      });
+
+      test('Ghid: parcurs complet pe un proiect nou ajunge la „toate datele completate” și la rezultat', function () {
+        var K = window.AppUI.store;
+        var origConfirm = window.confirm;
+        window.confirm = function () { return true; };
+        try { window.AppUI.setProject(window.AppState.emptyProject()); K.newProject(); } finally { window.confirm = origConfirm; }
+        var guard = 0;
+        while (guard++ < 60) {
+          var n = K.guideNext();
+          if (!n) break;
+          var s = n.step, id = s.id, st = window.AppUI.getState();
+          if (s.confirm) { K.confirmStep(s); continue; }
+          if (id === 'operator') { K.set('meta.operator', 'OD'); K.commit(); continue; }
+          if (id === 'user-add-1' || id === 'user-add-2') { K.addUser(); continue; }
+          if (id.indexOf('user-nume:') === 0) { K.set('user.' + id.split(':')[1] + '.nume', 'U' + guard); K.commit(); continue; }
+          if (id.indexOf('tr-date:') === 0) { K.set('user.' + id.split(':')[1] + '.dataTR', '2024-01-01'); K.commit(); continue; }
+          if (id === 'line-add') { K.addLine(); continue; }
+          if (id.indexOf('line-IL:') === 0) { K.set('line.' + id.split(':')[1] + '.IL', 6000); K.commit(); continue; }
+          if (id.indexOf('line-L:') === 0) { K.set('line.' + id.split(':')[1] + '.L', 200); K.commit(); continue; }
+          if (id.indexOf('line-trs:') === 0) { K.addTronson(id.split(':')[1]); continue; }
+          if (id.indexOf('trs-lungime:') === 0) { var q = id.split(':'); K.set('tronson.' + q[1] + '.' + q[2] + '.lungime', 100); K.commit(); continue; }
+          if (id.indexOf('trs-alloc:') === 0) { var q2 = id.split(':'); K.setTronsonAllUsers(q2[1], q2[2], true); continue; }
+          if (id.indexOf('nou-alloc:') === 0) { var q3 = id.split(':'); K.toggleTronsonUser(q3[1], st.linii[0].tronsoane[0].id, q3[2]); continue; }
+          if (id === 'calc') { K.calculate(); K.commit(); continue; }
+          throw new Error('pas neprevăzut în scenariu: ' + id + ' (' + s.label + ')');
+        }
+        if (guard >= 60) throw new Error('ghidul nu converge');
+        var r = K.results;
+        if (!r || r.error) throw new Error('rezultat: ' + (r && r.error));
+        if (!document.querySelector('.guidebar.done')) throw new Error('bara „toate datele completate” lipsește');
+        if (!(r.central.totalFaraTVA > 0)) throw new Error('total ' + r.central.totalFaraTVA);
+      });
+
+      test('Rezultate: explicația „Cum s-a calculat” are formulă și referință', function () {
+        window.AppUI.setProject(window.AppState.demoU4());
+        window.AppUI.setTab('rezultate');
+        window.AppUI.calculate();
+        var how = document.querySelector('details.how');
+        if (!how) throw new Error('explicația lipsește');
+        var t = how.textContent;
+        if (t.indexOf('3.000,00 / 3 − 3.000,00 / 4') < 0) throw new Error('formula: ' + t);
+        if (!how.querySelector('.ref[data-ref="art12.1"]')) throw new Error('referința art. 12 alin. 1 lipsește');
+      });
+
+      test('Rezultate: stări fără duplicare (o singură listă de erori) și link „Mergi la câmp”', function () {
+        window.AppUI.setProject(window.AppState.emptyProject());
+        window.AppUI.setTab('rezultate');
+        window.AppUI.calculate();
+        var cards = document.querySelectorAll('.err-card');
+        if (cards.length !== 1) throw new Error('liste de erori: ' + cards.length);
+        if (document.getElementById('results-region').textContent.indexOf('Nu se poate calcula') >= 0) throw new Error('mesaj duplicat „Nu se poate calcula”');
+        var go = cards[0].querySelector('.go');
+        if (!go) throw new Error('linkul „Mergi la câmp” lipsește');
+        go.click();
+        if (window.AppUI.store.tab === 'rezultate') throw new Error('linkul nu a schimbat pasul');
       });
 
       var s = document.createElement('div');
