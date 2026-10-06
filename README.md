@@ -91,6 +91,11 @@ Detalii despre formule și validarea lor: `docs/formule-ocr.md` (material local,
   deriva din data PIF; pragul e 10 ani dacă primul utilizator e casnic (art. 8 alin. 2);
   „Data achitare TR” se verifică pentru fiecare beneficiar (art. 7 alin. 1); art. 19
   (fonduri publice nerambursabile) exclude aplicarea metodologiei; Anexa 5 pct. 1: 5 ani.
+- **Art. 15 alin. 1 și 3:** pe linii, butonul „+ Circuit pe stâlpi existenți” modelează al doilea
+  circuit montat pe stâlpii liniei primului utilizator (costul stâlpilor, în cote egale). La
+  stații, bifa „Întărire post” limitează compensația la **capacitatea suplimentară** a
+  transformatorului existent (S_n − puterile deja racordate); restul îl acoperă noul
+  transformator, finanțat de noul utilizator.
 - **Utilizatori noi multipli:** se racordează secvențial (Anexa 1), ordonați după Data ATR;
   cel mai târziu plătește și celor noi racordați înaintea lui.
 - **Export CSV** — centralizatorul (separator `;`, zecimale cu virgulă, pentru Excel RO).

@@ -84,6 +84,8 @@
    *   echipamentComun: number,          // A — echipamente de racordare (opțional)
    *   tronsoane: [{
    *     id, nume, lungime, cost,        // cost explicit SAU lungime * bL
+   *     tip: 'stalpi',                  // art. 15 alin. 1: al doilea circuit pe stâlpii liniei
+   *                                     //   existente — `cost` = costul stâlpilor utilizați în comun
    *     utilizatori: [userId, ...]      // utilizatorii care folosesc tronsonul
    *   }]
    * }
@@ -123,6 +125,7 @@
 
       var det = {
         id: t.id,
+        tip: t.tip,
         nume: t.nume,
         lungime: num(t.lungime),
         cost: cost,
@@ -189,6 +192,7 @@
    *   IT: number,                       // cost lucrări [lei]
    *   elementeComune: number,           // echipamente comune [lei] (opțional)
    *   utilizatori: [userId, ...],       // utilizatorii racordați (ordine informativă)
+   *   intarire: boolean,                // art. 15 alin. 3: transformator înlocuit/adăugat
    *   primId: userId,                   // primul utilizator (finanțatorul) — primește
    *   nouUtilizator: userId,            // noul utilizator — plătește
    *   puteri: { userId: kVA }
@@ -215,13 +219,40 @@
     // niciunul, se folosește primul din listă.
     var prim = cfg.primId ? cfg.primId : users[0];
 
+    // Art. 15 alin. (3): întărirea postului (transformator înlocuit cu unul mai
+    // mare sau al doilea transformator, necesar noului utilizator). Noul
+    // utilizator plătește primului utilizator o compensație corespunzătoare
+    // CAPACITĂȚII SUPLIMENTARE a transformatorului EXISTENT (art. 3 alin. 2 pct. 2):
+    // partea din S_n existent rămasă după utilizatorii deja racordați. Ce
+    // depășește această capacitate e acoperit de noul transformator, finanțat
+    // de noul utilizator (nu generează compensație). Utilizatorii noi se
+    // racordează pe rând și consumă succesiv capacitatea suplimentară.
+    var intarire = !!cfg.intarire;
+    var suplimentara = null;
+    if (intarire) {
+      var ocupata = users.reduce(function (sum, u) {
+        return nouList.indexOf(u) >= 0 ? sum : sum + num(puteri[u]);
+      }, 0);
+      suplimentara = { initiala: Math.max(0, SnEfectiv - ocupata), ocupata: ocupata, folosit: {}, ramasa: 0 };
+      var spare = suplimentara.initiala;
+      nouList.forEach(function (nou) {
+        if (users.indexOf(nou) < 0) return;
+        var use = Math.min(Math.max(0, num(puteri[nou])), spare);
+        spare -= use;
+        suplimentara.folosit[nou] = use;
+      });
+      suplimentara.ramasa = spare;
+    }
+
     // Compensația pe putere: fiecare utilizator NOU plătește primului
-    // utilizator cota proporțională cu puterea sa (art. 13).
+    // utilizator cota proporțională cu puterea sa (art. 13) — la întărire,
+    // doar pentru partea acoperită de capacitatea suplimentară (art. 15 alin. 3).
     users.forEach(function (u) {
       var P = num(puteri[u]);
-      cote[u] = P * bT;
+      var Pc = intarire ? (nouList.indexOf(u) >= 0 ? (suplimentara.folosit[u] || 0) : P) : P;
+      cote[u] = Pc * bT;
       if (nouList.indexOf(u) >= 0 && u !== prim && prim !== undefined) {
-        addPay(payments, u, prim, P * bT);
+        addPay(payments, u, prim, Pc * bT);
       }
     });
 
@@ -245,7 +276,9 @@
       nouUtilizatori: nouList.slice(),
       cote: cote,
       payments: payments,
-      prim: prim
+      prim: prim,
+      intarire: intarire,
+      suplimentara: suplimentara
     };
   }
 

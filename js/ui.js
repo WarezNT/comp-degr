@@ -174,6 +174,7 @@
   function stationCfg(s, puteri, primId, nouCfg) {
     return mergeCfg({
       Sn: s.Sn, SnRezerva: s.SnRezerva || 0, IT: s.IT, elementeComune: s.elementeComune,
+      intarire: !!s.intarire,
       utilizatori: orderByIds(s.utilizatori), puteri: puteri, primId: primId
     }, nouCfg);
   }
@@ -228,6 +229,7 @@
       (l.tronsoane || []).forEach(function (t) {
         out.push({
           id: t.id,
+          tip: t.tip,
           nume: (l.nume ? l.nume + ' · ' : '') + (t.nume || ''),
           lungime: t.lungime,
           cost: tronsonCost(l, t),
@@ -624,6 +626,7 @@
           '<span data-line-status="' + esc(l.id) + '">' + lineStatusHtml(l) + '</span></p>' +
         '<div class="toolbar"><strong>Tronsoane</strong>' +
           '<button class="btn tiny" data-action="add-tronson" data-line="' + esc(l.id) + '">+ Tronson</button>' +
+          '<button class="btn tiny" data-action="add-stalpi" data-line="' + esc(l.id) + '" title="Art. 15 alin. 1: al doilea circuit montat pe stâlpii unei linii aeriene existente">+ Circuit pe stâlpi existenți</button>' +
           '<button class="btn tiny ghost" data-action="auto-all-tronson" data-line="' + esc(l.id) + '" title="Recalculează toate tronsoanele din lungime × b_L">↺ Recalculează toate</button></div>' +
         '<div class="table-wrap"><table class="grid"><thead><tr>' +
           '<th>Denumire</th><th>Lungime (m)</th><th>Cost (lei, auto)</th><th>Utilizatori folosesc tronsonul</th><th></th>' +
@@ -641,7 +644,8 @@
   }
 
   function lineStatusHtml(l) {
-    var trsSum = (l.tronsoane || []).reduce(function (s, t) { return s + tronsonCost(l, t); }, 0);
+    // Costul stâlpilor (art. 15 alin. 1) face parte din costul unui tronson existent: nu se adună de două ori.
+    var trsSum = (l.tronsoane || []).reduce(function (s, t) { return t.tip === 'stalpi' ? s : s + tronsonCost(l, t); }, 0);
     var IL = Number(l.IL) || 0;
     if (IL <= 0) return '';
     var diff = IL - trsSum;
@@ -664,6 +668,7 @@
         { field: 'Denumire tronson', desc: 'Numele tronsonului (ex. „Tronson 1 (st.20–21)”).' },
         { field: 'Lungime tronson', desc: 'Lungimea tronsonului, în metri. Din ea se calculează automat costul = lungime × b_L.' },
         { field: 'Cost tronson', desc: 'Afișat automat (lungime × b_L). Buton „✎ manual” pentru valoare impusă, „↺ automat” pentru revenire.' },
+        { field: 'Circuit pe stâlpi existenți', desc: 'Art. 15 alin. 1: dacă noul utilizator montează un al doilea circuit pe stâlpii liniei aeriene a primului utilizator, apasă „+ Circuit pe stâlpi existenți”, introdu <strong>costul stâlpilor</strong> utilizați în comun și adaugă utilizatorii care folosesc stâlpii (inclusiv noul utilizator). Costul se împarte în cote egale.' },
         { field: 'Utilizatori folosesc tronsonul', desc: 'Adaugă utilizatorii care trec prin acel tronson. Ordinea (↑/↓) = ordinea racordării, primul e finanțatorul.' }
       ],
       note: 'Un tronson folosit de mai mulți utilizatori împarte costul în cote egale; cel care se racordează ulterior plătește diferența.',
@@ -686,7 +691,11 @@
       '</select>';
     var costVal = tronsonCost(l, t);
     var costCell;
-    if (t.costManual) {
+    var stalpi = t.tip === 'stalpi';
+    if (stalpi) {
+      costCell = number('tronson.' + esc(l.id) + '.' + esc(t.id) + '.cost', t.cost, 'Costul stâlpilor utilizați în comun (lei)') +
+        '<div class="hint">costul stâlpilor</div>';
+    } else if (t.costManual) {
       costCell = number('tronson.' + esc(l.id) + '.' + esc(t.id) + '.cost', t.cost, 'Cost tronson (lei)') +
         '<div class="mini-actions"><button class="linkish" data-action="trs-cost-auto" data-line="' + esc(l.id) + '" data-trs="' + esc(t.id) + '">↺ automat</button></div>';
     } else {
@@ -695,7 +704,7 @@
     }
     return '<tr>' +
       '<td>' + text('tronson.' + esc(l.id) + '.' + esc(t.id) + '.nume', t.nume, 'Denumire tronson') + '</td>' +
-      '<td>' + number('tronson.' + esc(l.id) + '.' + esc(t.id) + '.lungime', t.lungime, 'Lungime tronson (m)') + '</td>' +
+      '<td>' + (stalpi ? '<span class="muted">—</span>' : number('tronson.' + esc(l.id) + '.' + esc(t.id) + '.lungime', t.lungime, 'Lungime tronson (m)')) + '</td>' +
       '<td class="cost-cell">' + costCell + '</td>' +
       '<td><div class="chips">' + (chips || '<span class="muted">—</span>') + '</div>' + addSel + '</td>' +
       '<td><button class="btn tiny danger" data-action="del-tronson" data-line="' + esc(l.id) + '" data-trs="' + esc(t.id) + '">Șterge</button></td>' +
@@ -707,7 +716,20 @@
     return 'b_T = I_T / S_n efectiv = ' + money(Number(s.IT) || 0) + ' / ' + money(SnEf) +
       ' = <strong>' + money(SnEf > 0 ? (Number(s.IT) || 0) / SnEf : 0) + ' lei/kVA</strong>' +
       (Number(s.SnRezerva) > 0 ? ' (S_n efectiv exclude transformatorul de rezervă, art. 15 alin. 4)' : '') +
-      '. Compensația fiecărui utilizator nou = puterea sa aprobată × b_T.';
+      (s.intarire
+        ? '. <strong>Întărire post (art. 15 alin. 3):</strong> compensația = puterea noului utilizator × b_T, doar în limita capacității suplimentare a transformatorului existent (S_n efectiv − puterile utilizatorilor deja racordați = <strong>' +
+          money(Math.max(0, SnEf - stationOccupied(s))) + ' kVA</strong>); restul îl acoperă noul transformator, finanțat de noul utilizator.'
+        : '. Compensația fiecărui utilizator nou = puterea sa aprobată × b_T.');
+  }
+
+  // Puterea aprobată a utilizatorilor deja racordați la stație (fără cei noi).
+  function stationOccupied(s) {
+    var nou = getNewIds();
+    return (s.utilizatori || []).reduce(function (sum, id) {
+      if (nou.indexOf(id) >= 0) return sum;
+      var u = S.findUser(state, id);
+      return sum + (u ? Number(u.putere) || 0 : 0);
+    }, 0);
   }
 
   function refreshStationDerived(stId) {
@@ -736,6 +758,7 @@
         '</div>' +
         '<div class="row2">' +
           field('Echipamente comune, altele decât transformatoare (lei)', number('stat.' + esc(s.id) + '.elementeComune', s.elementeComune)) +
+          field('Întărire post — transformator înlocuit / al doilea transformator (art. 15 alin. 3)', checkbox('stat.' + esc(s.id) + '.intarire', s.intarire)) +
         '</div>' +
         '<div class="toolbar"><strong>Utilizatori (primul utilizator se bifează la pasul 2 „Utilizatori”)</strong></div>' +
         '<div class="chips">' + (chips || '<span class="muted">—</span>') + '</div>' +
@@ -761,6 +784,7 @@
         { field: 'Denumire stație / PT', desc: 'Numele stației sau postului de transformare.' },
         { field: 'Capacitate nominală S_n', desc: 'Capacitatea transformatoarelor, în kVA (ex. 400).' },
         { field: 'Cost lucrări I_T', desc: 'Valoarea lucrărilor stației/PT achitată de primul utilizator.' },
+        { field: 'Întărire post (art. 15 alin. 3)', desc: 'Bifează dacă pentru noul utilizator se înlocuiește transformatorul cu unul mai mare sau se montează al doilea transformator. Completează S_n și I_T ale transformatorului <strong>existent</strong>; noul utilizator plătește primului doar pentru capacitatea suplimentară a acestuia.' },
         { field: 'Echipamente comune', desc: 'Opțional: valoarea echipamentelor (altele decât transformatoarele) folosite în comun; se împarte în cote egale.' },
         { field: 'Utilizatori', desc: 'Adaugă utilizatorii racordați la stație/PT. Primul utilizator (finanțatorul) se bifează în tabul „Utilizatori”; ceilalți îi plătesc compensație.' }
       ],
@@ -1070,6 +1094,19 @@
       rows + '</tbody></table></details>';
   }
 
+  // Art. 15 alin. 3: capacitatea suplimentară a transformatorului existent.
+  function intarireHtml(st) {
+    if (!st || !st.intarire || !st.suplimentara) return '';
+    var sp = st.suplimentara;
+    var folosit = Object.keys(sp.folosit).map(function (id) {
+      return esc(nameOf(id)) + ': ' + money(sp.folosit[id]) + ' kVA × ' + money(st.bT) + ' = <strong>' + money(sp.folosit[id] * st.bT) + ' lei</strong>';
+    }).join('; ');
+    return '<br><em>Întărire post (art. 15 alin. 3):</em> capacitate suplimentară existentă ' + money(sp.initiala) + ' kVA (S_n efectiv ' +
+      money(st.SnEfectiv) + ' − ' + money(sp.ocupata) + ' kVA deja racordați)' +
+      (folosit ? ' — compensație pentru: ' + folosit : '') +
+      '; rămasă neutilizată ' + money(sp.ramasa) + ' kVA.';
+  }
+
   function renderDetails() {
     var res = results;
     if (res.model === 'line') {
@@ -1077,7 +1114,8 @@
         var plati = t.plati.map(function (p) {
           return '<li>' + esc(nameOf(p.deLa)) + ' → ' + esc(nameOf(p.catre)) + ': <strong>' + money(p.suma) + '</strong></li>';
         }).join('');
-        return '<div class="det"><strong>' + esc(t.nume || t.id) + '</strong> — cost ' + money(t.cost) +
+        return '<div class="det"><strong>' + esc(t.nume || t.id) + '</strong>' +
+          (t.tip === 'stalpi' ? ' <span class="badge ok">art. 15 alin. 1 — stâlpi în comun</span>' : '') + ' — cost ' + money(t.cost) +
           ' lei, ' + t.nrUtilizatori + ' utilizatori<br><ul>' + (plati || '<li class="muted">fără compensații</li>') + '</ul></div>';
       }).join('');
       return '<details class="card"><summary>Detaliu pe tronsoane</summary>' + det + '</details>';
@@ -1089,13 +1127,13 @@
           ? '<br>S_n efectiv = ' + money(st.Sn) + ' − ' + money(st.SnRezerva) + ' (rezervă N-1) = ' + money(st.SnEfectiv) + ' kVA'
           : '';
         return '<p><strong>' + esc(nm) + '</strong>: b_T = I_T / S_n = ' + money(st.IT) + ' / ' + money(st.SnEfectiv) +
-          ' = <strong>' + money(st.bT) + ' lei/kVA</strong>' + rez + '</p>';
+          ' = <strong>' + money(st.bT) + ' lei/kVA</strong>' + rez + intarireHtml(st) + '</p>';
       }).join('');
       return '<details class="card"><summary>Detaliu stații</summary>' + blocks + '</details>';
     }
     if (res.model === 'complex') {
       var comps = res.components.map(function (c) {
-        if (c.model === 'station') return 'Anexa 2 — ' + money(c.bT) + ' lei/kVA';
+        if (c.model === 'station') return 'Anexa 2 — ' + money(c.bT) + ' lei/kVA' + (c.intarire ? ' (întărire post, art. 15 alin. 3)' : '');
         return 'Anexa 1 — ' + money((c.tronsoaneDetalii || []).reduce(function (s, t) { return s + (Number(t.cost) || 0); }, 0)) + ' lei';
       });
       return '<details class="card" open><summary>Varianta ' + esc(res.varianta) + ' — componente însumate</summary>' +
@@ -1286,6 +1324,7 @@
       persistRender(); return;
     }
     if (a === 'add-tronson') { addTronson(el.dataset.line); return; }
+    if (a === 'add-stalpi') { addStalpi(el.dataset.line); return; }
     if (a === 'del-tronson') { delTronson(el.dataset.line, el.dataset.trs); return; }
     if (a === 'trs-cost-manual') { setTronsonManual(el.dataset.line, el.dataset.trs, true); return; }
     if (a === 'trs-cost-auto') { setTronsonManual(el.dataset.line, el.dataset.trs, false); return; }
@@ -1412,6 +1451,19 @@
     persistRender();
   }
 
+  // Art. 15 alin. 1: al doilea circuit pe stâlpii liniei existente. Se modelează
+  // ca un element cu cost propriu (costul stâlpilor utilizați în comun), în cote
+  // egale între utilizatorii care folosesc stâlpii.
+  function addStalpi(lineId) {
+    var l = byId(state.linii, lineId);
+    if (!l) return;
+    l.tronsoane.push({
+      id: S.uid('t'), tip: 'stalpi', nume: 'Stâlpi — al doilea circuit (art. 15 alin. 1)',
+      lungime: 0, cost: 0, costManual: true, utilizatori: []
+    });
+    persistRender();
+  }
+
   function addTronson(lineId) {
     var l = byId(state.linii, lineId);
     if (!l) return;
@@ -1477,7 +1529,7 @@
   }
 
   function addStation() {
-    state.statii.push({ id: S.uid('st'), nume: 'Stație ' + (state.statii.length + 1), Sn: 0, SnRezerva: 0, IT: 0, elementeComune: 0, utilizatori: [] });
+    state.statii.push({ id: S.uid('st'), nume: 'Stație ' + (state.statii.length + 1), Sn: 0, SnRezerva: 0, IT: 0, elementeComune: 0, intarire: false, utilizatori: [] });
     persistRender();
   }
 

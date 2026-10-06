@@ -280,6 +280,48 @@
       eq(assert, res.statii[0].bT, 250, 'b_T stația 1');
     });
 
+    // Art. 15 alin. 3: întărirea postului — compensație doar pentru capacitatea suplimentară
+    // a transformatorului existent (S_n 400, I_T 100.000 → b_T 250; primul utilizator 260 kVA → 140 kVA liberi).
+    test('Art. 15 alin. 3 — întărire post: compensație limitată la capacitatea suplimentară', function (assert) {
+      var res = E.computeStation({ Sn: 400, IT: 100000, intarire: true, primId: 'A',
+        utilizatori: ['A', 'N'], nouUtilizatori: ['N'], puteri: { A: 260, N: 200 } });
+      eq(assert, res.suplimentara.initiala, 140, 'capacitate suplimentară');
+      eq(assert, res.payments['N']['A'], 140 * 250, 'N -> A (140 kVA × 250)');
+      // fără întărire: tot 200 kVA × 250
+      var normal = E.computeStation({ Sn: 400, IT: 100000, primId: 'A',
+        utilizatori: ['A', 'N'], nouUtilizatori: ['N'], puteri: { A: 260, N: 200 } });
+      eq(assert, normal.payments['N']['A'], 50000, 'fără întărire');
+    });
+
+    test('Art. 15 alin. 3 — doi utilizatori noi consumă succesiv capacitatea suplimentară', function (assert) {
+      var res = E.computeStation({ Sn: 400, IT: 100000, intarire: true, primId: 'A',
+        utilizatori: ['A', 'N1', 'N2'], nouUtilizatori: ['N1', 'N2'], puteri: { A: 260, N1: 100, N2: 100 } });
+      eq(assert, res.payments['N1']['A'], 100 * 250, 'N1');
+      eq(assert, res.payments['N2']['A'], 40 * 250, 'N2 (doar 40 kVA rămași)');
+      eq(assert, res.suplimentara.ramasa, 0, 'rămas');
+    });
+
+    test('Art. 15 alin. 3 — capacitate suplimentară 0: nicio compensație', function (assert) {
+      var res = E.computeStation({ Sn: 400, IT: 100000, intarire: true, primId: 'A',
+        utilizatori: ['A', 'N'], nouUtilizatori: ['N'], puteri: { A: 400, N: 100 } });
+      if (res.payments['N']) assert('nu ar trebui plată: ' + JSON.stringify(res.payments));
+    });
+
+    // Art. 15 alin. 1: al doilea circuit pe stâlpii liniei existente — costul stâlpilor în cote egale.
+    test('Art. 15 alin. 1 — al doilea circuit pe stâlpi existenți (cote egale)', function (assert) {
+      var res = E.computeLine({ nouUtilizatori: ['N'],
+        tronsoane: [{ id: 'S', tip: 'stalpi', cost: 10000, utilizatori: ['U1', 'N'] }] });
+      eq(assert, res.payments['N']['U1'], 5000, 'N -> U1');
+      if (res.tronsoaneDetalii[0].tip !== 'stalpi') assert('tipul elementului nu s-a păstrat în detaliu');
+    });
+
+    test('Art. 15 alin. 1 — stâlpii folosiți de doi utilizatori existenți', function (assert) {
+      var res = E.computeLine({ nouUtilizatori: ['N'],
+        tronsoane: [{ id: 'S', tip: 'stalpi', cost: 12000, utilizatori: ['U1', 'U2', 'N'] }] });
+      eq(assert, res.payments['N']['U1'], 2000, 'N -> U1');   // 6000 − 4000
+      eq(assert, res.payments['N']['U2'], 2000, 'N -> U2');
+    });
+
     var sum = document.createElement('div');
     sum.className = 'summary ' + (fail === 0 ? 'pass' : 'fail');
     sum.textContent = 'Rezultat: ' + pass + ' trecute, ' + fail + ' eșuate.';

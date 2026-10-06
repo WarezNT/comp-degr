@@ -472,6 +472,47 @@
         if (Math.abs(primit - 3000) > 0.01) throw new Error('U1 primește ' + primit);
       });
 
+      test('Art. 15 alin. 1 prin UI: buton „Circuit pe stâlpi existenți” + calcul', function () {
+        var p = window.AppState.demoU4();
+        window.AppUI.setProject(p);
+        window.AppUI.setTab('instalatie');
+        document.querySelector('[data-action="add-stalpi"]').click();
+        var st = window.AppUI.getState();
+        var t = st.linii[0].tronsoane[st.linii[0].tronsoane.length - 1];
+        if (t.tip !== 'stalpi' || !t.costManual) throw new Error('elementul pe stâlpi nu a fost creat corect');
+        t.cost = 8000;
+        t.utilizatori = [st.utilizatori[0].id, st.utilizatori[3].id];   // U1 (prim) + U4 (nou)
+        window.AppUI.setProject(st);
+        var r = window.AppUI.calculate();
+        if (r.error) throw new Error(r.error);
+        // 1500 (tronsoane) + 4000 (stâlpi: 8000/1 − 8000/2) către U1
+        if (Math.abs(r.central.totalFaraTVA - 5500) > 0.01) throw new Error('total ' + r.central.totalFaraTVA);
+        window.AppUI.setTab('instalatie');
+        if (document.querySelector('[data-line-status] .badge.warn')) throw new Error('stâlpii nu trebuie incluși în suma tronsoanelor');
+      });
+
+      test('Art. 15 alin. 3 prin UI: întărire post limitează compensația', function () {
+        var p = emptyOk();
+        p.meta.model = 'station';
+        var a = window.AppState.addUser(p, { nume: 'A', putere: 260, prim: true, dataTR: '2024-01-01' });
+        var n = window.AppState.addUser(p, { nume: 'N', putere: 200 });
+        p.statii.push({ id: 'S1', nume: 'PT', Sn: 400, SnRezerva: 0, IT: 100000, elementeComune: 0, intarire: true, utilizatori: [a.id, n.id] });
+        p.meta.nouUtilizatoriIds = [n.id];
+        window.AppUI.setProject(p);
+        var r = window.AppUI.calculate();
+        if (r.error) throw new Error(r.error);
+        if (Math.abs(r.central.totalFaraTVA - 35000) > 0.01) throw new Error('total ' + r.central.totalFaraTVA);
+        window.AppUI.setTab('rezultate');
+        if (document.querySelector('details').textContent.indexOf('art. 15 alin. 3') < 0) throw new Error('detaliul nu menționează art. 15 alin. 3');
+      });
+
+      test('Import: tipul „stalpi” e păstrat, alte valori sunt eliminate', function () {
+        var p = window.AppState.migrate({ utilizatori: [{ id: 'u' }], linii: [{ id: 'l', tronsoane: [
+          { id: 't1', tip: 'stalpi' }, { id: 't2', tip: '<script>' }] }] });
+        if (p.linii[0].tronsoane[0].tip !== 'stalpi') throw new Error('tip stalpi pierdut');
+        if ('tip' in p.linii[0].tronsoane[1]) throw new Error('tip invalid păstrat');
+      });
+
       var s = document.createElement('div');
       s.className = 'summary' + (fail === 0 ? '' : ' fail');
       s.textContent = 'Rezultat: ' + pass + ' trecute, ' + fail + ' eșuate.';

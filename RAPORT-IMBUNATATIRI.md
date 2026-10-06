@@ -95,4 +95,6 @@ Recomandare: validare centralizată (`validate(project)` → listă erori/averti
 | Antet/semnături | Norma nu impune format; valoarea se precizează în ATR (art. 6 alin. 2) | Neschimbat (practică, nu obligație). |
 | Anexa 2 (doar primul primește) | Art. 6 alin. 1 lit. b, art. 13 | Confirmat — corect în aplicație. |
 
-Nemodelat încă (menționat în norme): art. 15 alin. 1 (al doilea circuit pe stâlpi), art. 15 alin. 3 (întărire post), art. 6 alin. 5 (operatorul ca utilizator nou), art. 7 alin. 2 (refacerea ATR-urilor).
+Modelat ulterior: art. 15 alin. 1 (element „stâlpi” cu cost propriu, cote egale) și art. 15 alin. 3 (întărire post: compensație = b_T × min(puterea nouă, capacitatea suplimentară a transformatorului existent), consum succesiv pentru mai mulți utilizatori noi).
+
+Nemodelat încă (menționat în norme): art. 6 alin. 5 (operatorul ca utilizator nou), art. 7 alin. 2 (refacerea ATR-urilor).

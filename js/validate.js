@@ -61,6 +61,9 @@
         var tn = '„' + nm + ' · ' + (t.nume || t.id) + '”';
         nonNeg('Lungimea tronsonului ' + tn, t.lungime);
         if (t.costManual) nonNeg('Costul tronsonului ' + tn, t.cost);
+        if (t.tip === 'stalpi' && !(n(t.cost) > 0)) {
+          warnings.push('Circuitul pe stâlpi existenți ' + tn + ' (art. 15 alin. 1) are costul stâlpilor 0; nu va genera compensație.');
+        }
         var seen = {};
         (t.utilizatori || []).forEach(function (u) {
           if (seen[u]) errors.push('Utilizatorul „' + nameOf(u) + '” apare de două ori pe tronsonul ' + tn + '.');
@@ -98,7 +101,16 @@
         var uu = S.findUser(p, u);
         if (uu) sumP += n(uu.putere);
       });
-      if (efectiv > 0 && sumP > efectiv) {
+      if (s.intarire) {
+        // La întărire, puterile noilor utilizatori pot depăși capacitatea existentă.
+        var occ = 0;
+        (s.utilizatori || []).forEach(function (u) {
+          if (newIds.indexOf(u) < 0) { var uu2 = S.findUser(p, u); if (uu2) occ += n(uu2.putere); }
+        });
+        if (efectiv > 0 && occ >= efectiv) {
+          warnings.push('Stația „' + nm + '” (întărire, art. 15 alin. 3): nu mai există capacitate suplimentară în transformatorul existent; compensația va fi 0.');
+        }
+      } else if (efectiv > 0 && sumP > efectiv) {
         warnings.push('Stația „' + nm + '”: suma puterilor aprobate (' + sumP + ' kVA) depășește S_n efectiv (' + efectiv + ' kVA); Anexa 2 presupune puteri în limita capacității transformatorului.');
       }
       if (primId && (s.utilizatori || []).indexOf(primId) < 0) {

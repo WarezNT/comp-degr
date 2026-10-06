@@ -383,7 +383,10 @@
     p.linii.forEach(function (l) {
       l.id = safeId(l.id, 'lin');
       l.tronsoane = arr(l.tronsoane).filter(isObj);
-      l.tronsoane.forEach(function (t) { t.id = safeId(t.id, 't'); });
+      l.tronsoane.forEach(function (t) {
+        t.id = safeId(t.id, 't');
+        if (t.tip !== 'stalpi') delete t.tip;   // art. 15 alin. 1: singura valoare permisă
+      });
     });
     p.statii.forEach(function (s) { s.id = safeId(s.id, 'st'); });
     p.dezvoltator.dezvoltatori.forEach(function (d) { d.id = safeId(d.id, 'dev'); });
@@ -440,6 +443,7 @@
     });
     (p.statii || []).forEach(function (s) {
       if (s.SnRezerva === undefined) s.SnRezerva = 0;
+      s.intarire = !!s.intarire;
     });
     // Un singur „prim utilizator”: dacă sunt mai mulți bifați, păstrăm primul.
     if (p.utilizatori && p.utilizatori.length) {
