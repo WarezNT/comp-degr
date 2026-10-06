@@ -82,7 +82,7 @@ details.menu > summary::-webkit-details-marker { display: none; }
 .tabst.todo { background: var(--warn-soft); color: var(--warn); }
 .tabst.err { background: var(--bad-soft); color: var(--bad); }
 
-.content { padding: 22px 22px 130px; max-width: 1400px; margin: 0 auto; }
+.content { padding: 22px 22px 130px; max-width: 3000px; margin: 0 auto; }   /* folosește lățimea monitoarelor mari */
 .panel { animation: fade .14s ease; }        /* rulează doar la montarea panoului (schimbarea pasului) */
 @keyframes fade { from { opacity: .5; } to { opacity: 1; } }
 
@@ -105,6 +105,9 @@ details.menu > summary::-webkit-details-marker { display: none; }
 .helper-refs { margin: 6px 0; color: var(--muted); font-size: 12px; }
 .helper-note { margin: 10px 0 0; padding: 8px 10px; background: var(--accent-soft); color: #1e3a8a; border-radius: 8px; font-size: 12px; }
 
+@media (min-width: 1800px) {
+  .panel.with-helper { grid-template-columns: minmax(0, 1fr) 380px; }
+}
 @media (max-width: 980px) {
   .panel.with-helper { grid-template-columns: 1fr; }
   .helper { position: static; }                /* sub conținut; restrâns implicit pe ecran mic */
@@ -199,8 +202,7 @@ tr.subrow details > summary { cursor: pointer; font-size: 13px; color: #334155; 
 @media (min-width: 761px) {
   tr.rol-prim td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
   tr.rol-nou td:first-child, tr.rol-operator td:first-child { box-shadow: inset 3px 0 0 var(--guide); }
-  table.users td:first-child { min-width: 200px; }
-  table.users td { min-width: 110px; }
+  table.users td:first-child { min-width: 175px; }
 }
 .matrix-hint { display: none; }
 @media (max-width: 760px) { .matrix-hint { display: block; } }
