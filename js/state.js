@@ -18,7 +18,8 @@
         operator: '',
         codOperator: '',
         dataCalcul: new Date().toISOString().slice(0, 10),
-        tva: 19,
+        tva: 21,                 // cota implicită de TVA; alte opțiuni: 19% sau o valoare introdusă manual
+        tvaAlta: false,          // „Altă valoare” aleasă explicit (câmp manual vizibil)
         withTva: true,
         model: 'line',
         modelConfirmat: false,   // ghid: utilizatorul a confirmat tipul de instalație
@@ -208,6 +209,7 @@
     // Rezultat așteptat: U4 plătește 500 lei către fiecare din U1,U2,U3.
     var p = emptyProject();
     p.meta.model = 'line';
+    p.meta.tva = 19;   // scenariul din modelul .xlsx
     var u1 = addUser(p, { codPA: '1000000001', nume: 'U1', putere: 100, prim: true, dataATR: '2023-01-10', dataTR: '2023-02-10' });
     var u2 = addUser(p, { codPA: '1000000002', nume: 'U2', putere: 100, dataATR: '2023-05-10', dataTR: '2023-06-10' });
     var u3 = addUser(p, { codPA: '1000000003', nume: 'U3', putere: 100, dataATR: '2023-09-10', dataTR: '2023-10-10' });

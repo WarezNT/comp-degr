@@ -185,6 +185,25 @@ const focusedKey = (page) => page.evaluate(() => {
   check('importul din formatul vechi migrează rolurile (prim,nou)', roles === 'prim,nou', roles);
   await page.close();
 
+  /* ---------- 6. Ecrane late: fără scroll în tabele ---------- */
+  console.log('Ecrane late');
+  for (const w of [1366, 1920, 3440]) {
+    page = await newPage(browser, w, 1000);
+    await page.click('.start-actions [data-action="demo-u4"]');
+    let worst = 0;
+    for (const t of ['utilizatori', 'instalatie', 'rezultate']) {
+      await page.click('#tab-' + t);
+      if (t === 'utilizatori') await page.evaluate(() => document.querySelectorAll('details.contract').forEach((d) => { d.open = true; }));
+      if (t === 'rezultate') await page.click('[data-guide="btn:calc"]');
+      const o = await page.evaluate(() => Math.max(0, ...Array.from(document.querySelectorAll('.table-wrap')).map((e) => e.scrollWidth - e.clientWidth)));
+      worst = Math.max(worst, o);
+    }
+    check('fără scroll orizontal în tabele la ' + w + ' px', worst <= 1, 'depășire ' + worst + 'px');
+    const cw = await page.evaluate(() => document.querySelector('.content').getBoundingClientRect().width);
+    if (w >= 1920) check('conținutul folosește lățimea ecranului la ' + w + ' px (' + Math.round(cw) + ')', cw >= Math.min(w, 2600) * 0.9, String(cw));
+    await page.close();
+  }
+
   await browser.close();
   console.log(failures ? '\n' + failures + ' verificări e2e eșuate.' : '\nToate verificările e2e au trecut.');
   process.exit(failures ? 1 : 0);

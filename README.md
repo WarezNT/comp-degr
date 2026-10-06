@@ -53,7 +53,7 @@ evidențiază câmpul respectiv (contur galben), mută cursorul pe el și, după
 (Enter / Tab / click), te duce automat la următorul — inclusiv între pași. Poți sări pașii
 opționali, opri mutarea automată a focusului sau ascunde ghidul (meniul „Proiect”).
 
-1. **Date generale** — modelul de calcul (Anexa 1–5), operator, dată, cotă TVA.
+1. **Date generale** — modelul de calcul (Anexa 1–5), operator, dată, cotă TVA (implicit 21%; alegi 19% sau „Altă valoare”, introdusă manual).
 2. **Utilizatori** — fiecare utilizator are **un singur rol**: *prim utilizator* (finanțator,
    primește), *nou* (plătește), *existent* sau *operator de rețea* (art. 6 alin. 5). Primul
    adăugat devine prim, al doilea nou. Contract/avize (art. 7, 17–18) într-un rând extensibil.
