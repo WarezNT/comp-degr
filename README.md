@@ -33,8 +33,9 @@ publicată în M.Of. nr. 12 din 07.01.2016), anexele nr. 1–5.
   **referința legală** (chip „art. 8 alin. (1) lit. c”, cu textul normei) la fiecare regulă.
 - **Branding E.ON**: paleta, tipografia și **dimensiunile componentelor** preluate din
   E.ON UI-Kit (roșu `#EA1B0A`, gri cald, culori de sistem; butoane h44/h48, inputuri h44,
-  pași cu cerc numerotat) — vezi `:root` din `css/styles.css`. Aplicația rămâne offline
-  (se folosesc doar valorile, fără link-uri către CDN).
+  pași cu cerc numerotat, tabele/notificări/toast/modal). Aplicația rămâne offline
+  (se folosesc doar valorile, fără link-uri către CDN). Include: skip-link, `prefers-reduced-motion`,
+  focus vizibil și focus în fereastra normei.
 
 ## Cum se rulează
 

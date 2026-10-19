@@ -78,7 +78,8 @@ pre { margin: 0; }
 /* --- antet --- */
 .topbar {
   display: flex; align-items: center; justify-content: space-between; gap: 12px 16px;
-  padding: 12px 22px; background: var(--eon-grey900); color: var(--eon-white); flex-wrap: wrap;
+  padding: 14px 22px; background: var(--eon-grey900); color: var(--eon-white); flex-wrap: wrap;
+  border-bottom: 3px solid var(--accent);
 }
 .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .brand .logo {
@@ -416,3 +417,61 @@ details.select-guide > summary { cursor: pointer; }
 .sel-table summary { cursor: pointer; font-weight: 600; }
 .sel-table table.grid th, .sel-table table.grid td { font-size: 12px; }
 .muted-sel { color: var(--muted); }
+
+/* =====================================================================
+ * 2b (accesibilitate) + extindere 2a (antet, carduri, tabele, chip-uri,
+ * notificări, toast, modal, meniu) — aliniere la E.ON UI-Kit.
+ * ===================================================================== */
+
+/* 2b — „sari la conținut" (vizibil doar la focus de tastatură) */
+.skip-link {
+  position: absolute; left: -9999px; top: 0; z-index: 200;
+  background: var(--eon-grey900); color: #fff; padding: 10px 16px; border-radius: 0 0 8px 0;
+  text-decoration: none; font-weight: 700;
+}
+.skip-link:focus { left: 0; }
+
+/* 2b — respectă „preferință pentru mișcare redusă" */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important; scroll-behavior: auto !important;
+  }
+}
+
+/* 2b — ținte de atingere minime pentru elementele interactive mici */
+.linkish, .ref { min-height: 24px; }
+
+/* 2a — titluri de secțiune (stil „Section": titlu + separator) */
+.panel-main > h2 { font-size: 22px; font-weight: 700; padding-bottom: 10px; border-bottom: 2px solid var(--eon-grey200); }
+
+/* 2a — carduri (stil „Box") */
+.card { border-radius: 14px; }
+
+/* 2a — tabele (stil E.ON) */
+table.grid th, table.grid td { padding: 9px 12px; }
+table.grid th { background: var(--eon-grey100); color: var(--eon-grey800); font-weight: 700; }
+table.grid tbody tr:hover > td { background: #fbf8f5; }
+
+/* 2a — chip de referință legală (stil „Tag") */
+.ref { border-radius: 6px; background: var(--eon-grey200); color: var(--eon-grey800); border-color: var(--eon-grey300); }
+.ref:hover { background: var(--eon-grey300); }
+
+/* 2a — notificări inline (stil „Inline Notification": bară laterală + fundal) */
+.warn, .okmsg { border-left: 4px solid currentColor; padding: 10px 12px; border-radius: 8px; }
+.warn { border-left-color: var(--warn); }
+.okmsg { border-left-color: var(--ok); }
+
+/* 2a — meniu contextual (stil „Context Menu") */
+.menu-pop { border-radius: 12px; box-shadow: 0 14px 34px rgba(0,0,0,.2); }
+.menu-item { font-size: 15px; }
+.menu-item:hover, .menu-item:focus-visible { background: var(--eon-grey100); }
+
+/* 2a — notificare tip toast */
+.toast { border-radius: 10px; }
+.toast.show { background: var(--eon-grey900); color: #fff; box-shadow: 0 12px 30px rgba(0,0,0,.28); }
+
+/* 2a — fereastra cu textul normei (stil „Modal") */
+.modal { border-radius: 14px; }
+.modal-head { border-bottom: 1px solid var(--eon-grey200); padding-bottom: 10px; margin-bottom: 10px; }
+.norma-text { background: var(--eon-grey100); border-color: var(--eon-grey300); }

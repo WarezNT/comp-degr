@@ -387,8 +387,25 @@
   };
 
   /* ----------------------- norma (fereastra cu textul legal) ----------------------- */
-  store.openNorma = function (ruleId) { store.norma = ruleId; store.render(); };
-  store.closeNorma = function () { store.norma = null; store.render(); };
+  // 2b: la închidere, redă focusul chip-ului care a deschis fereastra (regăsit după data-ref).
+  store.openNorma = function (ruleId, trigger) {
+    store.normaTrigger = trigger || (function () { try { return (document && document.activeElement) || null; } catch (e) { return null; } })();
+    store.norma = ruleId; store.render();
+  };
+  store.closeNorma = function () {
+    var id = store.norma;
+    store.norma = null; store.render();
+    var back = null;
+    try {
+      if (id) {
+        var nodes = document.querySelectorAll('.ref[data-ref="' + String(id).replace(/["\\]/g, '') + '"]');
+        for (var i = 0; i < nodes.length; i++) { if (nodes[i].offsetParent !== null) { back = nodes[i]; break; } }
+      }
+    } catch (e) { back = null; }
+    if (!back) back = store.normaTrigger;
+    store.normaTrigger = null;
+    if (back && typeof back.focus === 'function') { try { back.focus(); } catch (e) { /* ignorat */ } }
+  };
 
   /* ----------------------- ghid pas cu pas ----------------------- */
 

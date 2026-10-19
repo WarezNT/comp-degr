@@ -7,6 +7,7 @@
 
   var h = global.preact.h;
   var useRef = global.preactHooks.useRef;
+  var useEffect = global.preactHooks.useEffect;
   var html = global.htm.bind(h);
 
   var E = global.CompEngine;
@@ -57,7 +58,7 @@
     var r = R.get(props.id);
     if (!r) return null;
     return html`<button type="button" class="ref" title=${r.scurt} data-ref=${props.id}
-      onClick=${function (e) { e.preventDefault(); e.stopPropagation(); store.openNorma(props.id); }}>${r.ref}</button>`;
+      onClick=${function (e) { e.preventDefault(); e.stopPropagation(); store.openNorma(props.id, e.target || e.currentTarget); }}>${r.ref}</button>`;
   }
 
   // Explicație scurtă lângă etichetă (ⓘ); se deschide/închide cu click, fără stare JS.
@@ -171,6 +172,9 @@
   // Fereastra cu textul normei (deschisă din orice chip de referință).
   function NormaModal() {
     var id = store.norma;
+    var closeRef = useRef(null);
+    // 2b: la deschidere, mută focusul pe butonul de închidere (accesibilitate).
+    useEffect(function () { if (id && closeRef.current) closeRef.current.focus(); }, [id]);
     if (!id) return null;
     var r = R.get(id);
     if (!r) return null;
@@ -178,7 +182,7 @@
     return html`<div class="modal-back" onClick=${function (e) { if (e.target === e.currentTarget) store.closeNorma(); }}>
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="norma-title" data-norma=${id}>
         <div class="modal-head"><strong id="norma-title">${r.ref}</strong>
-          <button type="button" class="btn tiny ghost" onClick=${store.closeNorma} aria-label="Închide">✕</button></div>
+          <button type="button" ref=${closeRef} class="btn tiny ghost" onClick=${store.closeNorma} aria-label="Închide">✕</button></div>
         <p class="hint">${r.scurt}</p>
         <pre class="norma-text">${text || 'Textul nu este disponibil.'}</pre>
         <p class="hint">Text consolidat — Ord. ANRE 180/2015 (M.Of. 12/07.01.2016), cu modificările Ord. 10/2016 și 16/2019. Informativ: verifică pe sursa oficială.</p>

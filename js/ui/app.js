@@ -117,7 +117,7 @@
   /* ----------------------- ecran de start și bannere ----------------------- */
 
   function StartScreen() {
-    return html`<main class="content start"><section class="panel start-card">
+    return html`<main class="content start" id="panel"><section class="panel start-card">
       <h2>Bun venit</h2>
       <p>Calculezi compensațiile bănești dintre utilizatorii racordați în etape diferite, prin instalație comună (Metodologia ANRE, Ord. 180/2015). Aplicația te <strong>ghidează pas cu pas</strong>: îți arată ce câmp completezi și te duce la următorul.</p>
       <div class="start-actions">
@@ -146,8 +146,9 @@
 
   function App() {
     var p = store.state;
+    var skip = html`<a class="skip-link" href="#panel">Sari la conținut</a>`;
     if (!p) {
-      return html`<${preact.Fragment}><${Header} /><${StartScreen} /><${K.Toast} /><${K.NormaModal} /><//>`;
+      return html`<${preact.Fragment}>${skip}<${Header} /><${StartScreen} /><${K.Toast} /><${K.NormaModal} /><//>`;
     }
     var panel;
     if (store.tab === 'date') panel = html`<${Views.GeneralView} />`;
@@ -155,7 +156,7 @@
     else if (store.tab === 'instalatie') panel = html`<${Views.InstallView} />`;
     else panel = html`<${Views.ResultsView} />`;
     return html`<${preact.Fragment}>
-      <${Header} /><${Tabs} /><${DemoBanner} />
+      ${skip}<${Header} /><${Tabs} /><${DemoBanner} />
       <main class="content" id="panel" role="tabpanel" aria-labelledby=${'tab-' + store.tab}>${panel}<${StepNav} /></main>
       <${GuideBar} />
       <${K.Toast} /><${K.NormaModal} />
@@ -189,7 +190,12 @@
     root = document.getElementById('app');
     store.render = rerender;
     store.wide = !!(global.matchMedia && global.matchMedia('(min-width: 1000px)').matches);
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && store.norma) store.closeNorma(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      if (store.norma) { store.closeNorma(); return; }
+      var m = document.querySelector('details.menu[open]');
+      if (m) m.removeAttribute('open');
+    });
     // Nu pierdem ultima tastare dacă pagina se închide în fereastra de debounce.
     global.addEventListener('pagehide', function () { if (store.hasPendingSave()) store.flushSave(); });
     document.addEventListener('visibilitychange', function () {
