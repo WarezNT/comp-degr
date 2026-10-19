@@ -157,7 +157,7 @@
     else panel = html`<${Views.ResultsView} />`;
     return html`<${preact.Fragment}>
       ${skip}<${Header} /><${Tabs} /><${DemoBanner} />
-      <main class="content" id="panel" role="tabpanel" aria-labelledby=${'tab-' + store.tab}>${panel}<${StepNav} /></main>
+      <main class="content" id="panel">${panel}<${StepNav} /></main>
       <${GuideBar} />
       <${K.Toast} /><${K.NormaModal} />
     <//>`;
