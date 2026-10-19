@@ -37,7 +37,7 @@
   --bg: var(--eon-grey100);
   --panel: var(--eon-white);
   --ink: var(--eon-grey900);
-  --muted: var(--eon-grey600);          /* contrast ≥ 7:1 pe alb / --bg */
+  --muted: var(--eon-grey700);          /* contrast ≥ 4,5:1 pe --bg (verificat e2e) */
   --line: var(--eon-grey300);
   --accent: var(--eon-red500);
   --accent-dark: var(--eon-red600);
@@ -48,6 +48,7 @@
   --bad: var(--eon-system-error-dark);
   --bad-soft: var(--eon-system-error-light);
   --warn: var(--eon-system-warning-dark);
+  --warn-ink: var(--eon-grey800);       /* text lizibil pe --warn-soft */
   --warn-soft: var(--eon-system-warning-light);
   --info: var(--eon-system-highlight);
   --info-soft: var(--eon-system-highlight-light);
@@ -116,7 +117,7 @@ details.menu > summary::-webkit-details-marker { display: none; }
 .tabs button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 .tabst { display: inline-block; min-width: 20px; padding: 1px 6px; margin-left: 4px; border-radius: 20px; font-size: 11px; font-weight: 700; text-align: center; }
 .tabst.ok { background: var(--ok-soft); color: var(--ok); }
-.tabst.todo { background: var(--warn-soft); color: var(--warn); }
+.tabst.todo { background: var(--warn-soft); color: var(--warn-ink); }
 .tabst.err { background: var(--bad-soft); color: var(--bad); }
 
 .content { padding: 22px 22px 130px; max-width: 3000px; margin: 0 auto; }   /* folosește lățimea monitoarelor mari */
@@ -228,7 +229,7 @@ button:focus-visible, summary:focus-visible, [tabindex]:focus-visible, .ref:focu
 
 .badge { display: inline-block; padding: 3px 8px; border-radius: 20px; font-size: 12px; font-weight: 600; }
 .badge.ok { background: var(--ok-soft); color: var(--ok); }
-.badge.warn { background: var(--warn-soft); color: var(--warn); }
+.badge.warn { background: var(--warn-soft); color: var(--warn-ink); }
 
 /* --- tabele --- */
 .table-wrap { overflow-x: auto; margin-bottom: 12px; }
@@ -274,13 +275,13 @@ table.matrix td:first-child { min-width: 170px; }
 .conds li.warn-li { background: var(--warn-soft); }
 .conds li.ok::before { content: "✓ "; color: var(--ok); font-weight: 700; }
 .conds li.bad::before { content: "✗ "; color: var(--bad); font-weight: 700; }
-.conds li.warn-li::before { content: "⚠ "; color: var(--warn); font-weight: 700; }
+.conds li.warn-li::before { content: "⚠ "; color: var(--warn-ink); font-weight: 700; }
 .issues li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
 .issues .issue-text { flex: 1 1 260px; }
 .years-row { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
 .years-row label { display: flex; align-items: center; gap: 6px; }
 .years-row input[type="text"] { width: 80px; }
-.warn { color: var(--warn); background: var(--warn-soft); padding: 8px 10px; border-radius: 8px; }
+.warn { color: var(--warn-ink); background: var(--warn-soft); padding: 8px 10px; border-radius: 8px; }
 .warn-card { border-left: 4px solid var(--warn); background: var(--warn-soft); }
 .err-card { border-left: 4px solid var(--bad); background: var(--bad-soft); }
 .big { font-size: 22px; }
@@ -318,7 +319,7 @@ details.how > summary { cursor: pointer; font-size: 12px; color: var(--accent); 
 .gb-progress { position: absolute; left: 0; right: 0; top: -3px; height: 3px; background: transparent; }
 .gb-progress span { display: block; height: 3px; background: var(--ok); }
 .gb-main { flex: 1 1 320px; min-width: 0; }
-.gb-step { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--warn); font-weight: 700; }
+.gb-step { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--warn-ink); font-weight: 700; }
 .gb-label { font-size: 15px; }
 .gb-hint { font-size: 13px; color: var(--muted); }
 .gb-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
