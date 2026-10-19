@@ -41,7 +41,7 @@
     'stat.intarire': { text: 'Transformator înlocuit cu unul mai mare sau al doilea transformator, necesar noului utilizator: compensația se limitează la capacitatea suplimentară a transformatorului existent. Completează S_n și I_T ale transformatorului existent.', rule: 'art15.3' },
     'stat.compVeche': { text: 'Compensațiile primite sub vechea metodologie (Ord. 28/2003), scăzute din I_T. Doar în regim tranzitoriu.', rule: 'art18.1a' },
 
-    'complex.varianta': { text: '1 = pe linia U1 (doar Anexa 1) · 2 = la bara U1 a stației (Anexa 1 + echipamente stație) · 3 = pe linia U2 (Anexa 1 + Anexa 2) · 4 = pe linia U2, mai departe (Anexa 1 + Anexa 2 + Anexa 1).', rule: 'art14' },
+    'complex.varianta': { text: '1 = pe linia U1 (doar Anexa 1) · 2 = la bara U1 a stației (Anexa 1 + echipamente stație) · 3 = pe linia U2 (Anexa 1 + Anexa 2 + echipamente comune) · 4 = pe linia U2, mai departe (Anexa 1 + Anexa 2 + echipamente comune + Anexa 1).', rule: 'art14' },
 
     'tranz.B': { text: 'Componenta B din tariful de racordare achitat de primul utilizator [lei].', rule: 'anexa4' },
     'tranz.S': { text: 'Capacitatea instalației de racordare aferentă tarifului achitat [kVA].', rule: 'anexa4' },

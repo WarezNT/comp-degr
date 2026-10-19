@@ -95,6 +95,10 @@
       <${K.Field} label="Model de calcul" path="meta.model" info="meta.model">
         <${K.SelectInput} path="meta.model" options=${MODELS} />
       <//>
+      <details class="select-guide" open=${!p.meta.modelConfirmat && !p.meta.exemplu}>
+        <summary>Nu ești sigur ce anexă alegi? <strong>Ghid de alegere</strong></summary>
+        <${global.AppViews.SelectGuide} />
+      </details>
       <div class="roles-summary card">
         <strong>Cine plătește și cine primește</strong>
         <p class="hint">Rolurile se stabilesc în pasul „2 · Utilizatori”.</p>

@@ -356,7 +356,7 @@
    *
    * - varianta 1: Anexa 1 pentru l_U1
    * - varianta 2: Anexa 1 (l_U1) + echipamente stație, în cote egale (toți utilizatorii)
-   * - varianta 3: Anexa 1 (l_U1) + Anexa 2 (transformator; fără echipamente comune)
+   * - varianta 3: Anexa 1 (l_U1) + Anexa 2 (transformator + echipamente comune ale stației)
    * - varianta 4: Anexa 1 (l_U1) + Anexa 2 (stație/PT) + Anexa 1 (l_U2)
    * ------------------------------------------------------------- */
   function computeComplex(cfg) {
@@ -413,14 +413,10 @@
         });
       });
     } else if (v === 3 || v === 4) {
-      // Anexa 3, var. 3/4: doar Anexa 1 (l_U1) + Anexa 2 (transformator).
-      // Echipamentele comune nu se adaugă (lectura literală a Anexei 3).
-      addStation((cfg.statii || []).map(function (st) {
-        var o = {};
-        Object.keys(st).forEach(function (k) { o[k] = st[k]; });
-        o.elementeComune = 0;
-        return o;
-      }));
+      // Anexa 3, var. 3/4: Anexa 1 (l_U1) + Anexa 2 (stație/PT). Se includ și
+      // echipamentele comune ale stației (altele decât transformatoarele), în
+      // cote egale (art. 6 alin. 1 lit. a pct. ii, art. 12 alin. 1).
+      addStation(cfg.statii);
     }
     if (v === 4) {
       // Anexa 1 pentru l_U2.

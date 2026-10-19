@@ -22,6 +22,7 @@
   <script src="../js/norma.js"></script>
   <script src="../js/rules.js"></script>
   <script src="../js/help.js"></script>
+  <script src="../js/select.js"></script>
   <script src="../js/state.js"></script>
   <script src="../js/validate.js"></script>
   <script src="../js/engine.js"></script>
@@ -29,6 +30,7 @@
   <script src="../js/guide.js"></script>
   <script src="../js/store.js"></script>
   <script src="../js/ui/core.js"></script>
+  <script src="../js/ui/views_select.js"></script>
   <script src="../js/ui/views_basic.js"></script>
   <script src="../js/ui/views_install.js"></script>
   <script src="../js/ui/views_results.js"></script>
@@ -914,6 +916,39 @@
         var q = window.AppState.demoU4(); q.meta.tva = 21;
         window.AppUI.setProject(q);
         if (Math.abs(window.AppUI.calculate().central.totalCuTVA - 1815) > 0.01) throw new Error('1500 + 21% = 1815');
+      });
+
+      test('Ghid de alegere: se afișează pe „Date generale" și aplică modelul/varianta', function () {
+        window.AppUI.setProject(window.AppState.emptyProject());
+        window.AppUI.setTab('date');
+        var guide = document.querySelector('details.select-guide');
+        if (!guide) throw new Error('ghidul de alegere lipsește din „Date generale"');
+        // Alege „instalație complexă" + varianta 4 și aplică.
+        var radios = guide.querySelectorAll('input[type="radio"]');
+        var rComplex = null;
+        for (var i = 0; i < radios.length; i++) if (radios[i].value === 'complex') rComplex = radios[i];
+        if (!rComplex) throw new Error('opțiunea „complex" lipsește');
+        rComplex.checked = true; rComplex.dispatchEvent(new Event('change', { bubbles: true }));
+        var selVar = document.querySelector('details.select-guide select');
+        if (!selVar) throw new Error('selectorul de variantă lipsește la complex');
+        selVar.value = '4'; selVar.dispatchEvent(new Event('change', { bubbles: true }));
+        var apply = byText('details.select-guide button', 'Aplică recomandarea');
+        if (!apply) throw new Error('butonul „Aplică recomandarea" lipsește');
+        apply.click();
+        var st = window.AppUI.getState();
+        if (st.meta.model !== 'complex') throw new Error('model aplicat: ' + st.meta.model);
+        if (Number(st.complexConfig.varianta) !== 4) throw new Error('varianta aplicată: ' + st.complexConfig.varianta);
+      });
+
+      test('Ghid de alegere: fonduri publice nerambursabile → metodologia nu se aplică', function () {
+        window.AppUI.setProject(window.AppState.emptyProject());
+        window.AppUI.setTab('date');
+        var guide = document.querySelector('details.select-guide');
+        var cb = guide.querySelector('input[type="checkbox"]');
+        cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true }));
+        var rec = document.querySelector('details.select-guide .sel-rec');
+        if (!rec || rec.className.indexOf('stop') < 0) throw new Error('nu se afișează oprirea pentru fonduri publice');
+        if (!byText('details.select-guide .sel-rec', 'nu se aplică')) throw new Error('text lipsă');
       });
 
       var s = document.createElement('div');

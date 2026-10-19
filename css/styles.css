@@ -351,3 +351,20 @@ tr[data-guide-active] { outline: none !important; box-shadow: inset 0 0 0 2px va
   details.how > summary { display: none; }
   details.how .how-list { display: block; }
 }
+
+/* --- ghid de alegere a anexei (js/ui/views_select.js) --- */
+details.select-guide { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: var(--radius); padding: 10px 14px; margin: 12px 0; }
+details.select-guide > summary { cursor: pointer; }
+.sel-guide { margin-top: 8px; font-size: 13px; }
+.sel-q { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 10px 0; }
+.sel-q legend { font-weight: 600; padding: 0 4px; }
+.sel-q[disabled] { opacity: .5; }
+.sel-q select { margin-top: 6px; }
+.sel-rec { background: var(--accent-soft, #e8effc); border: 1px solid #cfe0fb; border-radius: 8px; padding: 10px 12px; margin: 10px 0; }
+.sel-rec.stop { background: var(--warn-soft, #fdf3e3); border-color: #f0d9ad; }
+.sel-rec-head { margin-bottom: 4px; }
+.sel-refs { margin: 6px 0; }
+.sel-table { margin-top: 10px; }
+.sel-table summary { cursor: pointer; font-weight: 600; }
+.sel-table table.grid th, .sel-table table.grid td { font-size: 12px; }
+.muted-sel { color: var(--muted); }

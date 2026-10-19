@@ -222,8 +222,8 @@
   var VARIANT_TEXT = {
     1: 'Varianta 1 — noul utilizator se racordează pe linia U1, în amonte de stație. Se aplică doar Anexa 1 pentru l_U1.',
     2: 'Varianta 2 — racordare la bara U1 a stației. Anexa 1 (l_U1) + echipamentele stației (altele decât transformatoarele), în cote egale între toți utilizatorii care au contribuit.',
-    3: 'Varianta 3 — racordare pe linia U2, în aval de stație. Anexa 1 (l_U1) + Anexa 2 (transformator). Echipamentele comune ale stației NU se adaugă (lectura literală a Anexei 3; de confirmat).',
-    4: 'Varianta 4 — racordare pe linia U2, mai departe. Anexa 1 (l_U1) + Anexa 2 (transformator) + Anexa 1 (l_U2).'
+    3: 'Varianta 3 — racordare pe linia U2, în aval de stație. Anexa 1 (l_U1) + Anexa 2 (stație/PT) + echipamentele comune ale stației (cote egale).',
+    4: 'Varianta 4 — racordare pe linia U2, mai departe. Anexa 1 (l_U1) + Anexa 2 (stație/PT) + echipamentele comune ale stației (cote egale) + Anexa 1 (l_U2).'
   };
 
   function ComplexView() {

@@ -279,6 +279,14 @@
     });
   };
 
+  // Ghidul de alegere: aplică recomandarea (modelul de calcul + varianta Anexei 3).
+  store.applyModel = function (rec) {
+    if (!rec || !rec.model) return;
+    var S2 = global.AppSelect;
+    mutate(function (p) { S2.applyTo(p, rec); });
+    store.toast('Model de calcul aplicat: ' + (S2.MODEL_LABEL[rec.model] || rec.model) + '.', 'info');
+  };
+
   /* --- dezvoltatori (Anexa 5) --- */
   store.addDev = function () { mutate(function (p) { p.dezvoltator.dezvoltatori.push({ id: S.uid('dev'), nume: 'Dezvoltator', putere: 0 }); }); };
   store.delDev = function (id) {

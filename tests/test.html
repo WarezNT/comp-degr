@@ -22,8 +22,10 @@
   <div id="out"></div>
 
   <script src="../js/engine.js"></script>
+  <script src="../js/select.js"></script>
   <script>
     var E = window.CompEngine;
+    var SEL = window.AppSelect;
     var out = document.getElementById('out');
     var pass = 0, fail = 0;
 
@@ -190,14 +192,15 @@
       eq(assert, res.payments['U3']['U2'], 2000, 'U3 -> U2');
     });
 
-    test('Anexa 3 — varianta 3: echipamentele comune NU se adaugă (Anexa 3 literal)', function (assert) {
+    test('Anexa 3 — varianta 3: linie U1 + stație + echipamente comune (cote egale)', function (assert) {
       var res = E.computeComplex({
         varianta: 3,
         liniiU1: [{ bL: 500, tronsoane: [{ id: 'T1', lungime: 80, cost: 40000, utilizatori: ['U1', 'U2'] }] }],
         statii: [{ Sn: 400, IT: 100000, elementeComune: 12000, utilizatori: ['U1', 'U2'], primId: 'U1' }],
         puteri: { U1: 0, U2: 100 }, primId: 'U1', nouUtilizatori: ['U2']
       });
-      eq(assert, res.payments['U2']['U1'], 45000, 'U2 -> U1 (fără echipamente comune)');
+      // linie 20000 + stație 25000 + echipamente comune (12000/2 după, 12000/1 înainte → 6000) = 51000
+      eq(assert, res.payments['U2']['U1'], 51000, 'U2 -> U1 (linie + stație + echipamente comune)');
     });
 
     test('Anexa 3 — varianta 3: linie U1 + stație (Anexa 2)', function (assert) {
@@ -369,6 +372,61 @@
     test('Art. 18 — factorul net: B ≤ 0 → 1; compensații > B → 0', function (assert) {
       eq(assert, E.factorCostNet(0, 100), 1, 'B=0');
       eq(assert, E.factorCostNet(1000, 5000), 0, 'comp > B');
+    });
+
+    // --- ghid de alegere a anexei (js/select.js) ---
+    test('Ghid — fonduri publice nerambursabile: metodologia nu se aplică', function (assert) {
+      var r = SEL.recommend({ fonduriPublice: true });
+      if (!r || !r.stop) assert('ar trebui oprit (stop)');
+      if (r.model) assert('nu ar trebui model');
+    });
+
+    test('Ghid — linie electrică → Anexa 1', function (assert) {
+      var r = SEL.recommend({ obiect: 'linie' });
+      if (r.model !== 'line') assert('model=' + r.model);
+    });
+
+    test('Ghid — al doilea circuit pe stâlpi → Anexa 1 (art. 15.1)', function (assert) {
+      var r = SEL.recommend({ obiect: 'stalpi' });
+      if (r.model !== 'line') assert('model=' + r.model);
+      if (r.rules.indexOf('art15.1') < 0) assert('lipsă temei art15.1');
+    });
+
+    test('Ghid — stație/PT → Anexa 2', function (assert) {
+      var r = SEL.recommend({ obiect: 'statie' });
+      if (r.model !== 'station') assert('model=' + r.model);
+      if (r.intarire) assert('nu e întărire');
+    });
+
+    test('Ghid — stație + întărire → Anexa 2 (art. 15.3)', function (assert) {
+      var r = SEL.recommend({ obiect: 'statie', intarire: true });
+      if (r.model !== 'station' || !r.intarire) assert('model/intarire greșit');
+      if (r.rules.indexOf('art15.3') < 0) assert('lipsă temei art15.3');
+    });
+
+    test('Ghid — doar echipamente (fără transformator) → Anexa 2, cote egale (art. 15.2)', function (assert) {
+      var r = SEL.recommend({ obiect: 'echipamente' });
+      if (r.model !== 'station') assert('model=' + r.model);
+      if (r.rules.indexOf('art15.2') < 0) assert('lipsă temei art15.2');
+    });
+
+    test('Ghid — instalație complexă → Anexa 3 + varianta aleasă', function (assert) {
+      var r = SEL.recommend({ obiect: 'complex', varianta: 4 });
+      if (r.model !== 'complex' || r.varianta !== 4) assert('model/varianta greșite');
+    });
+
+    test('Ghid — rețea de dezvoltator → Anexa 5', function (assert) {
+      var r = SEL.recommend({ obiect: 'dezvoltator' });
+      if (r.model !== 'developer') assert('model=' + r.model);
+    });
+
+    test('Ghid — applyTo setează modelul și varianta', function (assert) {
+      var p = window.AppState ? window.AppState.emptyProject() : { meta: {}, complexConfig: {} };
+      var rec = SEL.recommend({ obiect: 'complex', varianta: 3 });
+      SEL.applyTo(p, rec);
+      if (p.meta.model !== 'complex') assert('model=' + p.meta.model);
+      if (p.complexConfig.varianta !== 3) assert('varianta=' + p.complexConfig.varianta);
+      if (!p.meta.modelConfirmat) assert('modelConfirmat nu s-a setat');
     });
 
     var sum = document.createElement('div');

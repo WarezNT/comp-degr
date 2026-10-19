@@ -54,6 +54,9 @@ evidențiază câmpul respectiv (contur galben), mută cursorul pe el și, după
 opționali, opri mutarea automată a focusului sau ascunde ghidul (meniul „Proiect”).
 
 1. **Date generale** — modelul de calcul (Anexa 1–5), operator, dată, cotă TVA (implicit 21%; alegi 19% sau „Altă valoare”, introdusă manual).
+   Dacă nu ești sigur ce anexă alegi, deschide **„Ghid de alegere"**: răspunde la câteva
+   întrebări despre instalație, primești anexa + varianta potrivită (cu temei legal) și o
+   poți aplica cu un click; include și un **tabel de încadrare** (ce instalații intră în fiecare anexă).
 2. **Utilizatori** — fiecare utilizator are **un singur rol**: *prim utilizator* (finanțator,
    primește), *nou* (plătește), *existent* sau *operator de rețea* (art. 6 alin. 5). Primul
    adăugat devine prim, al doilea nou. Contract/avize (art. 7, 17–18) într-un rând extensibil.
@@ -134,6 +137,7 @@ vendor/                  # Preact, hooks, htm (copii nemodificate) + licențe
 js/norma.js              # fragmente din textul consolidat al metodologiei (informativ)
 js/rules.js              # registrul unic de reguli/referințe (id → „art. …”, textul normei)
 js/help.js               # texte de ajutor pe câmp și pe pas
+js/select.js             # ghidul de alegere a anexei/variantei (recommend, tabel de încadrare)
 js/state.js              # model de date (roluri), IndexedDB, sanitizare import, demo
 js/validate.js           # validare → probleme { rule, tab, target, text }
 js/engine.js             # motorul de calcul (Anexa 1–5, condiții, centralizator, explicații)
@@ -141,7 +145,7 @@ js/calc.js               # configurații pentru motor, costuri, condiții, calcu
 js/guide.js              # ghidul: lista de pași derivată din stare (funcții pure)
 js/store.js              # starea aplicației + acțiuni (undo, salvare, ghid, import/export)
 js/ui/core.js            # componente: câmpuri legate de stare, ⓘ, chip-uri de referință, ferestre
-js/ui/views_*.js         # vederile: Date generale/Utilizatori, Instalație, Rezultate
+js/ui/views_*.js         # vederile: Date generale/Utilizatori, Instalație, Rezultate, Ghid de alegere
 js/ui/app.js             # antet, pași, bara de ghid, ecran de start, API-ul AppUI
 tests/test.html          # teste unitare motor (în browser)
 tests/integration.html   # teste de integrare UI + motor + ghid + securitate (în browser)
@@ -183,7 +187,8 @@ Acoperire: exemple din metodologie și din modelul `.xlsx` (20.000; 6.666,67/11.
 `b_T`=250 → 25.000; `C_2`=13.500; 87,5%/9,375%; U4 → 500/500/500), calcul automat al costului
 pe tronsoane, rotunjire, sanitizarea importului (XSS), validări, actualizarea automată a
 rezultatelor, păstrarea focusului, undo, formatul CSV, ghidul pas cu pas (inclusiv un parcurs
-complet cu tastatură reală), consistența referințelor legale, mobil (fără scroll orizontal) și contrast.
+complet cu tastatură reală), **ghidul de alegere a anexei/variantei** (`AppSelect.recommend`),
+consistența referințelor legale, mobil (fără scroll orizontal) și contrast.
 
 ## Documente sursă
 
