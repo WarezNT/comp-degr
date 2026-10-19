@@ -63,7 +63,9 @@
           : (s.todo ? html`<span class="tabst todo" title=${s.todo + ' pași de completat'}>${s.todo}</span>`
           : html`<span class="tabst ok" title="Completat">✓</span>`);
         return html`<button type="button" role="tab" id=${'tab-' + t[0]} aria-selected=${on} aria-controls="panel"
-          data-action="tab" data-tab=${t[0]} class=${on ? 'active' : ''} onClick=${function () { store.setTab(t[0]); }}>${t[1]} ${mark}</button>`;
+          data-action="tab" data-tab=${t[0]} class=${on ? 'active' : ''} onClick=${function () { store.setTab(t[0]); }}>
+          <span class="stepno" aria-hidden="true">${t[1].split(' · ')[0]}</span>
+          <span class="steplabel">${t[1].split(' · ')[1] || t[1]}</span> ${mark}</button>`;
       })}
     </nav>`;
   }

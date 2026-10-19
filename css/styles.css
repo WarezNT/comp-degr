@@ -111,10 +111,16 @@ details.menu > summary::-webkit-details-marker { display: none; }
   position: sticky; top: 0; z-index: 10; overflow-x: auto;
 }
 .tabs button {
-  background: none; border: none; padding: 12px 16px; font-size: 14px; color: var(--muted);
-  cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 8px; background: none; border: none; padding: 10px 14px;
+  font-size: 14px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap;
 }
-.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
+.tabs .stepno {
+  display: inline-grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--eon-grey200); color: var(--eon-grey800); font-weight: 700; font-size: 12px;
+}
+.tabs button.active .stepno { background: var(--accent); color: #fff; }
+.tabs button:not(.active):has(.tabst.ok) .stepno { background: var(--eon-grey900); color: #fff; }
 .tabst { display: inline-block; min-width: 20px; padding: 1px 6px; margin-left: 4px; border-radius: 20px; font-size: 11px; font-weight: 700; text-align: center; }
 .tabst.ok { background: var(--ok-soft); color: var(--ok); }
 .tabst.todo { background: var(--warn-soft); color: var(--warn-ink); }
@@ -158,16 +164,16 @@ details.menu > summary::-webkit-details-marker { display: none; }
 .card-head > input[type="text"] { flex: 1; min-width: 160px; font-weight: 600; }
 
 .field { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 6px; margin-bottom: 12px; min-width: 0; }
-.field > label { grid-column: 1; grid-row: 1; font-size: 12px; color: var(--muted); }
+.field > label { grid-column: 1; grid-row: 1; font-size: 14px; color: var(--eon-grey700); }
 .field > details.info { grid-column: 2; grid-row: 1; }
 .field > .control { grid-column: 1 / -1; grid-row: 2; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .field > .hint { grid-column: 1 / -1; grid-row: 3; }
-input, select {
-  padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px;
-  background: #fff; color: var(--ink); min-width: 0; max-width: 100%; font-family: inherit;
+input, select, textarea {
+  padding: 10px 12px; border: 1px solid var(--eon-grey300); border-radius: 8px; font-size: 16px;
+  background: #fff; color: var(--ink); min-width: 0; max-width: 100%; font-family: inherit; min-height: 44px;
 }
-input:focus, select:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
-input[type="checkbox"] { width: 16px; height: 16px; padding: 0; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; min-height: 0; padding: 0; accent-color: var(--accent); }
 input.invalid, input[aria-invalid="true"] { border-color: var(--bad); background: var(--bad-soft); }
 input:disabled { background: var(--eon-grey100); color: var(--muted); }
 
@@ -211,21 +217,25 @@ details.info[open] > summary { background: var(--accent); color: #fff; }
 }
 .ref:hover { background: rgba(234,27,10,0.14); }
 
-/* --- butoane --- */
+/* --- butoane (aliniate la E.ON UI-Kit: înălțime, rază, tipografie) --- */
 .btn {
-  border: 1px solid var(--accent); background: var(--accent); color: #fff; padding: 8px 14px; border-radius: 8px;
-  cursor: pointer; font-size: 13px; font-family: inherit; display: inline-block;
+  border: 1px solid var(--accent); background: var(--accent); color: #fff;
+  padding: 0 24px; min-height: 44px; border-radius: 12px; cursor: pointer; font-size: 16px; font-weight: 700;
+  font-family: inherit; display: inline-flex; align-items: center; justify-content: center; gap: 8px; line-height: 1.1;
 }
-.btn:hover { filter: brightness(1.08); }
-.btn.ghost { background: #fff; color: var(--accent); }
-.btn.primary { padding: 10px 18px; font-weight: 600; }
-.btn.big { padding: 14px 20px; font-size: 15px; text-align: center; }
-.btn.tiny { padding: 4px 9px; font-size: 12px; }
+.btn:hover { background: var(--eon-red600); border-color: var(--eon-red600); }
+.btn:active { background: var(--eon-red700); border-color: var(--eon-red700); }
+.btn.ghost { background: #fff; color: var(--accent-dark); border-color: var(--accent); }
+.btn.ghost:hover { background: var(--accent-soft); }
+.btn.primary { min-height: 48px; padding: 0 32px; border-radius: 14px; font-size: 18px; }
+.btn.big { min-height: 56px; padding: 0 28px; font-size: 18px; text-align: center; }
+.btn.tiny { min-height: 32px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 700; }
 .btn.danger { background: #fff; color: var(--bad); border-color: var(--eon-system-error-light); }
+.btn.danger:hover { background: var(--bad-soft); border-color: var(--bad); }
 .btn.file { position: relative; overflow: hidden; }
-.btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
-.linkish { border: none; background: none; color: var(--accent); cursor: pointer; font-size: 12px; padding: 0; text-decoration: underline; font-family: inherit; }
-button:focus-visible, summary:focus-visible, [tabindex]:focus-visible, .ref:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.linkish { border: none; background: none; color: var(--accent-dark); cursor: pointer; font-size: 12px; padding: 0; text-decoration: underline; font-family: inherit; font-weight: 600; }
+button:focus-visible, summary:focus-visible, [tabindex]:focus-visible, .ref:focus-visible { outline: 2px solid var(--eon-system-highlight); outline-offset: 2px; }
 
 .badge { display: inline-block; padding: 3px 8px; border-radius: 20px; font-size: 12px; font-weight: 600; }
 .badge.ok { background: var(--ok-soft); color: var(--ok); }
@@ -237,7 +247,7 @@ table.grid { width: 100%; border-collapse: collapse; background: #fff; }
 table.grid th, table.grid td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; }
 table.grid th { background: var(--eon-grey100); font-size: 12px; color: var(--eon-grey700); }
 table.grid td.num, table.grid th.num, .num { text-align: right; font-variant-numeric: tabular-nums; }
-table.grid input:not([type="checkbox"]), table.grid select { width: 100%; }
+table.grid input:not([type="checkbox"]), table.grid select { width: 100%; min-height: 34px; font-size: 14px; padding: 5px 8px; }
 table.grid tfoot td { background: var(--eon-grey100); font-weight: 600; }
 td.center, th.center { text-align: center; }
 tr.subrow td { background: var(--eon-grey100); }
