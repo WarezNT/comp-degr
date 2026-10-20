@@ -285,7 +285,7 @@
         ${us.map(function (u) {
           return html`<th scope="col" class=${'ucol rol-' + u.rol} title=${V.ROL_LABEL[u.rol]}><div class="uname">${uName(u)}</div><div class="urol">${V.ROL_LABEL[u.rol]}</div></th>`;
         })}
-        <th scope="col">Toți</th><th scope="col"><span class="sr-only">Acțiuni</span></th>
+        <th scope="col">Toți</th><th scope="col" aria-label="Acțiuni"></th>
       </tr></thead>
       <tbody>
         ${(l.tronsoane || []).length ? l.tronsoane.map(function (t) {
