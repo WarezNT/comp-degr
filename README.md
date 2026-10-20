@@ -145,7 +145,7 @@ manual.html              # manual de utilizare (toate anexele + exemple), deschi
 css/styles.css           # stiluri (responsive, print)
 css/manual.css           # stilurile manualului (cuprins, tipar, print)
 vendor/                  # Preact, hooks, htm (copii nemodificate) + licențe
-js/norma.js              # fragmente din textul consolidat al metodologiei (informativ)
+js/norma.js              # textul consolidat al metodologiei (informativ; formulele/schemele apar ca marcaje)
 js/rules.js              # registrul unic de reguli/referințe (id → „art. …”, textul normei)
 js/help.js               # texte de ajutor pe câmp și pe pas
 js/select.js             # ghidul de alegere a anexei/variantei (recommend, tabel de încadrare)
@@ -217,9 +217,14 @@ metodologie ca documente conexe.
 
 - Anexa 5 (rețeaua dezvoltatorului) este implementată pe baza modelului de calcul din
   metodologie; partea de analiză de eficiență economică nu este automatizată.
-- De confirmat cu un specialist: Anexa 3, variantele 3 și 4 — conform textului literal al
-  Anexei 3 se aplică doar Anexa 1 + Anexa 2 (transformator), deci echipamentele comune ale
-  stației nu se adaugă (art. 6 alin. 1 lit. a pct. ii ar putea susține includerea lor).
+- **De confirmat cu un specialist (problemă deschisă):** Anexa 3, variantele 3 și 4.
+  Textul literal al Anexei 3 lit. c) și d) prevede doar Anexa 1 (linia `l1`, respectiv
+  `l1` + `lu2`) + Anexa 2 (stația/PT); echipamentele comune ale stației, altele decât
+  transformatoarele, sunt menționate expres doar la varianta 2 lit. b) pct. (ii). Rămâne
+  de stabilit dacă la v3/v4 ele se adaugă separat sau sunt deja cuprinse în `I_T` din
+  Anexa 2: art. 6 alin. (1) lit. a) pct. (ii) și art. 12 alin. (1) pot susține includerea,
+  dar o adăugare separată ar produce dublă numărare dacă `I_T` le include deja.
+  Implementarea actuală le include în v3/v4 cu titlu de ipoteză de lucru.
 - Nu există autentificare/multi-utilizator; datele sunt locale, per browser.
 - Posibile extinderi: import direct din `.xlsx`, export `.xlsx`, proiecte multiple
   selectabile în UI, istoric/versiuni per proiect, grafice pentru schemă.

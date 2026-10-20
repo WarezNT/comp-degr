@@ -310,6 +310,22 @@
         if (window.AppStore.jsonName({ utilizatori: [] }) !== 'proiect_DEGR_' + data + '.json') throw new Error('fallback lipsă');
       });
 
+      test('Norma: Anexa 3 conține toate cele patru variante', function () {
+        var t = window.AppNorma['anexa-3'];
+        ['varianta 1', 'varianta 2', 'varianta 3', 'varianta 4', 'l(u2)'].forEach(function (x) {
+          if (t.indexOf(x) < 0) throw new Error('lipsește „' + x + '” din textul Anexei 3');
+        });
+      });
+
+      test('Norma: anexele 1, 2, 4 și 5 nu mai sunt trunchiate', function () {
+        var checks = { 'anexa-1': '16.333 lei', 'anexa-2': '25.000 lei', 'anexa-4': '21.900 lei', 'anexa-5': '20.000 lei' };
+        Object.keys(checks).forEach(function (k) {
+          var t = window.AppNorma[k] || '';
+          if (t.indexOf('[…]') >= 0) throw new Error(k + ' încă are text trunchiat');
+          if (t.indexOf(checks[k]) < 0) throw new Error(k + ' nu conține finalul așteptat');
+        });
+      });
+
       test('Salvare: data și ora ultimei salvări au format românesc', function () {
         var txt = window.AppStore.formatSavedAt(new Date(2026, 9, 20, 14, 32));
         if (txt !== '20.10.2026, 14:32') throw new Error('format neașteptat: ' + txt);
