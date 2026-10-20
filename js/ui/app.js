@@ -51,14 +51,16 @@
 
   function Header() {
     var st = store.saveStatus;
-    var txt = st === 'failed' ? '⚠ Nu s-a putut salva local — folosește „Salvează JSON”' : (st === 'pending' ? 'Se salvează…' : 'Salvat local');
+    var label = st === 'failed' ? '⚠ Nu s-a putut salva local — folosește „Salvează JSON”' : (st === 'pending' ? 'Se salvează…' : 'Salvat local');
+    var when = (st === 'ok' && store.lastSavedAt) ? store.formatSavedAt(store.lastSavedAt) : '';
+    var txt = label + (when ? ' · ' + when : '');
     var has = !!store.state;
     return html`<header class="topbar">
       <div class="brand"><span class="logo" aria-hidden="true">CD</span>
         <div><h1><span class="brand-title">Compensații bănești</span><span class="brand-detail"> — racordare în etape diferite</span></h1>
         <p class="sub">Metodologie ANRE 2015 · Ordinul nr. 180/2015 · instalație comună, rețele electrice de interes public</p></div></div>
       <div class="topbar-actions">
-        <span id="save-status" class=${'save-status ' + st} role="status" title=${txt}>${has ? txt : ''}</span>
+        <span id="save-status" class=${'save-status ' + st} role="status" title=${txt}>${has ? html`<span class="ss-label">${label}</span>${when ? html`<span class="ss-when">${when}</span>` : null}` : ''}</span>
         ${has && store.undoStack.length ? html`<button type="button" data-action="undo" class="btn ghost"
           title="Anulează ultima modificare distructivă (ștergere, import, exemplu, proiect nou)" onClick=${store.undo}>↶ Anulează</button>` : null}
         ${has ? html`<${HelpMenu} />` : null}

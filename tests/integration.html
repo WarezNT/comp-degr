@@ -310,6 +310,11 @@
         if (window.AppStore.jsonName({ utilizatori: [] }) !== 'proiect_DEGR_' + data + '.json') throw new Error('fallback lipsă');
       });
 
+      test('Salvare: data și ora ultimei salvări au format românesc', function () {
+        var txt = window.AppStore.formatSavedAt(new Date(2026, 9, 20, 14, 32));
+        if (txt !== '20.10.2026, 14:32') throw new Error('format neașteptat: ' + txt);
+      });
+
       test('Taburi: navigare cu săgeți, Home și End', function () {
         window.AppUI.setProject(window.AppState.demoU4());
         window.AppUI.setTab('date');

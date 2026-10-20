@@ -88,7 +88,9 @@ pre { margin: 0; }
 }
 .topbar .sub { margin: 0; color: var(--eon-grey300); font-size: 12px; }
 .topbar-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.save-status { font-size: 12px; color: var(--eon-grey300); }
+.save-status { display: inline-flex; align-items: baseline; gap: 6px; font-size: 12px; color: var(--eon-grey300); }
+.save-status .ss-when { color: var(--eon-grey400); }
+.save-status .ss-when::before { content: '· '; }
 .save-status.failed { color: var(--eon-system-error-light); font-weight: 600; }
 
 /* meniul „Proiect” */
@@ -386,7 +388,9 @@ tr[data-guide-active] { outline: none !important; box-shadow: inset 0 0 0 2px va
   .topbar .sub { display: none; }
   .topbar-actions { gap: 6px; }
   .topbar-actions .btn { min-height: 38px; padding: 0 12px; font-size: 14px; }
-  .save-status { font-size: 11px; }
+  .save-status { font-size: 11px; flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.15; }
+  .save-status .ss-when { font-size: 10px; }
+  .save-status .ss-when::before { content: ''; }
   .tabs { padding: 0 8px; scrollbar-width: none; box-shadow: inset -12px 0 12px -12px rgba(0,0,0,.35); }
   .tabs::-webkit-scrollbar { display: none; }
   .tabs button { padding: 9px 9px; font-size: 12.5px; gap: 6px; }

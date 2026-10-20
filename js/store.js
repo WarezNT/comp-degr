@@ -13,6 +13,21 @@
   var UNDO_MAX = 20;
   var MAX_IMPORT_BYTES = 5 * 1024 * 1024;
   var GUIDE_PREF_KEY = 'comp-degr:ghid';
+  var LAST_SAVE_KEY = 'comp-degr:last-save';
+
+  function readLastSaved() {
+    try {
+      var v = global.localStorage && global.localStorage.getItem(LAST_SAVE_KEY);
+      if (!v) return null;
+      var d = new Date(v);
+      return isNaN(d.getTime()) ? null : d;
+    } catch (e) { return null; }
+  }
+  function writeLastSaved(d) {
+    try {
+      if (global.localStorage) global.localStorage.setItem(LAST_SAVE_KEY, d.toISOString());
+    } catch (e) { /* localStorage indisponibil */ }
+  }
 
   var store = {
     state: null,          // proiectul curent (null = ecran de start)
@@ -21,6 +36,7 @@
     guide: { on: true, auto: false, skipped: {}, current: null },   // auto = mută focusul automat la pasul următor
     toastMsg: null,       // { msg, kind }
     saveStatus: 'ok',     // 'ok' | 'pending' | 'failed'
+    lastSavedAt: readLastSaved(),   // momentul ultimei salvări reușite
     undoStack: [],
     norma: null,          // id-ul regulii afișate în fereastra cu textul normei
     render: function () {},
@@ -65,12 +81,22 @@
 
   /* ----------------------- salvare ----------------------- */
 
+  function formatSavedAt(d) {
+    return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.' + d.getFullYear() +
+      ', ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+  store.formatSavedAt = formatSavedAt;
+
   function flushSave() {
     clearTimeout(saveTimer);
     saveTimer = null;
     if (!store.state) return Promise.resolve(true);
     return S.save(store.state).then(function (ok) {
       store.saveStatus = ok ? 'ok' : 'failed';
+      if (ok) {
+        store.lastSavedAt = new Date();
+        writeLastSaved(store.lastSavedAt);
+      }
       store.render();
       return ok;
     });
