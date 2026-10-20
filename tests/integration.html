@@ -1047,6 +1047,21 @@
         if (document.querySelector('.cx-scheme .cx-variant[data-variant="3"]').disabled) throw new Error('avertismentul nu trebuie să blocheze varianta');
       });
 
+      test('Anexa 2 — diagrama stației (bare după putere + capacitate liberă)', function () {
+        var p = emptyOk(); p.meta.model = 'station';
+        var a = window.AppState.addUser(p, { nume: 'A', putere: 260, rol: 'prim' });
+        var b = window.AppState.addUser(p, { nume: 'B', putere: 100, rol: 'nou' });
+        p.statii.push({ id: 'S1', nume: 'PT', Sn: 400, SnRezerva: 0, IT: 100000, elementeComune: 0, utilizatori: [a.id, b.id] });
+        window.AppUI.setProject(p);
+        window.AppUI.setTab('instalatie');
+        var bar = document.querySelector('.st-diagram .st-bar');
+        if (!bar) throw new Error('diagrama stației lipsește');
+        var segs = document.querySelectorAll('.st-diagram .st-seg');
+        if (segs.length !== 2) throw new Error('segmente=' + segs.length);
+        var free = document.querySelector('.st-diagram .st-free');
+        if (!free) throw new Error('segmentul „liber” lipsește');
+      });
+
       var s = document.createElement('div');
       s.className = 'summary' + (fail === 0 ? '' : ' fail');
       s.textContent = 'Rezultat: ' + pass + ' trecute, ' + fail + ' eșuate.';

@@ -493,7 +493,14 @@ svg.diagram { display: block; width: 100%; height: auto; }
 .dl-pr { font-size: 12px; font-weight: 700; fill: var(--eon-grey800); }
 .dl-name { font-size: 12px; fill: var(--eon-grey900); text-anchor: middle; font-weight: 700; }
 .dl-m { font-size: 11px; fill: var(--eon-grey600); text-anchor: middle; }
-.dl-user { stroke: #fff; stroke-width: 2; }
+.dl-user { stroke: #fff; stroke-width: 2; cursor: grab; touch-action: none; }
+.dragging .dl-user { cursor: grabbing; }
+.diagram-vlist { display: none; margin: 8px 0 0 18px; padding: 0; font-size: 13px; }
+.diagram-vlist li { margin: 2px 0; }
+@media (max-width: 700px) {
+  .diagram-wrap { display: none; }
+  .diagram-vlist { display: block; }
+}
 .dl-user.rol-prim { fill: var(--accent); }
 .dl-user.rol-nou, .dl-user.rol-operator { fill: var(--eon-red600); }
 .dl-user.rol-existent { fill: var(--eon-grey700); }
@@ -510,6 +517,21 @@ svg.diagram { display: block; width: 100%; height: auto; }
 .chip-s { display: inline-block; background: var(--eon-grey200); border-radius: 6px; padding: 1px 6px; margin: 1px 2px; font-size: 12px; }
 details.advanced { margin-top: 10px; }
 details.advanced > summary { cursor: pointer; font-weight: 600; }
+
+/* --- diagrama stației (bare după putere) --- */
+.st-diagram { margin: 12px 0; }
+.st-head { font-size: 13px; color: var(--eon-grey700); margin-bottom: 6px; }
+.st-bar { display: flex; height: 18px; border-radius: 8px; overflow: hidden; background: var(--eon-grey200); border: 1px solid var(--line); }
+.st-seg { display: block; height: 100%; }
+.st-seg.rol-prim { background: var(--accent); }
+.st-seg.rol-nou, .st-seg.rol-operator { background: var(--eon-red600); }
+.st-seg.rol-existent { background: var(--eon-grey700); }
+.st-free {
+  display: block; height: 100%;
+  background: repeating-linear-gradient(45deg, var(--eon-grey100), var(--eon-grey100) 6px, var(--eon-grey200) 6px, var(--eon-grey200) 12px);
+}
+.st-legend { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; }
+.st-legend li { display: inline-flex; align-items: center; gap: 6px; }
 
 /* --- schema de ansamblu pentru Anexa 3 (instalație complexă) --- */
 .cx-scheme {

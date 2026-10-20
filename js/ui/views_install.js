@@ -100,7 +100,57 @@
     var acc = pad;
     segsData.forEach(function (s) { acc += s.w; pos[s.to] = acc; });
     var endX = pos[g.L];
+    segsData.forEach(function (s) { s.x1 = pos[s.from]; s.x2 = pos[s.to]; });
     function xOf(d) { return pos[d] !== undefined ? pos[d] : pad; }
+    function distToX(d) {
+      for (var i = 0; i < segsData.length; i++) {
+        var s = segsData[i];
+        if (d <= s.to + 1e-6) return s.x1 + (Math.max(s.from, Math.min(s.to, d)) - s.from) / s.len * s.w;
+      }
+      return endX;
+    }
+
+    // Tragere de cerc: mută utilizatorul pe linie (snap la 1 m), apoi salvează.
+    function onDown(ev, r) {
+      if (ev.button > 0) return;
+      ev.preventDefault();
+      var circle = ev.currentTarget;
+      var gEl = circle.parentNode;
+      var svg = circle.ownerSVGElement;
+      var pid = ev.pointerId;
+      try { circle.setPointerCapture(pid); } catch (e) { /* ignorat */ }
+      gEl.classList.add('dragging');
+      var nameEl = gEl.querySelector('.dl-name');
+      var mEl = gEl.querySelector('.dl-m');
+      function move(e2) {
+        var rect = svg.getBoundingClientRect();
+        var vb = svg.viewBox && svg.viewBox.baseVal;
+        var x = (e2.clientX - rect.left) * (vb && rect.width ? vb.width / rect.width : 1);
+        var d = g.L;
+        for (var i = 0; i < segsData.length; i++) {
+          var s = segsData[i];
+          if (x <= s.x2) { d = s.from + Math.max(0, Math.min(1, (x - s.x1) / s.w)) * s.len; break; }
+        }
+        d = Math.max(1, Math.min(g.L, Math.round(d)));
+        var cx = distToX(d);
+        circle.setAttribute('cx', cx);
+        if (nameEl) nameEl.setAttribute('x', cx);
+        if (mEl) { mEl.setAttribute('x', cx); mEl.textContent = d + ' m'; }
+      }
+      function up() {
+        try { circle.releasePointerCapture(pid); } catch (e) { /* ignorat */ }
+        gEl.classList.remove('dragging');
+        circle.removeEventListener('pointermove', move);
+        circle.removeEventListener('pointerup', up);
+        circle.removeEventListener('pointercancel', up);
+        var dd = mEl ? parseInt(String(mEl.textContent).replace(/[^0-9]/g, ''), 10) : NaN;
+        if (isFinite(dd) && dd > 0) store.setRacordare(l.id, r.userId, dd);
+      }
+      circle.addEventListener('pointermove', move);
+      circle.addEventListener('pointerup', up);
+      circle.addEventListener('pointercancel', up);
+      move(ev);
+    }
 
     var segs = segsData.map(function (s, i) {
       var x1 = pos[s.from], x2 = pos[s.to], xm = (x1 + x2) / 2;
@@ -121,7 +171,8 @@
       var k = seen[d] || 0; seen[d] = k + 1;
       var y0 = baseY + 26 + k * 30;
       return html`<g key=${'u' + i}>
-        <circle cx=${cx} cy=${baseY} r="7" class=${'dl-user rol-' + roleOf(r.userId)} />
+        <circle cx=${cx} cy=${baseY} r="8" class=${'dl-user rol-' + roleOf(r.userId)}
+          onPointerDown=${function (e) { onDown(e, r); }} />
         <text x=${cx} y=${y0} class="dl-name">${userName(r.userId)}</text>
         <text x=${cx} y=${y0 + 15} class="dl-m">${Math.round(d)} m</text>
       </g>`;
@@ -129,6 +180,12 @@
     var maxStack = 1;
     Object.keys(seen).forEach(function (k) { if (seen[k] > maxStack) maxStack = seen[k]; });
     var H = 132 + (maxStack - 1) * 30;
+
+    var vlist = segsData.map(function (s, i) {
+      var at = g.rec.filter(function (r) { return Number(r.distanta) === s.to; });
+      return html`<li key=${'v' + i}><strong>T${i + 1}</strong> — ${Math.round(s.from)}–${Math.round(s.to)} m · ${money(s.cost)} lei
+        ${at.length ? html` · ${at.map(function (r) { return userName(r.userId); }).join(', ')}` : null}</li>`;
+    });
 
     return html`<div class="diagram-wrap">
       <svg class="diagram" viewBox=${'0 0 ' + totalW + ' ' + H}
@@ -141,7 +198,8 @@
         ${usersG}
       </svg>
     </div>
-    ${distorted ? html`<p class="hint">Schemă orientativă — nu este la scară (segmentele scurte au lățime minimă).</p>` : null}`;
+    <ol class="diagram-vlist" aria-label="Tronsoane (listă)">${vlist}</ol>
+    <p class="hint">${distorted ? 'Schemă orientativă — nu este la scară (segmentele scurte au lățime minimă). ' : ''}Trage de cerc pentru a muta un utilizator pe linie; pe ecrane mici folosește lista de mai jos.</p>`;
   }
 
   function DistEditor(props) {
@@ -325,6 +383,41 @@
     return html`${txt}${extra}${tail}`;
   }
 
+  // Diagrama stației: bară proporțională cu puterile aprobate + capacitatea liberă.
+  function StationDiagram(props) {
+    var s = props.s;
+    var us = users().filter(function (u) { return (s.utilizatori || []).indexOf(u.id) >= 0; });
+    var Sn = Number(s.Sn) || 0, rez = Number(s.SnRezerva) || 0;
+    var cap = Math.max(0, Sn - rez);
+    var bT = cap > 0 ? (Number(s.IT) || 0) / cap : 0;
+    var total = us.reduce(function (a, u) { return a + (Number(u.putere) || 0); }, 0);
+    if (!Sn && !total) {
+      return html`<p class="hint">Completează S_n și puterile aprobate pentru a vedea diagrama stației.</p>`;
+    }
+    var base = Math.max(cap, total, 1);
+    var free = Math.max(0, cap - total);
+    return html`<div class="st-diagram">
+      <div class="st-head">Capacitate efectivă <strong>${money(cap)} kVA</strong>${rez > 0 ? ' (S_n ' + money(Sn) + ' − rezervă ' + money(rez) + ')' : ''}
+        · ocupat <strong>${money(total)} kVA</strong>${free > 0 ? ' · liber ' + money(free) + ' kVA' : ''}</div>
+      <div class="st-bar" role="img" aria-label="Repartiția puterii aprobate pe utilizatori">
+        ${us.map(function (u) {
+          var pu = Number(u.putere) || 0;
+          if (pu <= 0) return null;
+          return html`<span class=${'st-seg rol-' + u.rol} style=${{ width: Math.max(0, Math.min(100, pu / base * 100)) + '%' }} title=${uName(u) + ': ' + money(pu) + ' kVA'}></span>`;
+        })}
+        ${free > 0 ? html`<span class="st-free" style=${{ width: Math.max(0, Math.min(100, free / base * 100)) + '%' }} title=${'liber: ' + money(free) + ' kVA'}></span>` : null}
+      </div>
+      <ul class="st-legend">
+        ${us.map(function (u) {
+          var pu = Number(u.putere) || 0;
+          return html`<li key=${u.id}><span class=${'dot rol-' + u.rol}></span>${uName(u)}
+            <span class="muted">${money(pu)} kVA${bT > 0 ? ' · ' + money(pu * bT) + ' lei' : ''}</span></li>`;
+        })}
+      </ul>
+      <p class="hint">b_T = I_T / S_n efectiv = ${money(Number(s.IT) || 0)} / ${money(cap)} = <strong>${money(bT)} lei/kVA</strong>.</p>
+    </div>`;
+  }
+
   function StationCard(props) {
     var s = props.s;
     var id = s.id;
@@ -348,6 +441,7 @@
         <${K.Field} label="Echipamente comune, altele decât transformatoare (lei)" path=${k + 'elementeComune'} info="stat.elementeComune"><${K.NumInput} path=${k + 'elementeComune'} /><//>
         <${K.Field} label="Întărire post" info="stat.intarire" id=${'f-' + id + '-int'}><${K.CheckInput} path=${k + 'intarire'} label="Transformator înlocuit / al doilea transformator" /><//>
       </div>
+      <${StationDiagram} s=${s} />
       <${TranzDetails} kind="stat" x=${s} />
       <div class="toolbar"><strong>Utilizatori racordați la stație</strong></div>
       <div class="list-chk" data-guide=${'alloc:' + id}>
