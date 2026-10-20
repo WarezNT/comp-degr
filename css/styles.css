@@ -168,9 +168,9 @@ details.menu > summary::-webkit-details-marker { display: none; }
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .card-head > input[type="text"] { flex: 1; min-width: 160px; font-weight: 600; }
 
-.field { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 6px; margin-bottom: 12px; min-width: 0; }
-.field > label { grid-column: 1; grid-row: 1; font-size: 14px; color: var(--eon-grey700); }
-.field > details.info { grid-column: 2; grid-row: 1; }
+.field { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 4px 6px; margin-bottom: 12px; min-width: 0; }
+.field > label { grid-column: 1; grid-row: 1; font-size: 14px; color: var(--eon-grey700); min-width: 0; }
+.field > details.info { grid-column: 2; grid-row: 1; justify-self: start; }
 .field > .control { grid-column: 1 / -1; grid-row: 2; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .field > .hint { grid-column: 1 / -1; grid-row: 3; }
 input, select, textarea {
@@ -189,6 +189,9 @@ input:disabled { background: var(--eon-grey100); color: var(--muted); }
 @media (max-width: 760px) { .row2, .row3, .row4 { grid-template-columns: 1fr; } }
 
 .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+/* acțiunile din Rezultate: butoane compacte, ca să nu domine pagina */
+.results-actions .btn { min-height: 36px; padding: 0 14px; font-size: 14px; border-radius: 10px; }
+.results-actions .btn.primary { min-height: 40px; padding: 0 20px; font-size: 15px; border-radius: 11px; }
 .hint { color: var(--muted); font-size: 13px; line-height: 1.4; }
 .muted { color: var(--muted); }
 .empty { color: var(--muted); text-align: center; padding: 18px; }
@@ -196,9 +199,10 @@ input:disabled { background: var(--eon-grey100); color: var(--muted); }
 /* ⓘ — ajutor la câmp */
 details.info { position: relative; display: inline-block; }
 details.info > summary {
-  list-style: none; cursor: pointer; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
-  font-size: 12px; line-height: 1; color: var(--accent); border: 1px solid var(--accent); background: #fff; user-select: none;
+  list-style: none; cursor: pointer; position: relative; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 13px; line-height: 1; color: var(--accent); border: 1px solid var(--accent); background: #fff; user-select: none;
 }
+details.info > summary::after { content: ''; position: absolute; inset: -4px; }
 details.info > summary::-webkit-details-marker { display: none; }
 details.info[open] > summary { background: var(--accent); color: #fff; }
 .info-pop {
@@ -240,7 +244,7 @@ details.info[open] > summary { background: var(--accent); color: #fff; }
 .btn.file { position: relative; overflow: hidden; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .linkish { border: none; background: none; color: var(--accent-dark); cursor: pointer; font-size: 12px; padding: 0; text-decoration: underline; font-family: inherit; font-weight: 600; }
-button:focus-visible, summary:focus-visible, [tabindex]:focus-visible, .ref:focus-visible { outline: 2px solid var(--eon-system-highlight); outline-offset: 2px; }
+button:focus-visible, summary:focus-visible, a:focus-visible, [tabindex]:focus-visible, .ref:focus-visible { outline: 2px solid var(--eon-system-highlight); outline-offset: 2px; }
 
 .badge { display: inline-block; padding: 3px 8px; border-radius: 20px; font-size: 12px; font-weight: 600; }
 .badge.ok { background: var(--ok-soft); color: var(--ok); }
@@ -256,7 +260,7 @@ table.grid input:not([type="checkbox"]), table.grid select { width: 100%; min-he
 table.grid tfoot td { background: var(--eon-grey100); font-weight: 600; }
 td.center, th.center { text-align: center; }
 tr.subrow td { background: var(--eon-grey100); }
-tr.subrow details > summary { cursor: pointer; font-size: 13px; color: var(--eon-grey700); }
+tr.subrow details > summary { cursor: pointer; font-size: 13px; color: var(--eon-grey800); font-weight: 600; }
 @media (min-width: 761px) {
   tr.rol-prim td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
   tr.rol-nou td:first-child, tr.rol-operator td:first-child { box-shadow: inset 3px 0 0 var(--guide); }
@@ -350,6 +354,9 @@ tr[data-guide-active] { outline: none !important; box-shadow: inset 0 0 0 2px va
 .start-card { max-width: 760px; margin: 30px auto; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 28px; }
 .start-actions { display: grid; gap: 10px; margin: 18px 0; }
 .start-steps { padding-left: 20px; line-height: 1.7; }
+.start-links { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; margin-top: 16px; }
+.manual-link { color: var(--accent-dark); font-weight: 700; text-decoration: none; border-bottom: 1px solid transparent; }
+.manual-link:hover { border-bottom-color: currentColor; }
 .demo-banner {
   display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px;
   background: var(--accent-soft); color: var(--eon-red700); padding: 10px 22px; border-bottom: 1px solid var(--eon-red200);
@@ -371,10 +378,27 @@ tr[data-guide-active] { outline: none !important; box-shadow: inset 0 0 0 2px va
 
 /* --- mobil --- */
 @media (max-width: 760px) {
-  .topbar { padding: 10px 14px; }
+  .topbar { padding: 10px 12px; gap: 8px 10px; }
+  .brand { gap: 10px; }
+  .brand .logo { width: 34px; height: 34px; font-size: 13px; border-radius: 8px; }
+  .topbar h1 { font-size: 15px; line-height: 1.2; }
+  .brand-detail { display: none; }
   .topbar .sub { display: none; }
-  .tabs { padding: 0 8px; }
-  .tabs button { padding: 10px 10px; font-size: 13px; }
+  .topbar-actions { gap: 6px; }
+  .topbar-actions .btn { min-height: 38px; padding: 0 12px; font-size: 14px; }
+  .save-status { font-size: 11px; }
+  .tabs { padding: 0 8px; scrollbar-width: none; box-shadow: inset -12px 0 12px -12px rgba(0,0,0,.35); }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { padding: 9px 9px; font-size: 12.5px; gap: 6px; }
+  .tabs .stepno { width: 22px; height: 22px; font-size: 11px; }
+  .tabst { min-width: 18px; padding: 1px 5px; }
+  .demo-banner { padding: 8px 12px; gap: 6px 10px; }
+  .demo-actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .demo-actions .btn { min-height: 36px; padding: 0 8px; font-size: 13px; }
+  .results-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .results-actions .btn { width: 100%; min-height: 38px; padding: 0 10px; font-size: 14px; }
+  .results-actions .btn.primary { grid-column: 1 / -1; min-height: 40px; }
+  .results-actions .btn:last-child { grid-column: 1 / -1; }
   .content { padding: 14px 12px 150px; }
   .card { padding: 12px; }
   .guidebar { padding: 8px 12px 10px; }
@@ -382,6 +406,7 @@ tr[data-guide-active] { outline: none !important; box-shadow: inset 0 0 0 2px va
   .gb-auto { display: none; }
   .toast { bottom: 150px; }
   .start-card { margin: 10px auto; padding: 18px; }
+  .start-actions .btn.big { min-height: 48px; font-size: 16px; }
 
   /* tabele „responsive”: fiecare rând devine un card cu etichete */
   table.responsive thead { display: none; }

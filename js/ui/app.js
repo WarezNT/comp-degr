@@ -6,6 +6,7 @@
   'use strict';
 
   var preact = global.preact;
+  var useEffect = global.preactHooks.useEffect;
   var K = global.AppKit;
   var html = K.html;
   var store = K.store;
@@ -54,11 +55,11 @@
     var has = !!store.state;
     return html`<header class="topbar">
       <div class="brand"><span class="logo" aria-hidden="true">CD</span>
-        <div><h1>Compensații bănești — racordare în etape diferite</h1>
+        <div><h1><span class="brand-title">Compensații bănești</span><span class="brand-detail"> — racordare în etape diferite</span></h1>
         <p class="sub">Metodologie ANRE 2015 · Ordinul nr. 180/2015 · instalație comună, rețele electrice de interes public</p></div></div>
       <div class="topbar-actions">
-        <span id="save-status" class=${'save-status ' + st} role="status">${has ? txt : ''}</span>
-        ${has ? html`<button type="button" data-action="undo" class="btn ghost" disabled=${!store.undoStack.length}
+        <span id="save-status" class=${'save-status ' + st} role="status" title=${txt}>${has ? txt : ''}</span>
+        ${has && store.undoStack.length ? html`<button type="button" data-action="undo" class="btn ghost"
           title="Anulează ultima modificare distructivă (ștergere, import, exemplu, proiect nou)" onClick=${store.undo}>↶ Anulează</button>` : null}
         ${has ? html`<${HelpMenu} />` : null}
         <details class="menu"><summary class="btn ghost">Proiect ▾</summary>
@@ -81,6 +82,25 @@
   function Tabs() {
     var p = store.state;
     var status = G.tabStatus(p, store.guideCtx(), V.validate(p));
+    // Pe mobil taburile defilează: adu pasul activ în vizor după fiecare schimbare.
+    useEffect(function () {
+      var el = document.getElementById('tab-' + store.tab);
+      if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', inline: 'center' });
+    }, [store.tab]);
+    function onKeyDown(e) {
+      var ids = TABS.map(function (t) { return t[0]; });
+      var i = ids.indexOf(store.tab);
+      var next = -1;
+      if (e.key === 'ArrowRight') next = (i + 1) % ids.length;
+      else if (e.key === 'ArrowLeft') next = (i - 1 + ids.length) % ids.length;
+      else if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = ids.length - 1;
+      if (next < 0) return;
+      e.preventDefault();
+      store.setTab(ids[next]);
+      var el = document.getElementById('tab-' + ids[next]);
+      if (el) el.focus();
+    }
     return html`<nav class="tabs" role="tablist" aria-label="Pașii calculului">
       ${TABS.map(function (t) {
         var on = store.tab === t[0];
@@ -89,6 +109,7 @@
           : (s.todo ? html`<span class="tabst todo" title=${s.todo + ' pași de completat'}>${s.todo}</span>`
           : html`<span class="tabst ok" title="Completat">✓</span>`);
         return html`<button type="button" role="tab" id=${'tab-' + t[0]} aria-selected=${on} aria-controls="panel"
+          tabIndex=${on ? 0 : -1} onKeyDown=${onKeyDown}
           data-action="tab" data-tab=${t[0]} class=${on ? 'active' : ''} onClick=${function () { store.setTab(t[0]); }}>
           <span class="stepno" aria-hidden="true">${t[1].split(' · ')[0]}</span>
           <span class="steplabel">${t[1].split(' · ')[1] || t[1]}</span> ${mark}</button>`;
@@ -148,7 +169,7 @@
       <p>Calculezi compensațiile bănești dintre utilizatorii racordați în etape diferite, prin instalație comună (Metodologia ANRE, Ord. 180/2015). Aplicația te <strong>ghidează pas cu pas</strong>: îți arată ce câmp completezi și te duce la următorul.</p>
       <div class="start-actions">
         <button type="button" class="btn primary big" data-action="new" onClick=${store.newProject}>Proiect nou — cu ghid pas cu pas</button>
-        <button type="button" class="btn big" data-action="demo-u4" onClick=${function () { store.loadDemo('u4'); }}>Vezi un exemplu (U4)</button>
+        <button type="button" class="btn ghost big" data-action="demo-u4" onClick=${function () { store.loadDemo('u4'); }}>Vezi un exemplu (U4)</button>
         <label class="btn ghost big file">Importă un proiect (JSON)<input type="file" accept=".json,application/json" data-action="import-json" hidden onChange=${function (e) { store.importFile(e.target); }} /></label>
       </div>
       <ol class="start-steps">
@@ -157,7 +178,10 @@
         <li><strong>Instalație</strong> — linia sau stația și cine o folosește.</li>
         <li><strong>Rezultate</strong> — condițiile legale, centralizatorul și explicația fiecărei sume.</li>
       </ol>
-      <p class="hint">Datele rămân local, în browserul tău.</p>
+      <div class="start-links">
+        <a class="manual-link" href="manual.html" target="_blank" rel="noopener">Manual de utilizare ↗</a>
+        <span class="hint">Datele rămân local, în browserul tău.</span>
+      </div>
     </section></main>`;
   }
 

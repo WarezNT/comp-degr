@@ -233,7 +233,8 @@
     var trs = l.tronsoane || [];
     if (!trs.length) return html`<p class="muted">Niciun tronson generat (nicio distanță setată).</p>`;
     return html`<div class="table-wrap"><table class="grid">
-      <thead><tr><th>Tronson</th><th>Lungime (m)</th><th>Cost (lei)</th><th>Utilizatori care îl folosesc</th></tr></thead>
+      <caption class="sr-only">Tronsoane: lungime, cost și utilizatori</caption>
+      <thead><tr><th scope="col">Tronson</th><th scope="col">Lungime (m)</th><th scope="col">Cost (lei)</th><th scope="col">Utilizatori care îl folosesc</th></tr></thead>
       <tbody>${trs.map(function (t) {
         return html`<tr key=${t.id}>
           <td>${t.nume || t.id}${t.tip === 'stalpi' ? html` <${K.RefChip} id="art15.1" />` : null}</td>
@@ -278,12 +279,13 @@
     var noi = S.newIds(store.state);
     if (!us.length) return html`<p class="muted">Adaugă mai întâi utilizatori în pasul „2 · Utilizatori”.</p>`;
     return html`<div class="table-wrap"><table class="grid matrix">
+      <caption class="sr-only">Tronsoane și utilizatorii care le folosesc</caption>
       <thead><tr>
-        <th>Tronson</th><th>Lungime (m) <${K.Info} k="tronson.lungime" /></th><th>Cost (lei) <${K.Info} k="tronson.cost" /></th>
+        <th scope="col">Tronson</th><th scope="col">Lungime (m) <${K.Info} k="tronson.lungime" /></th><th scope="col">Cost (lei) <${K.Info} k="tronson.cost" /></th>
         ${us.map(function (u) {
-          return html`<th class=${'ucol rol-' + u.rol} title=${V.ROL_LABEL[u.rol]}><div class="uname">${uName(u)}</div><div class="urol">${V.ROL_LABEL[u.rol]}</div></th>`;
+          return html`<th scope="col" class=${'ucol rol-' + u.rol} title=${V.ROL_LABEL[u.rol]}><div class="uname">${uName(u)}</div><div class="urol">${V.ROL_LABEL[u.rol]}</div></th>`;
         })}
-        <th>Toți</th><th></th>
+        <th scope="col">Toți</th><th scope="col"><span class="sr-only">Acțiuni</span></th>
       </tr></thead>
       <tbody>
         ${(l.tronsoane || []).length ? l.tronsoane.map(function (t) {
@@ -652,7 +654,9 @@
       </div>
       <div class="toolbar"><strong>Dezvoltatori / utilizatori</strong>
         <button type="button" class="btn tiny" data-guide="btn:add-dev" onClick=${store.addDev}>+ Adaugă</button></div>
-      <div class="table-wrap"><table class="grid responsive"><thead><tr><th>Denumire</th><th>Putere aprobată (kVA) <${K.Info} k="dev.putere" /></th><th></th></tr></thead>
+      <div class="table-wrap"><table class="grid responsive">
+        <caption class="sr-only">Dezvoltatori: denumire, putere aprobată și acțiuni</caption>
+        <thead><tr><th scope="col">Denumire</th><th scope="col">Putere aprobată (kVA) <${K.Info} k="dev.putere" /></th><th scope="col"><span class="sr-only">Acțiuni</span></th></tr></thead>
         <tbody>${(d.dezvoltatori || []).length ? d.dezvoltatori.map(function (x) {
           return html`<tr key=${x.id}>
             <td data-label="Denumire"><${K.TextInput} path=${'devitem.' + x.id + '.nume'} label="Denumire dezvoltator" /></td>

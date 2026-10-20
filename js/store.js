@@ -380,7 +380,37 @@
     a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 0);
   }
-  store.saveJson = function () { download('proiect-compensatii.json', JSON.stringify(store.state, null, 2), 'application/json'); };
+
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  // Curăță o componentă de nume de fișier (Windows nu acceptă \ / : * ? " < > |).
+  function filePart(value) {
+    return String(value == null ? '' : value).trim()
+      .replace(/[\\/:*?"<>|]+/g, '-')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^[-_.]+|[-_.]+$/g, '');
+  }
+
+  // Numele exportului JSON: PA prim + PA utilizatori noi + DEGR + data exportului.
+  // Exemplu: 1000000001_1000000004_DEGR_2026-10-20.json
+  function jsonName(project) {
+    var p = project || store.state || {};
+    var users = Array.isArray(p.utilizatori) ? p.utilizatori : [];
+    var parts = [];
+    function add(u) {
+      if (!u) return;
+      var cod = filePart(u.codPA);
+      if (cod && parts.indexOf(cod) < 0) parts.push(cod);
+    }
+    add(users.filter(function (u) { return u.rol === 'prim'; })[0]);
+    users.filter(function (u) { return u.rol === 'nou' || u.rol === 'operator'; }).forEach(add);
+    var d = new Date();
+    var data = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+    return (parts.length ? parts.join('_') : 'proiect') + '_DEGR_' + data + '.json';
+  }
+  store.jsonName = jsonName;
+  store.saveJson = function () { download(jsonName(), JSON.stringify(store.state, null, 2), 'application/json'); };
   store.csv = function () { return C.toCsv(store.results); };
   store.exportCsv = function () { download('centralizator-compensatii.csv', store.csv(), 'text/csv;charset=utf-8'); };
 

@@ -175,6 +175,22 @@
     var closeRef = useRef(null);
     // 2b: la deschidere, mută focusul pe butonul de închidere (accesibilitate).
     useEffect(function () { if (id && closeRef.current) closeRef.current.focus(); }, [id]);
+    // 2b: capcană de focus cât timp fereastra e deschisă (Tab / Shift+Tab rămân în dialog).
+    useEffect(function () {
+      if (!id) return undefined;
+      function onKey(e) {
+        if (e.key !== 'Tab') return;
+        var back = document.querySelector('.modal-back');
+        if (!back) return;
+        var nodes = back.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (!nodes.length) return;
+        var first = nodes[0], last = nodes[nodes.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+      document.addEventListener('keydown', onKey);
+      return function () { document.removeEventListener('keydown', onKey); };
+    }, [id]);
     if (!id) return null;
     var r = R.get(id);
     if (!r) return null;

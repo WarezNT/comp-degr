@@ -94,7 +94,7 @@
     return html`<details class="card" open><summary>Refacerea avizelor tehnice de racordare <${K.RefChip} id="art7.2" /></summary>
       <p class="hint">Utilizator care a încheiat contractul (prim utilizator): <strong>${nameOf(prim)}</strong>. ATR-urile celorlalți utilizatori, dacă sunt în perioada de valabilitate, se refac de operator:
         a) din oficiu, la solicitarea încheierii contractului; b) cu menționarea tarifului de racordare recalculat și a valorii compensației; c) <strong>fără perceperea unui tarif</strong>.</p>
-      <div class="table-wrap"><table class="grid"><thead><tr><th>Utilizator</th><th>Stare ATR</th><th>Compensație (fără TVA / cu TVA)</th><th>Tarif inițial (lei)</th><th>Tarif recalculat — estimare (lei)</th></tr></thead><tbody>
+      <div class="table-wrap"><table class="grid"><caption class="sr-only">Refacerea avizelor tehnice de racordare</caption><thead><tr><th scope="col">Utilizator</th><th scope="col">Stare ATR</th><th scope="col">Compensație (fără TVA / cu TVA)</th><th scope="col">Tarif inițial (lei)</th><th scope="col">Tarif recalculat — estimare (lei)</th></tr></thead><tbody>
         ${rows.map(function (r) {
           var comp = r.refacut ? (r.selectat ? money(r.compensatieFaraTVA) + ' / ' + money(r.compensatieCuTVA) : html`<span class="muted">nu are rolul „Nou”</span>`) : html`<span class="muted">—</span>`;
           return html`<tr><td>${r.nume}</td><td>${statusTxt[r.status]}${r.valabilPana ? ' (până la ' + r.valabilPana + ')' : ''}</td>
@@ -161,7 +161,7 @@
     var c = props.central;
     if (c.newList.length < 2) return null;
     return html`<details class="card" open><summary>Total pe fiecare utilizator nou</summary>
-      <table class="grid"><thead><tr><th>Utilizator nou</th><th>Total fără TVA</th><th>Total cu TVA</th></tr></thead><tbody>
+      <table class="grid"><caption class="sr-only">Total pe fiecare utilizator nou</caption><thead><tr><th scope="col">Utilizator nou</th><th scope="col">Total fără TVA</th><th scope="col">Total cu TVA</th></tr></thead><tbody>
       ${c.newList.map(function (id) { var x = c.perNou[id] || { faraTVA: 0, cuTVA: 0 };
         return html`<tr><td>${nameOf(id)}</td><td class="num">${money(x.faraTVA)}</td><td class="num">${money(x.cuTVA)}</td></tr>`; })}
       </tbody></table></details>`;
@@ -184,9 +184,9 @@
       <p class="hint">Utilizatorii noi plătesc compensații utilizatorilor racordați anterior (primul utilizator este receptorul principal). <${K.RefChip} id="art6.1" /></p>
       <${OperatorNote} central=${c} />
       ${failed.length ? html`<p class="warn">Atenție: ${failed.length} condiții nu sunt îndeplinite. Compensația se calculează și se plătește numai dacă sunt îndeplinite cumulativ. <${K.RefChip} id="art8.1" /></p>` : null}
-      <div class="table-wrap"><table class="grid centralizator"><thead><tr>
-        ${multi ? html`<th>Cod PA plătitor</th><th>Plătitor (nou)</th>` : null}
-        <th>Cod PA</th><th>Nume / denumire</th><th>Valoare fără TVA</th><th>Valoare cu TVA</th><th>Explicație</th></tr></thead>
+      <div class="table-wrap"><table class="grid centralizator"><caption class="sr-only">Centralizatorul compensațiilor</caption><thead><tr>
+        ${multi ? html`<th scope="col">Cod PA plătitor</th><th scope="col">Plătitor (nou)</th>` : null}
+        <th scope="col">Cod PA</th><th scope="col">Nume / denumire</th><th scope="col">Valoare fără TVA</th><th scope="col">Valoare cu TVA</th><th scope="col">Explicație</th></tr></thead>
         <tbody>${c.rows.length ? c.rows.map(function (r) {
           return html`<tr>
             ${multi ? html`<td>${r.deLaCodPA || r.deLaNume}</td><td>${r.deLaNume}</td>` : null}
@@ -207,7 +207,7 @@
     var res = props.res;
     return html`<div class="card"><h3>Anexa 5 — cote de participare <${K.RefChip} id="anexa5" /></h3>
       <p>X_ef = ${(res.Xef * 100).toFixed(2)}% · X_inef = ${(res.Xinef * 100).toFixed(2)}%</p>
-      <table class="grid"><thead><tr><th>Dezvoltator</th><th>Putere (kVA)</th><th>Cotă ineficiență</th><th>Sumă (lei)</th></tr></thead><tbody>
+      <table class="grid"><caption class="sr-only">Cote de participare pe dezvoltator</caption><thead><tr><th scope="col">Dezvoltator</th><th scope="col">Putere (kVA)</th><th scope="col">Cotă ineficiență</th><th scope="col">Sumă (lei)</th></tr></thead><tbody>
       ${res.rows.map(function (r) { return html`<tr><td>${r.nume}</td><td class="num">${money(r.putere)}</td><td class="num">${(r.Xinef * 100).toFixed(3)}%</td><td class="num">${money(r.suma)}</td></tr>`; })}
       </tbody></table></div>`;
   }
@@ -302,9 +302,10 @@
     }
     var canExport = ok && !!res.central;
     return html`<${Views.Panel} k="rezultate" title="Rezultate" help=${HELP.STEPS.rezultate}>
-      <div class="toolbar">
+      <div class="toolbar results-actions">
         <button type="button" class="btn primary" data-guide="btn:calc" onClick=${store.calculate}>Calculează compensațiile</button>
         <button type="button" class="btn ghost" disabled=${!canExport} onClick=${store.exportCsv}>Export CSV</button>
+        <button type="button" class="btn ghost" onClick=${store.saveJson}>Salvează JSON</button>
         <button type="button" class="btn ghost" disabled=${!ok} onClick=${function () { global.print(); }}>Printează / PDF</button>
       </div>
       ${res ? html`<p class="hint">Rezultatul se actualizează automat când modifici datele.</p>` : null}

@@ -80,7 +80,8 @@
     return html`<details class="sel-table">
       <summary>Tabel de încadrare — ce fel de instalație intră în fiecare anexă</summary>
       <div class="table-wrap"><table class="grid">
-        <thead><tr><th>Anexă</th><th>Tip de instalație</th><th>Cum o recunoști</th><th>Temei</th></tr></thead>
+        <caption class="sr-only">Tabel de încadrare pe anexe</caption>
+        <thead><tr><th scope="col">Anexă</th><th scope="col">Tip de instalație</th><th scope="col">Cum o recunoști</th><th scope="col">Temei</th></tr></thead>
         <tbody>
           ${A.CLASSES.map(function (c) {
             return html`<tr>

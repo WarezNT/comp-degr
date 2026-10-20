@@ -294,6 +294,36 @@
         if (p.meta.nouUtilizatoriIds !== undefined) throw new Error('câmpul vechi trebuia eliminat');
       });
 
+      test('Export JSON: PA prim + PA nou + DEGR + data exportului', function () {
+        var d = new Date();
+        var data = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+        var got = window.AppStore.jsonName(window.AppState.demoU4());
+        if (got !== '1000000001_1000000004_DEGR_' + data + '.json') throw new Error('nume neașteptat: ' + got);
+        var got2 = window.AppStore.jsonName({
+          utilizatori: [
+            { rol: 'prim', codPA: '12/34' },
+            { rol: 'nou', codPA: ' 56 78 ' },
+            { rol: 'existent', codPA: '99' }
+          ]
+        });
+        if (got2 !== '12-34_56-78_DEGR_' + data + '.json') throw new Error('curățare PA: ' + got2);
+        if (window.AppStore.jsonName({ utilizatori: [] }) !== 'proiect_DEGR_' + data + '.json') throw new Error('fallback lipsă');
+      });
+
+      test('Taburi: navigare cu săgeți, Home și End', function () {
+        window.AppUI.setProject(window.AppState.demoU4());
+        window.AppUI.setTab('date');
+        var el = document.getElementById('tab-date');
+        el.focus();
+        el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        var active = document.querySelector('[role="tab"][aria-selected="true"]');
+        if (!active || active.id !== 'tab-utilizatori') throw new Error('ArrowRight: ' + (active && active.id));
+        if (document.activeElement !== active) throw new Error('focusul nu a urmat tabul');
+        active.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+        active = document.querySelector('[role="tab"][aria-selected="true"]');
+        if (!active || active.id !== 'tab-rezultate') throw new Error('End: ' + (active && active.id));
+      });
+
       test('Rezultatele se actualizează automat la modificarea datelor', function () {
         window.AppUI.setProject(window.AppState.demoU4());
         window.AppUI.setTab('rezultate');

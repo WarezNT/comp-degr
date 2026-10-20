@@ -156,10 +156,11 @@
         <span class="hint">Primul utilizator adăugat devine „Prim utilizator”, al doilea „Nou”; poți schimba rolurile.</span>
       </div>
       <div class="table-wrap"><table class="grid responsive users">
+        <caption class="sr-only">Utilizatori: rol, punct de racordare, putere și date ATR/TR</caption>
         <thead><tr>
-          <th>Rol <${K.Info} k="user.rol" /></th><th><${K.Abbr} k="PA" /> <${K.Info} k="user.codPA" /></th><th>Nume / denumire</th>
-          <th>Putere (kVA) <${K.Info} k="user.putere" /></th><th><${K.Abbr} k="ATR" /> <${K.Info} k="user.dataATR" /></th>
-          <th>Achitare <${K.Abbr} k="TR" /> <${K.Info} k="user.dataTR" /></th><th>Tip client <${K.Info} k="user.tipClient" /></th><th></th>
+          <th scope="col">Rol <${K.Info} k="user.rol" /></th><th scope="col"><${K.Abbr} k="PA" /> <${K.Info} k="user.codPA" /></th><th scope="col">Nume / denumire</th>
+          <th scope="col">Putere (kVA) <${K.Info} k="user.putere" /></th><th scope="col"><${K.Abbr} k="ATR" /> <${K.Info} k="user.dataATR" /></th>
+          <th scope="col">Achitare <${K.Abbr} k="TR" /> <${K.Info} k="user.dataTR" /></th><th scope="col">Tip client <${K.Info} k="user.tipClient" /></th><th scope="col"><span class="sr-only">Acțiuni</span></th>
         </tr></thead>
         <tbody>
           ${p.utilizatori.length
