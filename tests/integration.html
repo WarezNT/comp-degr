@@ -1062,6 +1062,14 @@
         if (!free) throw new Error('segmentul „liber” lipsește');
       });
 
+      test('Ajutor: link către manual, deschis în pagină nouă', function () {
+        window.AppUI.setProject(window.AppState.demoU4());
+        window.AppUI.setTab('date');
+        var a = document.querySelector('details.help-menu a[href="manual.html"]');
+        if (!a) throw new Error('linkul către manual lipsește');
+        if (a.getAttribute('target') !== '_blank') throw new Error('nu se deschide în pagină nouă');
+      });
+
       var s = document.createElement('div');
       s.className = 'summary' + (fail === 0 ? '' : ' fail');
       s.textContent = 'Rezultat: ' + pass + ' trecute, ' + fail + ' eșuate.';

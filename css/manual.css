@@ -1,0 +1,73 @@
+/* Manual de utilizare — layout simplu, offline, în paleta E.ON. */
+
+html { scroll-padding-top: 84px; }
+body.manual { background: var(--bg); }
+
+.m-top {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 14px 22px; background: var(--eon-grey900); color: #fff;
+  border-bottom: 3px solid var(--accent);
+}
+.m-top h1 { margin: 0; font-size: 18px; }
+.m-top .back {
+  color: #fff; text-decoration: none; font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, .4); padding: 6px 12px; border-radius: 10px;
+}
+.m-top .back:hover { background: rgba(255, 255, 255, .12); }
+.m-top .meta { margin-left: auto; color: var(--eon-grey300); font-size: 12px; }
+
+.m-wrap {
+  display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 24px;
+  max-width: 1200px; margin: 0 auto; padding: 22px;
+}
+.m-toc {
+  position: sticky; top: 78px; align-self: start;
+  background: #fff; border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px; font-size: 13px; max-height: calc(100vh - 100px); overflow: auto;
+}
+.m-toc strong { display: block; margin-bottom: 8px; }
+.m-toc a { display: block; color: var(--eon-grey800); text-decoration: none; padding: 3px 0; }
+.m-toc a:hover { color: var(--accent); }
+.m-toc .sub { padding-left: 12px; color: var(--eon-grey600); }
+
+.m-main { min-width: 0; }
+.m-main h2 {
+  font-size: 22px; border-bottom: 2px solid var(--eon-grey200);
+  padding-bottom: 8px; margin: 34px 0 12px;
+}
+.m-main h2:first-child { margin-top: 0; }
+.m-main h3 { font-size: 17px; margin: 22px 0 8px; }
+.m-main h4 { font-size: 15px; margin: 20px 0 6px; color: var(--eon-grey800); }
+.m-main p, .m-main li { line-height: 1.55; }
+.m-main ul, .m-main ol { padding-left: 22px; }
+.m-main code { background: var(--eon-grey100); padding: 1px 5px; border-radius: 5px; font-size: 13px; }
+
+.m-card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 14px 0; }
+.m-note { background: var(--info-soft); border-left: 4px solid var(--info); border-radius: 8px; padding: 10px 12px; margin: 14px 0; }
+.m-warn { background: var(--warn-soft); border-left: 4px solid var(--warn); border-radius: 8px; padding: 10px 12px; margin: 14px 0; }
+
+.m-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+.m-table th, .m-table td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; }
+.m-table th { background: var(--eon-grey100); }
+.m-table td.num, .m-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.m-table td.sym { white-space: nowrap; width: 1%; font-weight: 600; }
+.m-table td.unit { white-space: nowrap; }
+
+.m-backtop {
+  position: fixed; right: 18px; bottom: 18px; z-index: 5;
+  text-decoration: none; background: var(--accent); color: #fff;
+  border-radius: 10px; padding: 8px 12px; font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .m-wrap { grid-template-columns: 1fr; }
+  .m-toc { position: static; max-height: none; }
+}
+
+@media print {
+  .m-top, .m-toc, .m-backtop { display: none !important; }
+  .m-wrap { display: block; padding: 0; max-width: none; }
+  .m-card, .m-note, .m-warn { break-inside: avoid; }
+  .m-main h2 { break-after: avoid; }
+}

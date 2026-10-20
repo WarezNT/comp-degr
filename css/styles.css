@@ -105,6 +105,10 @@ details.menu > summary::-webkit-details-marker { display: none; }
   border-radius: 8px; font-size: 14px; color: var(--ink); cursor: pointer;
 }
 .menu-item:hover { background: var(--accent-soft); }
+.help-manual {
+  color: var(--ink); text-decoration: none; font-weight: 700;
+  border-top: 1px solid var(--line); border-radius: 0 0 8px 8px; margin-top: 4px;
+}
 
 /* --- pași (taburi) --- */
 .tabs {

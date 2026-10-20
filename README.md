@@ -36,6 +36,9 @@ publicată în M.Of. nr. 12 din 07.01.2016), anexele nr. 1–5.
   pași cu cerc numerotat, tabele/notificări/toast/modal). Aplicația rămâne offline
   (se folosesc doar valorile, fără link-uri către CDN). Include: skip-link, `prefers-reduced-motion`,
   focus vizibil și focus în fereastra normei.
+- **Manual de utilizare** (`manual.html`), cu toate anexele, exemple numerice și un
+  **glosar complet de termeni, simboluri** (`b_L`, `I_T`, `S_n`, `C₂`, `X_ef` etc.),
+  **abrevieri și unități**; se deschide din meniul **„Ajutor”** într-o **pagină nouă**.
 
 ## Cum se rulează
 
@@ -138,7 +141,9 @@ Detalii despre formule și validarea lor: `docs/formule-ocr.md` (material local,
 
 ```
 index.html               # punctul de intrare (CSP restrictiv, fără scripturi inline)
+manual.html              # manual de utilizare (toate anexele + exemple), deschis din „Ajutor”
 css/styles.css           # stiluri (responsive, print)
+css/manual.css           # stilurile manualului (cuprins, tipar, print)
 vendor/                  # Preact, hooks, htm (copii nemodificate) + licențe
 js/norma.js              # fragmente din textul consolidat al metodologiei (informativ)
 js/rules.js              # registrul unic de reguli/referințe (id → „art. …”, textul normei)

@@ -43,6 +43,7 @@
         <p>${b.intro}</p>
         ${b.rules && b.rules.length ? html`<p class="helper-refs">Temei: ${b.rules.map(function (r) { return html`<${K.RefChip} id=${r} /> `; })}</p>` : null}
         <p class="hint">Pune cursorul pe ⓘ de lângă un câmp pentru explicația lui.</p>
+        <a class="menu-item help-manual" href="manual.html" target="_blank" rel="noopener">Deschide manualul complet ↗</a>
       </div>
     </details>`;
   }

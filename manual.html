@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Manual de utilizare pentru calculul compensațiilor bănești între utilizatorii racordați în etape diferite (Metodologia ANRE 2015, Ord. 180/2015).">
+  <title>Manual de utilizare — Compensații bănești</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/manual.css">
+</head>
+<body class="manual">
+  <header class="m-top">
+    <a class="back" href="index.html">← Aplicația</a>
+    <h1>Manual de utilizare</h1>
+    <span class="meta">Metodologia ANRE 2015 · Ord. 180/2015 · offline</span>
+  </header>
+
+  <div class="m-wrap">
+    <nav class="m-toc" aria-label="Cuprins">
+      <strong>Cuprins</strong>
+      <a href="#despre">1. Despre aplicație</a>
+      <a href="#notiuni">2. Noțiuni și simboluri</a>
+      <a class="sub" href="#notiuni-generale">2.1 Termeni generali</a>
+      <a class="sub" href="#simboluri">2.2 Simboluri din formule</a>
+      <a class="sub" href="#abrevieri">2.3 Abrevieri și unități</a>
+      <a href="#pornire">3. Pornire rapidă</a>
+      <a href="#anexa1">4. Anexa 1 — linie</a>
+      <a class="sub" href="#anexa1-ex1">4.1 Exemplu: 2 utilizatori</a>
+      <a class="sub" href="#anexa1-ex2">4.2 Exemplu: apare al 3-lea</a>
+      <a href="#anexa2">5. Anexa 2 — stație/PT</a>
+      <a href="#anexa3">6. Anexa 3 — complex</a>
+      <a href="#anexa4">7. Anexa 4 — tranzitoriu</a>
+      <a href="#anexa5">8. Anexa 5 — dezvoltator</a>
+      <a href="#conditii">9. Condiții legale</a>
+      <a href="#salvare">10. Salvare și export</a>
+      <a href="#intrebari">11. Întrebări frecvente</a>
+      <a href="#referinte">12. Referințe</a>
+    </nav>
+
+    <main class="m-main">
+      <h2 id="despre">1. Despre aplicație</h2>
+      <p>Aplicația calculează <strong>compensațiile bănești</strong> dintre utilizatorii racordați în etape
+        diferite, prin instalație comună, la rețele electrice de interes public, conform
+        <strong>Metodologiei ANRE 2015</strong> (Ordinul nr. 180/2015, M.Of. 12/07.01.2016).</p>
+      <ul>
+        <li>Rulează <strong>offline</strong>, direct din <code>index.html</code> (fără server, fără internet).</li>
+        <li>Datele rămân <strong>local</strong>, în browser (IndexedDB), cu posibilitate de export JSON.</li>
+        <li>Interfața te ghidează pas cu pas; fiecare regulă are <strong>referința legală</strong>.</li>
+      </ul>
+
+      <h2 id="notiuni">2. Noțiuni, simboluri și abrevieri</h2>
+      <p>Aici sunt explicați <strong>toți termenii și toate simbolurile</strong> din manual și din aplicație.
+        Dacă într-o formulă apare un simbol necunoscut, îl găsești mai jos, împreună cu unitatea de măsură
+        și modul în care se obține.</p>
+      <div class="m-note"><strong>Cheia simbolurilor:</strong>
+        <code>I</code> = <strong>I</strong>nvestiție (costul lucrărilor, în lei) ·
+        <code>b</code> = cost specific (<strong>cât costă o unitate</strong>: un metru sau un kVA) ·
+        <code>S</code> = putere (kVA) ·
+        <code>L</code>, <code>l</code> = lungime (m) ·
+        <code>C</code> = <strong>C</strong>ompensație (lei) ·
+        <code>X</code> = cotă procentuală.</div>
+
+      <h3 id="notiuni-generale">2.1 Termeni generali</h3>
+      <table class="m-table">
+        <thead><tr><th>Termen</th><th>Ce înseamnă</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Compensație bănească</strong></td><td>Suma pe care un utilizator racordat ulterior o plătește primului utilizator (sau altor utilizatori) pentru folosirea în comun a unei instalații finanțate de aceștia.</td></tr>
+          <tr><td><strong>Instalație comună</strong></td><td>Lucrările (linii, stații, posturi de transformare) finanțate de primul utilizator și folosite apoi și de ceilalți utilizatori.</td></tr>
+          <tr><td><strong>Racordare</strong></td><td>Conectarea unei instalații la rețeaua de distribuție. În aplicație, momentul în care utilizatorul obține ATR/contractul.</td></tr>
+          <tr><td><strong>Utilizator</strong></td><td>Proprietarul sau beneficiarul unei instalații racordate la rețea.</td></tr>
+          <tr><td><strong>Prim utilizator</strong></td><td>A finanțat instalația prin tariful de racordare. <strong>Primește</strong> compensații. Există un singur prim utilizator.</td></tr>
+          <tr><td><strong>Utilizator nou</strong></td><td>Se racordează acum, după primul utilizator. <strong>Plătește</strong> compensații.</td></tr>
+          <tr><td><strong>Utilizator existent</strong></td><td>Racordat între primul și noul utilizator; poate primi bani dacă a contribuit la instalație.</td></tr>
+          <tr><td><strong>Operator de rețea</strong></td><td>Asimilat unui utilizator nou (art. 6 alin. 5); plătește dacă folosește instalația altcuiva.</td></tr>
+          <tr><td><strong>PR</strong></td><td>Punctul de racordare al primului utilizator; originea de la care se măsoară distanțele pe linie.</td></tr>
+          <tr><td><strong>PA</strong></td><td>Codul punctului de racordare (sau al locului de consum) — identificatorul utilizatorului din ATR/contract.</td></tr>
+          <tr><td><strong>ATR</strong></td><td>Avizul tehnic de racordare: documentul care stabilește soluția de racordare și puterea aprobată.</td></tr>
+          <tr><td><strong>TR</strong></td><td>Tariful de racordare: suma achitată operatorului pentru lucrările de racordare.</td></tr>
+          <tr><td><strong>Linie electrică</strong></td><td>Traseul (cablu sau linie aeriană) de la PR spre utilizatori. Are un cost <code>I_L</code> și o lungime <code>L</code>.</td></tr>
+          <tr><td><strong>Tronson</strong></td><td>Porțiune de linie între doi utilizatori vecini. Costul lui se împarte în cote egale între utilizatorii care îl folosesc.</td></tr>
+          <tr><td><strong>PT / stație electrică</strong></td><td>Post de transformare care coboară tensiunea (MT → JT). Conține transformatorul și echipamentele aferente.</td></tr>
+          <tr><td><strong>Bară (MT / JT)</strong></td><td>Conductorul comun din stație la care se conectează plecările. „La bara MT” = racordare direct în stație, pe partea de medie tensiune.</td></tr>
+          <tr><td><strong>Echipamente comune</strong></td><td>Celule, separatoare, servicii interne, module de conexiune etc. folosite de mai mulți utilizatori; se împart în cote egale.</td></tr>
+          <tr><td><strong>Rezervă N-1</strong></td><td>Transformator suplimentar ținut pentru siguranță (dacă un element cade, alimentarea continuă). Capacitatea lui nu intră în calculul lui <code>b_T</code>.</td></tr>
+          <tr><td><strong>Capacitate disponibilă</strong></td><td>Partea din capacitatea instalației neocupată încă, pe care se poate racorda un utilizator nou.</td></tr>
+          <tr><td><strong>Capacitate ocupată</strong></td><td>Suma puterilor aprobate ale utilizatorilor deja racordați.</td></tr>
+          <tr><td><strong>Capacitate suplimentară</strong></td><td>Diferența dintre capacitatea efectivă și cea ocupată; la întărirea postului, ea limitează compensația.</td></tr>
+          <tr><td><strong>Cotă egală</strong></td><td>Împărțirea costului unui element în părți egale între utilizatorii care îl folosesc.</td></tr>
+          <tr><td><strong>Cost specific</strong></td><td>Costul pe o unitate de măsură: lei/m la linii (<code>b_L</code>), lei/kVA la stații (<code>b_T</code>).</td></tr>
+          <tr><td><strong>Regularizare</strong></td><td>Diferența dintre costul de dinainte și cel de după racordarea noului utilizator; ea devine compensație.</td></tr>
+          <tr><td><strong>Regim tranzitoriu</strong></td><td>Regulile vechi (Ord. 28/2003), aplicabile instalațiilor finanțate înainte de 07.01.2016.</td></tr>
+          <tr><td><strong>Compensații vechi</strong></td><td>Sumele primite de primul utilizator sub metodologia anterioară (Ord. 28/2003); în regim tranzitoriu se scad din <code>I_T</code>.</td></tr>
+          <tr><td><strong>Instalație complexă</strong></td><td>Ansamblu format din două linii de tensiuni diferite (MT și JT) și o stație/PT între ele (Anexa 3).</td></tr>
+          <tr><td><strong>Dezvoltator</strong></td><td>Utilizatorul care finanțează o rețea publică și o pune la dispoziția altor utilizatori (Anexa 5).</td></tr>
+          <tr><td><strong>Client casnic</strong></td><td>Persoană fizică la locuință; pragul de 5 ani pentru condiția din art. 8 devine 10 ani.</td></tr>
+          <tr><td><strong>Fonduri publice nerambursabile</strong></td><td>Bani publici care nu se rambursează. Dacă instalația a fost finanțată astfel, metodologia nu se aplică (art. 19).</td></tr>
+          <tr><td><strong>Putere aprobată</strong></td><td>Puterea (kVA) înscrisă în ATR/contractul de racordare; este cea folosită la calcul.</td></tr>
+          <tr><td><strong>Putere instalată</strong></td><td>Suma puterilor echipamentelor; nu este neapărat egală cu puterea aprobată.</td></tr>
+          <tr><td><strong>TVA</strong></td><td>Taxa pe valoarea adăugată. Aplicația arată sumele fără TVA și cu TVA.</td></tr>
+        </tbody>
+      </table>
+      <div class="m-note">Există <strong>un singur</strong> „prim utilizator”. Utilizatorii noi se procesează în ordinea
+        <strong>datei ATR</strong> (dacă lipsesc datele, în ordinea din listă).</div>
+
+      <h3 id="simboluri">2.2 Simboluri din formule</h3>
+      <p>Fiecare simbol are denumirea, unitatea de măsură și modul de determinare. Sunt grupate pe anexe,
+        ca să le găsești ușor lângă formula în care apar.</p>
+      <div class="m-note">Aceeași literă poate avea sensuri diferite în anexe diferite: de exemplu,
+        <code>S</code> este „putere aparentă” în general, dar în Anexa 4 este „capacitatea instalației”
+        din vechiul tarif. Verifică întotdeauna tabelul anexei în care apare simbolul.</div>
+
+      <h4>Simboluri generale</h4>
+      <table class="m-table">
+        <thead><tr><th>Simbol</th><th>Denumire</th><th>Unitate</th><th>Cum se obține</th></tr></thead>
+        <tbody>
+          <tr><td class="sym"><code>I</code></td><td>Investiția / costul lucrărilor</td><td class="unit">lei</td><td>Suma plătită pentru lucrare (deviz, facturi).</td></tr>
+          <tr><td class="sym"><code>b</code></td><td>Cost specific</td><td class="unit">lei/m sau lei/kVA</td><td><code>I</code> împărțit la cantitatea corespunzătoare (<code>L</code> sau <code>S</code>).</td></tr>
+          <tr><td class="sym"><code>C</code></td><td>Compensația de plată</td><td class="unit">lei</td><td>Se calculează cu formula anexei aplicabile.</td></tr>
+          <tr><td class="sym"><code>S</code></td><td>Putere aparentă</td><td class="unit">kVA</td><td>Din ATR, contract sau plăcuța transformatorului.</td></tr>
+          <tr><td class="sym"><code>P</code></td><td>Putere aprobată</td><td class="unit">kVA</td><td>Din ATR/contractul de racordare.</td></tr>
+          <tr><td class="sym"><code>L</code></td><td>Lungime totală</td><td class="unit">m</td><td>Traseul de la PR până la ultimul punct.</td></tr>
+          <tr><td class="sym"><code>l</code></td><td>Lungime parțială</td><td class="unit">m</td><td>O porțiune de linie (de exemplu, un tronson).</td></tr>
+          <tr><td class="sym"><code>d</code></td><td>Distanța de la PR</td><td class="unit">m</td><td>Se măsoară pe traseu, de la PR până la utilizator.</td></tr>
+          <tr><td class="sym"><code>n</code></td><td>Număr de utilizatori</td><td class="unit">buc</td><td>Se numără utilizatorii care folosesc elementul respectiv.</td></tr>
+          <tr><td class="sym"><code>X</code></td><td>Cotă procentuală</td><td class="unit">%</td><td>Raport între două sume (parte / total).</td></tr>
+          <tr><td class="sym"><code>i, t, D</code></td><td>Indici: utilizator, tronson, dezvoltator</td><td class="unit">—</td><td><code>i</code> = U1, U2, U3…; <code>t</code> = tronsonul T1, T2…; <code>D</code> = dezvoltatorul D1, D2…</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Anexa 1 — linie electrică</h4>
+      <table class="m-table">
+        <thead><tr><th>Simbol</th><th>Denumire</th><th>Unitate</th><th>Cum se obține</th></tr></thead>
+        <tbody>
+          <tr><td class="sym"><code>I_L</code></td><td>Costul total al lucrărilor liniei</td><td class="unit">lei</td><td>Deviz/facturi; a fost plătit de primul utilizator.</td></tr>
+          <tr><td class="sym"><code>L</code></td><td>Lungimea totală a liniei</td><td class="unit">m</td><td>De la PR până la capătul liniei.</td></tr>
+          <tr><td class="sym"><code>b_L</code></td><td>Cost specific al liniei</td><td class="unit">lei/m</td><td><code>I_L / L</code>; poate fi suprascris manual dacă ai valoarea exactă.</td></tr>
+          <tr><td class="sym"><code>l_t</code></td><td>Lungimea tronsonului <code>t</code></td><td class="unit">m</td><td>Diferența dintre distanțele capetelor tronsonului.</td></tr>
+          <tr><td class="sym"><code>d_i</code></td><td>Distanța utilizatorului <code>i</code> față de PR</td><td class="unit">m</td><td>Se măsoară pe traseu și se completează în aplicație.</td></tr>
+          <tr><td class="sym"><code>n_t</code></td><td>Câți utilizatori folosesc tronsonul <code>t</code></td><td class="unit">buc</td><td>Cei cu distanța <code>d_i</code> mai mare sau egală cu capătul din aval al tronsonului.</td></tr>
+          <tr><td class="sym"><code>C_t</code></td><td>Costul tronsonului <code>t</code></td><td class="unit">lei</td><td><code>l_t × b_L</code>.</td></tr>
+          <tr><td class="sym"><code>c_i</code></td><td>Cota utilizatorului <code>i</code></td><td class="unit">lei</td><td>Suma <code>C_t / n_t</code> pentru toate tronsoanele pe care le folosește.</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Anexa 2 — stație electrică / post de transformare</h4>
+      <table class="m-table">
+        <thead><tr><th>Simbol</th><th>Denumire</th><th>Unitate</th><th>Cum se obține</th></tr></thead>
+        <tbody>
+          <tr><td class="sym"><code>I_T</code></td><td>Costul lucrărilor stației/PT</td><td class="unit">lei</td><td>Deviz/facturi; plătit de primul utilizator.</td></tr>
+          <tr><td class="sym"><code>S_n</code></td><td>Capacitatea nominală a transformatorului</td><td class="unit">kVA</td><td>De pe plăcuța transformatorului (ex. 400 kVA).</td></tr>
+          <tr><td class="sym"><code>S_rez</code></td><td>Capacitatea transformatorului de rezervă (N-1)</td><td class="unit">kVA</td><td>Din proiect; se exclude din calcul.</td></tr>
+          <tr><td class="sym"><code>S_n ef</code></td><td>Capacitatea efectivă</td><td class="unit">kVA</td><td><code>S_n − S_rez</code>.</td></tr>
+          <tr><td class="sym"><code>b_T</code></td><td>Cost specific al stației</td><td class="unit">lei/kVA</td><td><code>I_T / S_n ef</code>.</td></tr>
+          <tr><td class="sym"><code>P_i</code></td><td>Puterea aprobată a utilizatorului <code>i</code></td><td class="unit">kVA</td><td>Din ATR/contract.</td></tr>
+          <tr><td class="sym"><code>C_i</code></td><td>Compensația utilizatorului <code>i</code></td><td class="unit">lei</td><td><code>P_i × b_T</code>.</td></tr>
+          <tr><td class="sym"><code>C_supl</code></td><td>Capacitatea suplimentară</td><td class="unit">kVA</td><td><code>S_n ef − Σ P</code> (puterile deja racordate); limitează compensația la întărirea postului.</td></tr>
+          <tr><td class="sym"><code>I_T net</code></td><td>Costul net în regim tranzitoriu</td><td class="unit">lei</td><td><code>I_T − compensații vechi</code>.</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Anexa 3 — instalație complexă</h4>
+      <table class="m-table">
+        <thead><tr><th>Simbol</th><th>Denumire</th><th>Unitate</th><th>Cum se obține</th></tr></thead>
+        <tbody>
+          <tr><td class="sym"><code>l_U1</code></td><td>Linia de medie tensiune, din amonte de stație</td><td class="unit">—</td><td>Element de instalație; se completează cu <code>I_L</code> (lei) și <code>L</code> (m).</td></tr>
+          <tr><td class="sym"><code>l_U2</code></td><td>Linia de joasă tensiune, din aval de stație</td><td class="unit">—</td><td>Element de instalație; se completează doar la varianta 4.</td></tr>
+          <tr><td class="sym"><code>L_U1</code></td><td>Lungimea liniei de MT</td><td class="unit">m</td><td>De la PR până la stație.</td></tr>
+          <tr><td class="sym"><code>L_U2</code></td><td>Lungimea liniei de JT</td><td class="unit">m</td><td>De la stație până la ultimul consumator.</td></tr>
+          <tr><td class="sym"><code>v1…v4</code></td><td>Variantele de racordare</td><td class="unit">—</td><td>Vezi secțiunea 6; fiecare variantă însumează componente diferite.</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Anexa 4 — regim tranzitoriu</h4>
+      <table class="m-table">
+        <thead><tr><th>Simbol</th><th>Denumire</th><th>Unitate</th><th>Cum se obține</th></tr></thead>
+        <tbody>
+          <tr><td class="sym"><code>B</code></td><td>Componenta B din tariful de racordare</td><td class="unit">lei</td><td>Partea de investiție din tariful plătit sub vechea metodologie.</td></tr>
+          <tr><td class="sym"><code>S</code></td><td>Capacitatea instalației</td><td class="unit">kVA</td><td>Capacitatea pentru care s-a plătit tariful.</td></tr>
+          <tr><td class="sym"><code>b</code></td><td>Cost specific</td><td class="unit">lei/kVA</td><td><code>B / S</code>.</td></tr>
+          <tr><td class="sym"><code>S₂</code></td><td>Puterea aprobată a noului utilizator</td><td class="unit">kVA</td><td>Din ATR.</td></tr>
+          <tr><td class="sym"><code>l₂</code></td><td>Lungimea de linie folosită de noul utilizator</td><td class="unit">m</td><td>De la punctul lui de racordare până la instalația comună.</td></tr>
+          <tr><td class="sym"><code>L</code></td><td>Lungimea totală a liniei</td><td class="unit">m</td><td>De la PR până la capăt.</td></tr>
+          <tr><td class="sym"><code>C₂</code></td><td>Compensația datorată</td><td class="unit">lei</td><td><code>S₂ × b × (l₂ / L)</code>.</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Anexa 5 — rețea finanțată de un dezvoltator</h4>
+      <table class="m-table">
+        <thead><tr><th>Simbol</th><th>Denumire</th><th>Unitate</th><th>Cum se obține</th></tr></thead>
+        <tbody>
+          <tr><td class="sym"><code>I_total</code></td><td>Valoarea totală a investiției</td><td class="unit">lei</td><td>Costul întregii rețele finanțate de dezvoltator.</td></tr>
+          <tr><td class="sym"><code>I_ef</code></td><td>Partea eficientă</td><td class="unit">lei</td><td>Din analiza de eficiență economică.</td></tr>
+          <tr><td class="sym"><code>I_inef</code></td><td>Partea ineficientă</td><td class="unit">lei</td><td><code>I_total − I_ef</code>.</td></tr>
+          <tr><td class="sym"><code>X_ef</code></td><td>Cota eficientă</td><td class="unit">%</td><td><code>I_ef / I_total</code>.</td></tr>
+          <tr><td class="sym"><code>X_inef</code></td><td>Cota ineficientă</td><td class="unit">%</td><td><code>1 − X_ef</code>.</td></tr>
+          <tr><td class="sym"><code>P_D</code></td><td>Puterea aprobată a dezvoltatorului <code>D</code></td><td class="unit">kVA</td><td>Din ATR/contract.</td></tr>
+          <tr><td class="sym"><code>P_total</code></td><td>Suma puterilor tuturor dezvoltatorilor</td><td class="unit">kVA</td><td><code>Σ P_D</code>.</td></tr>
+          <tr><td class="sym"><code>X_D</code></td><td>Cota de ineficiență a dezvoltatorului <code>D</code></td><td class="unit">%</td><td><code>X_inef × P_D / P_total</code>.</td></tr>
+          <tr><td class="sym"><code>C_D</code></td><td>Suma datorată de dezvoltatorul <code>D</code></td><td class="unit">lei</td><td><code>I_total × X_D</code>.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="abrevieri">2.3 Abrevieri și unități</h3>
+      <table class="m-table">
+        <thead><tr><th>Abreviere</th><th>Înțeles</th></tr></thead>
+        <tbody>
+          <tr><td class="sym"><strong>ANRE</strong></td><td>Autoritatea Națională de Reglementare în Domeniul Energiei.</td></tr>
+          <tr><td class="sym"><strong>Ord.</strong></td><td>Ordin (al președintelui ANRE).</td></tr>
+          <tr><td class="sym"><strong>M.Of.</strong></td><td>Monitorul Oficial al României.</td></tr>
+          <tr><td class="sym"><strong>art. / alin. / lit.</strong></td><td>Articol / alineat / literă din actul normativ.</td></tr>
+          <tr><td class="sym"><strong>ATR</strong></td><td>Aviz tehnic de racordare.</td></tr>
+          <tr><td class="sym"><strong>TR</strong></td><td>Tarif de racordare.</td></tr>
+          <tr><td class="sym"><strong>PR</strong></td><td>Punct de racordare.</td></tr>
+          <tr><td class="sym"><strong>PA</strong></td><td>Codul punctului de racordare / al locului de consum.</td></tr>
+          <tr><td class="sym"><strong>PT</strong></td><td>Post de transformare.</td></tr>
+          <tr><td class="sym"><strong>MT</strong></td><td>Medie tensiune (de regulă 20 kV).</td></tr>
+          <tr><td class="sym"><strong>JT</strong></td><td>Joasă tensiune (de regulă 0,4 kV).</td></tr>
+          <tr><td class="sym"><strong>N-1</strong></td><td>Criteriu de siguranță: funcționarea chiar dacă un element (un transformator) este scos din uz.</td></tr>
+          <tr><td class="sym"><strong>kVA</strong></td><td>Kilovolt-amper — unitatea pentru puterea aparentă (puterea totală cerută de instalație).</td></tr>
+          <tr><td class="sym"><strong>kW</strong></td><td>Kilowatt — unitatea pentru puterea activă (partea care produce lucru mecanic sau căldură).</td></tr>
+          <tr><td class="sym"><strong>lei</strong></td><td>Moneda națională (RON).</td></tr>
+          <tr><td class="sym"><strong>TVA</strong></td><td>Taxa pe valoarea adăugată.</td></tr>
+          <tr><td class="sym"><strong>Σ</strong></td><td>Sumă (totalul mai multor valori).</td></tr>
+          <tr><td class="sym"><strong>%</strong></td><td>Procent (o sutime dintr-un întreg).</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="pornire">3. Pornire rapidă</h2>
+      <ol>
+        <li><strong>Date generale</strong> — alege modelul (Anexa 1–5), operatorul, data și TVA. Dacă nu ești sigur de anexă,
+          folosește <strong>„Ghid de alegere”</strong>.</li>
+        <li><strong>Utilizatori</strong> — adaugă utilizatorii și dă-le rolul (prim / nou / existent). Completează puterea
+          aprobată (kVA) și, unde e cazul, datele ATR/TR.</li>
+        <li><strong>Instalație</strong> — descrie liniile, stațiile etc., în funcție de model.</li>
+        <li><strong>Rezultate</strong> — verifică condițiile legale și apasă <strong>„Calculează compensațiile”</strong>.</li>
+        <li><strong>Export</strong> — CSV, print/PDF sau salvare JSON.</li>
+      </ol>
+
+      <h2 id="anexa1">4. Anexa 1 — linie electrică</h2>
+      <p>Pe fiecare tronson, costul se împarte în <strong>cote egale</strong> între utilizatorii care îl folosesc.
+        Aplicația cere <strong>I_L</strong> (costul lucrărilor), <strong>L</strong> (lungimea totală) și
+        <strong>distanța de la PR</strong> pentru fiecare utilizator. Tronsoanele și costurile se
+        <strong>generează automat</strong>.</p>
+      <ul>
+        <li>Cost specific: <code>b_L = I_L / L</code> [lei/m], unde <code>I_L</code> = costul lucrărilor liniei (lei),
+          iar <code>L</code> = lungimea totală a liniei (m).</li>
+        <li>Un utilizator folosește <strong>toate tronsoanele din amonte</strong> de punctul lui.</li>
+        <li>Poți muta un utilizator și prin <strong>tragerea cercului</strong> pe diagramă; câmpul numeric rămâne calea accesibilă.</li>
+        <li>Pe ecrane mici, diagrama devine o <strong>listă verticală</strong> de tronsoane.</li>
+      </ul>
+
+      <h3 id="anexa1-ex1">4.1 Exemplu: doi utilizatori</h3>
+      <div class="m-card">
+        <p>Linie de <strong>100 m</strong> cu cost <strong>10.000 lei</strong> → <code>b_L = 100 lei/m</code>.
+          <strong>U1</strong> este la capăt (100 m); <strong>U2</strong> se racordează la 50 m.</p>
+        <table class="m-table">
+          <thead><tr><th>Tronson</th><th>Interval</th><th class="num">Lungime</th><th class="num">Cost</th><th>Utilizatori</th></tr></thead>
+          <tbody>
+            <tr><td>T1</td><td>0–50 m</td><td class="num">50 m</td><td class="num">5.000 lei</td><td>U1, U2</td></tr>
+            <tr><td>T2</td><td>50–100 m</td><td class="num">50 m</td><td class="num">5.000 lei</td><td>U1</td></tr>
+          </tbody>
+        </table>
+        <p>Cote finale: <strong>U1 = 7.500 lei</strong>, <strong>U2 = 2.500 lei</strong>.</p>
+        <p>Deci <strong>U2 plătește lui U1: 2.500 lei</strong> (U1 a plătit 10.000, rămâne cu 7.500).</p>
+        <p class="muted">În aplicație: I_L = 10.000, L = 100, distanțe U1 = 100, U2 = 50.</p>
+      </div>
+
+      <h3 id="anexa1-ex2">4.2 Exemplu: apare al treilea utilizator</h3>
+      <div class="m-card">
+        <p>Același caz, dar apare <strong>U3 la 30 m</strong>. Linia se împarte acum în trei tronsoane:</p>
+        <table class="m-table">
+          <thead><tr><th>Tronson</th><th>Interval</th><th class="num">Lungime</th><th class="num">Cost</th><th>Utilizatori</th></tr></thead>
+          <tbody>
+            <tr><td>T1</td><td>0–30 m</td><td class="num">30 m</td><td class="num">3.000 lei</td><td>U1, U2, U3</td></tr>
+            <tr><td>T2</td><td>30–50 m</td><td class="num">20 m</td><td class="num">2.000 lei</td><td>U1, U2</td></tr>
+            <tr><td>T3</td><td>50–100 m</td><td class="num">50 m</td><td class="num">5.000 lei</td><td>U1</td></tr>
+          </tbody>
+        </table>
+        <p>Cote finale: <strong>U1 = 7.000</strong>, <strong>U2 = 2.000</strong>, <strong>U3 = 1.000</strong>.</p>
+        <p>Față de etapa anterioară, U1 scade 7.500 → 7.000, U2 scade 2.500 → 2.000. Deci:</p>
+        <table class="m-table">
+          <thead><tr><th>Plătitor</th><th>Beneficiar</th><th class="num">Sumă</th></tr></thead>
+          <tbody>
+            <tr><td>U3</td><td>U1</td><td class="num">500 lei</td></tr>
+            <tr><td>U3</td><td>U2</td><td class="num">500 lei</td></tr>
+          </tbody>
+        </table>
+        <p class="muted">Chiar dacă U3 vine ultimul, e mai aproape de PR: folosește doar T1, dar T1 e comun cu U1 și U2,
+          așa că le plătește diferența de cotă.</p>
+      </div>
+      <div class="m-note"><strong>Al doilea circuit pe stâlpi</strong> (art. 15 alin. 1): adaugă un element
+        „Circuit pe stâlpi existenți”, cu costul stâlpilor folosiți în comun; se împarte în cote egale.</div>
+
+      <h2 id="anexa2">5. Anexa 2 — stație electrică / post de transformare</h2>
+      <p>Compensația se plătește <strong>primului utilizator</strong>, proporțional cu puterea aprobată:</p>
+      <p><code>b_T = I_T / S_n ef</code> și <code>C = P × b_T</code>.</p>
+      <p class="muted"><strong>Unde:</strong> <code>I_T</code> = costul lucrărilor stației (lei) ·
+        <code>S_n ef</code> = capacitatea efectivă a transformatorului (kVA) ·
+        <code>P</code> = puterea aprobată a utilizatorului nou (kVA) ·
+        <code>b_T</code> = costul specific al stației (lei/kVA) ·
+        <code>C</code> = compensația (lei). Toate simbolurile sunt explicate în <a href="#simboluri">§2.2</a>.</p>
+      <div class="m-card">
+        <p><strong>Exemplu:</strong> PT cu <code>S_n = 400 kVA</code>, <code>I_T = 100.000 lei</code> → <code>b_T = 250 lei/kVA</code>.
+          Un utilizator nou cu <strong>100 kVA</strong> plătește <strong>25.000 lei</strong>.</p>
+        <p><strong>Transformator de rezervă N-1:</strong> nu intră în b_T. Ex.: S_n = 1.000, rezervă = 400 →
+          S_n efectiv = 600; dacă I_T = 300.000 → b_T = 500 lei/kVA; 100 kVA → 50.000 lei.</p>
+        <p><strong>Întărire post</strong> (art. 15 alin. 3): dacă transformatorul e înlocuit/mărit sau se adaugă al doilea,
+          compensația se limitează la <strong>capacitatea suplimentară</strong> a transformatorului existent.</p>
+      </div>
+      <p>Diagrama stației arată o <strong>bară proporțională cu puterile</strong> și capacitatea rămasă liberă.
+        Echipamentele comune (altele decât transformatoarele) se împart în <strong>cote egale</strong>.</p>
+
+      <h2 id="anexa3">6. Anexa 3 — instalație complexă (MT + PT + JT)</h2>
+      <p>Instalația complexă = <strong>două linii</strong> de tensiuni diferite (<code>l_U1</code> — MT,
+        <code>l_U2</code> — JT) + <strong>o stație/PT</strong> între ele. Compensația totală = suma componentelor,
+        după varianta punctului de racordare:</p>
+      <table class="m-table">
+        <thead><tr><th>Varianta</th><th>Unde se racordează noul utilizator</th><th>Componente însumate</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>pe linia MT (l_U1), înainte de stație</td><td>Anexa 1 (l_U1)</td></tr>
+          <tr><td>2</td><td>la bara MT a stației</td><td>Anexa 1 (l_U1) + echipamentele stației (cote egale)</td></tr>
+          <tr><td>3</td><td>pe linia JT (l_U2), imediat după PT</td><td>Anexa 1 (l_U1) + Anexa 2 (stație + echipamente comune)</td></tr>
+          <tr><td>4</td><td>pe linia JT (l_U2), mai departe</td><td>Anexa 1 (l_U1) + Anexa 2 + Anexa 1 (l_U2)</td></tr>
+        </tbody>
+      </table>
+      <div class="m-warn"><strong>De ce se cere lungimea l_U1 și pentru consumatorii de după PT?</strong>
+        Pentru că linia MT din amonte (de la PR până la stație) a fost construită de primul utilizator și este
+        <strong>folosită în comun</strong> de toți, indiferent de tensiunea la care se racordează. Anexa 3 include
+        l_U1 în <strong>toate</strong> variantele. Doar <code>l_U2</code> se folosește la varianta 4.</div>
+      <p class="muted"><strong>Ce completezi pe fiecare linie:</strong> <code>I_L</code> = costul lucrărilor (lei),
+        <code>L</code> = lungimea (m) și <code>b_L</code> = costul specific (lei/m).
+        Toate simbolurile sunt explicate în <a href="#simboluri">§2.2</a>.</p>
+      <h3>Cum introduci datele</h3>
+      <ol>
+        <li>Alegi <strong>varianta</strong>.</li>
+        <li>Completezi linia <code>l_U1</code>: I_L, L (MT). Pentru utilizatorii racordați <strong>după PT</strong>,
+          pui <strong>distanța = L_U1</strong> (folosesc toată linia MT).</li>
+        <li>Completezi linia <code>l_U2</code> <strong>doar pentru varianta 4</strong>: I_L, L (JT) și distanțele pe JT.</li>
+        <li>Adaugi stația: S_n, S_n efectiv (minus rezervă), I_T, echipamente comune; o incluzi în instalația complexă.</li>
+        <li>Bifezi <strong>primul utilizator și noul utilizator</strong> în lista stației.</li>
+      </ol>
+      <div class="m-card">
+        <p><strong>Exemplu (varianta 3):</strong> l_U1 cost 6.000 lei, folosită de prim + nou → fiecare 3.000;
+          noul plătește primului <strong>3.000 lei</strong> pe linie. Stație: S_n 400 kVA, I_T 100.000 →
+          b_T 250; noul are 100 kVA → <strong>25.000 lei</strong>. Total: <strong>28.000 lei</strong>.</p>
+        <p>La <strong>varianta 4</strong> se adaugă l_U2: cost 4.000 lei, folosită de ambii → noul plătește încă
+          <strong>2.000 lei</strong> → total <strong>30.000 lei</strong>.</p>
+      </div>
+
+      <h2 id="anexa4">7. Anexa 4 — prevederi tranzitorii</h2>
+      <p>Se aplică dacă primul utilizator a încheiat contractul <strong>înainte de 07.01.2016</strong>.
+        Formula veche (Ord. 28/2003 — metodologia anterioară): <code>b = B / S</code> și
+        <code>C₂ = S₂ × b × (l₂ / L)</code>.</p>
+      <p class="muted"><strong>Unde:</strong> <code>B</code> = componenta B din tariful de racordare (lei) ·
+        <code>S</code> = capacitatea instalației (kVA) · <code>b</code> = costul specific (lei/kVA) ·
+        <code>S₂</code> = puterea noului utilizator (kVA) · <code>l₂</code> = lungimea folosită de el (m) ·
+        <code>L</code> = lungimea totală (m) · <code>C₂</code> = compensația (lei).</p>
+      <div class="m-card"><p><strong>Exemplu:</strong> B = 50.000 lei, S = 100 kVA → b = 500 lei/kVA;
+        noul utilizator S₂ = 30 kVA, l₂ = 90 m, L = 100 m → C₂ = 30 × 500 × 0,9 = <strong>13.500 lei</strong>.</p></div>
+      <p>În Anexele 1–3, regimul tranzitoriu se activează automat dacă datele contractului primului utilizator
+        sunt anterioare datei de 07.01.2016; completezi „compensațiile vechi” primite sub vechea metodologie,
+        care se scad din costul instalației.</p>
+
+      <h2 id="anexa5">8. Anexa 5 — rețea finanțată de un dezvoltator</h2>
+      <p>Pentru o rețea publică finanțată de un prim dezvoltator, cota de ineficiență se împarte proporțional cu puterile:</p>
+      <p><code>X_ef = I_ef / I_total</code>, <code>X_inef = 1 − X_ef</code>,
+        <code>X_D = X_inef × P_D / P_total</code>, <code>C_D = I_total × X_D</code>.</p>
+      <p class="muted"><strong>Unde:</strong> <code>I_total</code> = investiția totală (lei) ·
+        <code>I_ef</code> = partea eficientă (lei) · <code>X_ef</code> = cota eficientă (%) ·
+        <code>X_inef</code> = cota ineficientă (%) · <code>P_D</code> = puterea dezvoltatorului D (kVA) ·
+        <code>P_total</code> = suma puterilor (kVA) · <code>X_D</code> = cota lui D (%) ·
+        <code>C_D</code> = suma pe care o plătește D (lei).</p>
+      <div class="m-card"><p><strong>Exemplu:</strong> I_total = 150.000, I_ef = 131.250 → X_ef = 87,5%;
+        D1 = 300 kVA, D2 = 100 kVA → X_D1 = 9,375% (14.062,5 lei), X_D2 = 3,125% (4.687,5 lei).</p></div>
+
+      <h2 id="conditii">9. Condiții legale</h2>
+      <p>Compensația se calculează și se plătește <strong>numai dacă sunt îndeplinite cumulativ</strong> (art. 8):</p>
+      <ol>
+        <li>primul utilizator a contribuit la o instalație cu capacitate mai mare decât puterea sa aprobată;</li>
+        <li>capacitatea nu e ocupată integral (există capacitate disponibilă);</li>
+        <li>instalația e în primii <strong>5 ani</strong> de la punerea în funcțiune (<strong>10 ani</strong> pentru client casnic);</li>
+        <li>soluția prevede utilizarea în comun a instalației;</li>
+        <li>tariful de racordare aferent elementelor comune a fost achitat integral (art. 7 alin. 1).</li>
+      </ol>
+      <p>Dacă o condiție nu e îndeplinită, calculul e blocat; poți alege <strong>„Calculează oricum (informativ)”</strong>.
+        Metodologia nu se aplică dacă instalația a fost finanțată din <strong>fonduri publice nerambursabile</strong> (art. 19).</p>
+
+      <h2 id="salvare">10. Salvare și export</h2>
+      <ul>
+        <li><strong>Salvare automată locală</strong> (IndexedDB) — datele rămân în browser, nu pleacă în rețea.</li>
+        <li><strong>Proiect → Salvează/Import JSON</strong> — backup sau transfer.</li>
+        <li><strong>Export CSV</strong> — centralizatorul, pentru Excel.</li>
+        <li><strong>Printează / PDF</strong> — doar rezultatele.</li>
+      </ul>
+
+      <h2 id="intrebari">11. Întrebări frecvente</h2>
+      <h3>De ce îmi cere lungimea l_U1 la Anexa 3, dacă racordez după PT?</h3>
+      <p>Pentru că linia MT din amonte e comună și e folosită de toți, indiferent de PT. Vezi secțiunea 6.</p>
+      <h3>De ce nu apare nicio compensație?</h3>
+      <ul>
+        <li>nu ai un utilizator cu rol <strong>„Nou”</strong>;</li>
+        <li>la linie, nu ai completat <strong>distanțele</strong> (sau sunt 0);</li>
+        <li>la stație, noul utilizator nu e <strong>bifat</strong> în lista stației;</li>
+        <li>o condiție legală nu e îndeplinită (vezi „Rezultate”).</li>
+      </ul>
+      <h3>Ce distanță pun unui consumator racordat după PT?</h3>
+      <p>Pe linia <code>l_U1</code>: <strong>lungimea totală L_U1</strong> (folosește toată linia). Pe <code>l_U2</code>
+        (doar varianta 4): distanța reală pe JT.</p>
+      <h3>De ce nu pot edita tronsoanele?</h3>
+      <p>Tronsoanele sunt <strong>generate automat</strong> din distanțe. Matricea veche e la „Mod avansat” (read-only).</p>
+      <h3>De ce diagrama nu e proporțională?</h3>
+      <p>Ca să rămână lizibilă și la kilometri, segmentele scurte au o lățime minimă; apare mențiunea
+        „Schemă orientativă — nu este la scară”.</p>
+      <h3>Cum mut un utilizator?</h3>
+      <p>Tragi de cercul lui pe diagramă sau îi schimbi distanța în câmpul numeric.</p>
+      <h3>Ce înseamnă valorile „fără TVA” și „cu TVA”?</h3>
+      <p>Centralizatorul arată ambele; cota TVA se setează în „Date generale” (implicit 21%, opțional 19% sau altă valoare).</p>
+
+      <h2 id="referinte">12. Referințe</h2>
+      <p>Metodologia din 2015 de stabilire a compensațiilor bănești între utilizatorii racordați în etape diferite,
+        prin instalație comună, la rețele electrice de interes public — aprobată prin Ordinul președintelui ANRE
+        nr. 180/2015 (M.Of. nr. 12/07.01.2016), cu modificările Ord. 10/2016 și 16/2019.</p>
+      <p>Articole relevante: art. 6, 7, 8, 11, 12, 13, 14, 15, 16, 17–18, 19; Anexele nr. 1–5.</p>
+      <p class="muted">Textul normei este disponibil și în aplicație, prin chip-urile „art. …”. Verifică întotdeauna
+        pe sursa oficială.</p>
+
+      <p><a class="back" href="index.html" style="display:inline-block;color:var(--accent);border-color:var(--accent);text-decoration:none;padding:8px 14px;border-radius:10px;border:1px solid var(--accent);font-weight:700;">Deschide aplicația →</a></p>
+    </main>
+  </div>
+
+  <a class="m-backtop" href="#despre">↑ Sus</a>
+</body>
+</html>
