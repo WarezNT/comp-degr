@@ -85,6 +85,18 @@
         'Valoarea achitată de primul utilizator prin tariful de racordare.', num(l.IL) > 0, { rule: 'anexa1' });
       add('line-L:' + id, 'instalatie', 'line.' + id + '.L', 'Completează lungimea totală a liniei „' + nmL + '” (L, m)',
         'Din I_L / L rezultă costul specific b_L.', num(l.L) > 0, { rule: 'anexa1' });
+
+      if (l.mod === 'distante') {
+        // Editor pe distanțe: fiecare utilizator primește distanța de la PR.
+        users.forEach(function (u) {
+          var r = (l.racordari || []).filter(function (x) { return x.userId === u.id; })[0];
+          add('line-dist:' + id + ':' + u.id, 'instalatie', 'dist:' + id + ':' + u.id,
+            'Distanța de la PR pentru ' + nm(u), 'Gol = utilizatorul nu este racordat pe această linie.',
+            !!r && num(r.distanta) > 0);
+        });
+        return;
+      }
+
       var trs = (l.tronsoane || []).filter(function (t) { return t.tip !== 'stalpi'; });
       add('line-trs:' + id, 'instalatie', 'btn:add-tronson:' + id, 'Adaugă cel puțin un tronson al liniei „' + nmL + '”',
         'Un tronson = un segment folosit de aceiași utilizatori.', trs.length >= 1, { rule: 'art12.1' });

@@ -168,7 +168,7 @@
   /* --- linii și tronsoane --- */
   store.addLine = function (rol) {
     mutate(function (p) {
-      var l = { id: S.uid('lin'), nume: 'Linie ' + (p.linii.length + 1), IL: 0, L: 0, bL: 0, compVeche: 0, capacitate: 0, tronsoane: [] };
+      var l = { id: S.uid('lin'), nume: 'Linie ' + (p.linii.length + 1), IL: 0, L: 0, bL: 0, compVeche: 0, capacitate: 0, mod: 'distante', racordari: [], tronsoane: [] };
       p.linii.push(l);
       if (p.meta.model === 'complex') {
         (rol === 'u2' ? p.complexConfig.liniiU2Ids : p.complexConfig.liniiIds).push(l.id);
@@ -253,6 +253,39 @@
       if (!s) return;
       var i = s.utilizatori.indexOf(userId);
       if (i >= 0) s.utilizatori.splice(i, 1); else s.utilizatori.push(userId);
+    });
+  };
+
+  /* --- linie pe distanțe (puncte de racordare) --- */
+  // Setează/șterge distanța de la PR pentru un utilizator; tronsoanele se derivă.
+  store.setRacordare = function (lineId, userId, distanta) {
+    mutate(function (p) {
+      var l = byId(p.linii, lineId);
+      if (!l) return;
+      if (!Array.isArray(l.racordari)) l.racordari = [];
+      var d = Number(distanta);
+      var idx = -1;
+      l.racordari.forEach(function (r, i) { if (r.userId === userId) idx = i; });
+      if (distanta === '' || distanta === null || distanta === undefined || !isFinite(d) || d <= 0) {
+        if (idx >= 0) l.racordari.splice(idx, 1);
+      } else if (idx >= 0) {
+        l.racordari[idx].distanta = d;
+      } else {
+        l.racordari.push({ userId: userId, distanta: d });
+      }
+      l.mod = 'distante';
+    });
+  };
+
+  // Trecerea unei linii „clasice" (tronsoane bifate manual) la modul pe distanțe.
+  store.convertLine = function (lineId) {
+    mutate(function (p) {
+      var l = byId(p.linii, lineId);
+      if (!l) return;
+      if (!Array.isArray(l.racordari) || !l.racordari.length) {
+        l.racordari = C.racordariFromTronsoane(l);
+      }
+      l.mod = 'distante';
     });
   };
 

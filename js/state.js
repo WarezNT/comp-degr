@@ -472,6 +472,12 @@
     }
     p.linii.forEach(function (l) {
       l.tronsoane.forEach(function (t) { t.utilizatori = userRefs(t.utilizatori); });
+      l.racordari = arr(l.racordari).filter(isObj).map(function (r) {
+        r.userId = ref(r.userId);
+        r.distanta = Number(r.distanta) || 0;
+        return r;
+      }).filter(function (r) { return r.userId && userMap[r.userId]; });
+      if (l.mod !== 'distante' && l.mod !== 'tronsoane') delete l.mod;
     });
     p.statii.forEach(function (s) { s.utilizatori = userRefs(s.utilizatori); });
 
@@ -512,6 +518,7 @@
       if (l.bLManual === undefined) l.bLManual = false;
       if (l.compVeche === undefined) l.compVeche = 0;     // art. 18: compensații primite sub Ord. 28/2003
       if (l.capacitate === undefined) l.capacitate = 0;   // art. 18 alin. 1 lit. b: capacitatea instalației [kVA]
+      if (!Array.isArray(l.racordari)) l.racordari = [];
       (l.tronsoane || []).forEach(function (t) {
         if (t.costManual === undefined) t.costManual = false;
       });

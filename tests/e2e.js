@@ -75,6 +75,10 @@ const focusedKey = (page) => page.evaluate(() => {
       await page.click(A); await page.keyboard.type('6000'); await page.keyboard.press('Tab');
     } else if (/\.L$/.test(key)) {
       await page.click(A); await page.keyboard.type('200'); await page.keyboard.press('Tab');
+    } else if (key.startsWith('dist:')) {
+      // linie pe distanțe: fiecare utilizator primește o distanță de la PR
+      await page.fill(A, String(10 * guard));
+      await page.keyboard.press('Tab');
     } else if (/\.lungime$/.test(key)) {
       await page.click(A); await page.keyboard.type('100'); await page.keyboard.press('Tab');
     } else {

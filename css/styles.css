@@ -475,3 +475,31 @@ table.grid tbody tr:hover > td { background: #fbf8f5; }
 .modal { border-radius: 14px; }
 .modal-head { border-bottom: 1px solid var(--eon-grey200); padding-bottom: 10px; margin-bottom: 10px; }
 .norma-text { background: var(--eon-grey100); border-color: var(--eon-grey300); }
+
+/* --- diagramă linie + editor pe distanțe --- */
+.diagram-wrap { overflow-x: auto; margin: 10px 0 14px; }
+svg.diagram { display: block; width: 100%; min-width: 640px; height: auto; }
+.dl-base { stroke: var(--eon-grey300); stroke-width: 4; }
+.dl-seg { stroke: var(--eon-grey400); stroke-width: 4; }
+.dl-tick { stroke: var(--eon-grey500); stroke-width: 2; }
+.dl-lab { font-size: 12px; fill: var(--eon-grey700); text-anchor: middle; }
+.dl-pr { font-size: 12px; font-weight: 700; fill: var(--eon-grey800); }
+.dl-name { font-size: 12px; fill: var(--eon-grey900); text-anchor: middle; font-weight: 700; }
+.dl-m { font-size: 11px; fill: var(--eon-grey600); text-anchor: middle; }
+.dl-user { stroke: #fff; stroke-width: 2; }
+.dl-user.rol-prim { fill: var(--accent); }
+.dl-user.rol-nou, .dl-user.rol-operator { fill: var(--eon-red600); }
+.dl-user.rol-existent { fill: var(--eon-grey700); }
+
+.dist-rows { display: flex; flex-direction: column; gap: 8px; }
+.dist-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; flex-wrap: wrap; }
+.dist-name { display: inline-flex; align-items: center; gap: 8px; }
+.dist-input { display: inline-flex; align-items: center; gap: 6px; }
+.dist-input input { width: 110px; min-height: 40px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.dot.rol-prim { background: var(--accent); }
+.dot.rol-nou, .dot.rol-operator { background: var(--eon-red600); }
+.dot.rol-existent { background: var(--eon-grey700); }
+.chip-s { display: inline-block; background: var(--eon-grey200); border-radius: 6px; padding: 1px 6px; margin: 1px 2px; font-size: 12px; }
+details.advanced { margin-top: 10px; }
+details.advanced > summary { cursor: pointer; font-weight: 600; }

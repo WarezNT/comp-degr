@@ -43,6 +43,116 @@
     </details>`;
   }
 
+  /* ----------------------- diagramă linie + editor pe distanțe ----------------------- */
+
+  function userName(id) { var u = S.findUser(store.state, id); return u ? uName(u) : id; }
+  function roleOf(id) { var u = S.findUser(store.state, id); return u ? u.rol : 'existent'; }
+
+  // Limitele și racordările, indiferent de mod (distanțe sau tronsoane clasice).
+  function lineGeo(l) {
+    var L = Number(l.L) || 0;
+    var rec = [], bounds = [];
+    if (l.mod === 'distante') {
+      rec = (l.racordari || []).filter(function (r) { var d = Number(r.distanta); return r && d > 0 && (!L || d <= L); })
+        .map(function (r) { return { userId: r.userId, distanta: Number(r.distanta) }; });
+    } else {
+      var cum = 0, dist = {};
+      (l.tronsoane || []).forEach(function (t) {
+        if (!t || t.tip === 'stalpi') return;
+        cum += Number(t.lungime) || 0;
+        (t.utilizatori || []).forEach(function (u) { dist[u] = cum; });
+      });
+      rec = Object.keys(dist).map(function (u) { return { userId: u, distanta: dist[u] }; });
+    }
+    rec.forEach(function (r) { if (bounds.indexOf(r.distanta) < 0) bounds.push(r.distanta); });
+    if (L > 0 && bounds.indexOf(L) < 0) bounds.push(L);
+    bounds.sort(function (a, b) { return a - b; });
+    if (!L) L = bounds.length ? bounds[bounds.length - 1] : 0;
+    return { L: L, bounds: bounds, rec: rec };
+  }
+
+  function LineDiagram(props) {
+    var l = props.l;
+    var g = lineGeo(l);
+    if (!g.L || !g.bounds.length) {
+      return html`<p class="hint">Diagrama apare după ce completezi lungimea liniei și distanțele de racordare.</p>`;
+    }
+    var W = 1000, pad = 46, baseY = 72;
+    var scale = (W - 2 * pad) / g.L;
+    function x(d) { return pad + Number(d) * scale; }
+    var segs = [], prev = 0;
+    g.bounds.forEach(function (b, i) {
+      var x1 = x(prev), x2 = x(b), xm = (x1 + x2) / 2;
+      var len = b - prev;
+      segs.push(html`<g key=${'s' + i}>
+        <line x1=${x1} y1=${baseY} x2=${x2} y2=${baseY} class="dl-seg" />
+        <line x1=${x1} y1=${baseY - 6} x2=${x1} y2=${baseY + 6} class="dl-tick" />
+        <text x=${xm} y=${baseY - 20} class="dl-lab">${Math.round(len)} m · ${money(len * C.lineBl(l))} lei</text>
+      </g>`);
+      prev = b;
+    });
+    var endX = x(g.L);
+    var usersG = g.rec.map(function (r, i) {
+      var cx = x(r.distanta);
+      return html`<g key=${'u' + i}>
+        <circle cx=${cx} cy=${baseY} r="7" class=${'dl-user rol-' + roleOf(r.userId)} />
+        <text x=${cx} y=${baseY + 26} class="dl-name">${userName(r.userId)}</text>
+        <text x=${cx} y=${baseY + 41} class="dl-m">${Math.round(r.distanta)} m</text>
+      </g>`;
+    });
+    return html`<div class="diagram-wrap">
+      <svg class="diagram" viewBox=${'0 0 ' + W + ' 132'} role="img" aria-label="Schema liniei, de la punctul de racordare la capăt">
+        <text x="6" y=${baseY + 5} class="dl-pr">PR</text>
+        <line x1=${x(0)} y1=${baseY} x2=${endX} y2=${baseY} class="dl-base" />
+        ${segs}
+        <line x1=${endX} y1=${baseY - 6} x2=${endX} y2=${baseY + 6} class="dl-tick" />
+        ${usersG}
+      </svg>
+    </div>`;
+  }
+
+  function DistEditor(props) {
+    var l = props.l;
+    var us = users();
+    if (!us.length) return html`<p class="muted">Adaugă mai întâi utilizatori în pasul „2 · Utilizatori”.</p>`;
+    var rec = {};
+    (l.racordari || []).forEach(function (r) { rec[r.userId] = r.distanta; });
+    return html`<div class="dist-editor">
+      <p class="hint">Setează <strong>distanța de la PR (m)</strong> pentru fiecare utilizator. Tronsoanele și costurile se generează automat.
+        Gol = utilizatorul nu e racordat pe această linie.</p>
+      <div class="dist-rows">
+        ${us.map(function (u) {
+          var v = rec[u.id];
+          return html`<label class="dist-row" key=${u.id}>
+            <span class="dist-name"><span class=${'dot rol-' + u.rol}></span>${uName(u)} <span class="muted">(${V.ROL_LABEL[u.rol]})</span></span>
+            <span class="dist-input">
+              <input type="number" min="1" step="1" inputmode="numeric" data-guide=${'dist:' + l.id + ':' + u.id}
+                value=${v != null ? v : ''} placeholder="—" aria-label=${'Distanța de la PR pentru ' + uName(u) + ' (m)'}
+                onChange=${function (e) { store.setRacordare(l.id, u.id, e.target.value); }} /> <span class="muted">m</span>
+            </span>
+          </label>`;
+        })}
+      </div>
+    </div>`;
+  }
+
+  // Tabel read-only cu tronsoanele derivate (modul avansat).
+  function TronsonTable(props) {
+    var l = props.l;
+    var trs = l.tronsoane || [];
+    if (!trs.length) return html`<p class="muted">Niciun tronson generat (nicio distanță setată).</p>`;
+    return html`<div class="table-wrap"><table class="grid">
+      <thead><tr><th>Tronson</th><th>Lungime (m)</th><th>Cost (lei)</th><th>Utilizatori care îl folosesc</th></tr></thead>
+      <tbody>${trs.map(function (t) {
+        return html`<tr key=${t.id}>
+          <td>${t.nume || t.id}${t.tip === 'stalpi' ? html` <${K.RefChip} id="art15.1" />` : null}</td>
+          <td class="num">${t.tip === 'stalpi' ? '—' : money(Number(t.lungime) || 0)}</td>
+          <td class="num">${money(C.tronsonCost(l, t))}</td>
+          <td>${(t.utilizatori || []).map(function (u) { return html`<span class="chip-s">${userName(u)}</span>`; })}</td>
+        </tr>`;
+      })}</tbody></table></div>`;
+  }
+
   /* ----------------------- linie + grila de alocare ----------------------- */
 
   function lineStatus(l) {
@@ -139,12 +249,22 @@
       <p class="hint">Costul fiecărui tronson = <strong>lungime × b_L = <span data-line-bl=${id}>${money(bL)}</span> lei/m</strong>. <${K.RefChip} id="art12.1" />
         <span data-line-status=${id}>${lineStatus(l)}</span></p>
       <${TranzDetails} kind="line" x=${l} />
-      <div class="toolbar"><strong>Tronsoane și utilizatori</strong>
-        <button type="button" class="btn tiny" data-guide=${'btn:add-tronson:' + id} onClick=${function () { store.addTronson(id); }}>+ Tronson</button>
-        <button type="button" class="btn tiny" title="Art. 15 alin. 1: al doilea circuit pe stâlpii unei linii aeriene existente" onClick=${function () { store.addStalpi(id); }}>+ Circuit pe stâlpi existenți</button>
-        <button type="button" class="btn tiny ghost" onClick=${function () { store.autoAllTronsoane(id); }}>↺ Recalculează toate</button>
-      </div>
-      <${AllocMatrix} l=${l} />
+      <${LineDiagram} l=${l} />
+      ${l.mod === 'distante' ? html`<div>
+        <div class="toolbar"><strong>Puncte de racordare</strong>
+          <button type="button" class="btn tiny" title="Art. 15 alin. 1: al doilea circuit pe stâlpii unei linii aeriene existente" onClick=${function () { store.addStalpi(id); }}>+ Circuit pe stâlpi existenți</button>
+        </div>
+        <${DistEditor} l=${l} />
+        <details class="advanced"><summary>Mod avansat — tronsoane derivate (${(l.tronsoane || []).length})</summary><${TronsonTable} l=${l} /></details>
+      </div>` : html`<div>
+        <div class="toolbar"><strong>Tronsoane și utilizatori</strong>
+          <button type="button" class="btn tiny" data-guide=${'btn:add-tronson:' + id} onClick=${function () { store.addTronson(id); }}>+ Tronson</button>
+          <button type="button" class="btn tiny" title="Art. 15 alin. 1: al doilea circuit pe stâlpii unei linii aeriene existente" onClick=${function () { store.addStalpi(id); }}>+ Circuit pe stâlpi existenți</button>
+          <button type="button" class="btn tiny ghost" onClick=${function () { store.autoAllTronsoane(id); }}>↺ Recalculează toate</button>
+          <button type="button" class="btn tiny" onClick=${function () { store.convertLine(id); }} title="Trece linia la editorul pe distanțe (puncte de racordare)">→ Editează pe distanțe</button>
+        </div>
+        <${AllocMatrix} l=${l} />
+      </div>`}
     </div>`;
   }
 

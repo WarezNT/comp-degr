@@ -38,13 +38,65 @@
   }
 
   // Derivează b_L și costurile tronsoanelor în modul automat.
+  // Pentru liniile în modul „distanțe", tronsoanele se regenerează din punctele de racordare.
   function deriveAll(p) {
     (p.linii || []).forEach(function (l) {
       if (!l.bLManual) l.bL = lineBl(l);
+      if (l.mod === 'distante') syncLine(l);
       (l.tronsoane || []).forEach(function (t) {
         if (!t.costManual) t.cost = tronsonCost(l, t);
       });
     });
+  }
+
+  // Tronsonul se generează din distanțele de racordare (metri de la PR):
+  // limite = distanțele unice + lungimea totală; utilizatorii unui segment sunt
+  // cei racordați la capătul lui sau mai departe (folosesc tot ce e în amonte).
+  function syncLine(l) {
+    if (!l || l.mod !== 'distante') return;
+    var L = Number(l.L) || 0;
+    var bL = lineBl(l);
+    var rec = (l.racordari || []).filter(function (r) {
+      var d = Number(r && r.distanta);
+      return isFinite(d) && d > 0 && (!L || d <= L);
+    });
+    var bounds = [];
+    rec.forEach(function (r) { var d = Number(r.distanta); if (bounds.indexOf(d) < 0) bounds.push(d); });
+    if (L > 0 && bounds.indexOf(L) < 0) bounds.push(L);
+    bounds.sort(function (a, b) { return a - b; });
+
+    var out = [];
+    var prev = 0;
+    bounds.forEach(function (b) {
+      if (b <= prev) return;
+      var len = b - prev;
+      var users = rec.filter(function (r) { return Number(r.distanta) >= b; })
+        .map(function (r) { return r.userId; });
+      out.push({
+        id: 'trs-' + l.id + '-' + out.length,
+        nume: 'Tronson ' + (out.length + 1) + ' (' + Math.round(prev) + '–' + Math.round(b) + ' m)',
+        lungime: len, cost: len * bL, costManual: false, utilizatori: users
+      });
+      prev = b;
+    });
+    // Elementele speciale (al doilea circuit pe stâlpi) nu se derivă; se păstrează.
+    (l.tronsoane || []).forEach(function (t) { if (t && t.tip === 'stalpi') out.push(t); });
+    l.tronsoane = out;
+  }
+
+  // Reconstituie distanțele de racordare dintr-o linie „clasică" (tronsoane cu utilizatori):
+  // distanța unui utilizator = capătul cumulat al ultimului tronson pe care apare.
+  function racordariFromTronsoane(l) {
+    var cum = 0, dist = {}, order = [];
+    (l.tronsoane || []).forEach(function (t) {
+      if (!t || t.tip === 'stalpi') return;
+      cum += Number(t.lungime) || 0;
+      (t.utilizatori || []).forEach(function (u) {
+        if (!dist.hasOwnProperty(u)) order.push(u);
+        dist[u] = cum;
+      });
+    });
+    return order.map(function (u) { return { userId: u, distanta: dist[u] }; });
   }
 
   // Art. 18: costul net al unei linii în regim tranzitoriu: (I_L − compensații vechi) / I_L.
@@ -336,6 +388,7 @@
     CHECK_MODELS: CHECK_MODELS,
     byId: byId, nameOf: nameOf,
     lineBl: lineBl, tronsonCost: tronsonCost, deriveAll: deriveAll,
+    syncLine: syncLine, racordariFromTronsoane: racordariFromTronsoane,
     lineFactor: lineFactor, stationIT: stationIT, stationOccupied: stationOccupied,
     setPath: setPath, buildConfig: buildConfig,
     effectiveYears: effectiveYears, receiverIds: receiverIds, tariffStatus: tariffStatus,

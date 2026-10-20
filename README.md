@@ -65,9 +65,10 @@ opționali, opri mutarea automată a focusului sau ascunde ghidul (meniul „Pro
 2. **Utilizatori** — fiecare utilizator are **un singur rol**: *prim utilizator* (finanțator,
    primește), *nou* (plătește), *existent* sau *operator de rețea* (art. 6 alin. 5). Primul
    adăugat devine prim, al doilea nou. Contract/avize (art. 7, 17–18) într-un rând extensibil.
-3. **Instalație** — linii cu **grilă de alocare** utilizatori × tronsoane (bifezi cine folosește
-   fiecare tronson), stații/PT, instalație complexă (rol per linie: l_U1 / l_U2), vechea
-   metodologie, rețea de dezvoltator.
+3. **Instalație** — linii cu **diagramă** (PR → capăt) și **puncte de racordare**: scrii distanța de la
+   PR pentru fiecare utilizator, iar tronsoanele și costurile se generează automat (matricea
+   „tronsoane × utilizatori" rămâne la „Mod avansat"); stații/PT, instalație complexă (rol per
+   linie: l_U1 / l_U2), vechea metodologie, rețea de dezvoltator.
 4. **Rezultate** — stare (probleme cu link „Mergi la câmp”), rezumat (totaluri), centralizator cu
    **„Cum s-a calculat”** pe fiecare sumă (formulă + articol), condițiile art. 8 (restrânse când
    sunt îndeplinite), export CSV, print.
