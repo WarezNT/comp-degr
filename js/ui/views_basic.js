@@ -44,10 +44,9 @@
   // Panoul unui pas: titlu + conținut + ajutor. Cheia schimbă elementul la schimbarea pasului,
   // deci animația de intrare rulează doar atunci, nu la fiecare modificare de date.
   function Panel(props) {
-    return html`<section class=${'panel' + (props.help ? ' with-helper' : '')} key=${props.k}
+    return html`<section class="panel" key=${props.k}
       role="tabpanel" aria-labelledby=${'tab-' + store.tab}>
       <div class="panel-main"><h2>${props.title}</h2>${props.children}</div>
-      <${Help} block=${props.help} />
     </section>`;
   }
 

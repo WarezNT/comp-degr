@@ -63,7 +63,7 @@
     date: { titlu: 'Date generale', intro: 'Alege tipul de instalație și completează datele operatorului. Restul pașilor se adaptează modelului ales.' },
     utilizatori: { titlu: 'Utilizatori', intro: 'Adaugă toți utilizatorii și dă fiecăruia un rol: prim utilizator (finanțator), nou (plătește), existent sau operator de rețea.', rules: ['art6.1', 'art6.5'] },
     instalatie: {
-      line: { titlu: 'Anexa 1 — linie electrică', intro: 'Descrie linia primului utilizator, tronsoanele ei și bifează cine folosește fiecare tronson. Costul unui tronson se împarte în cote egale.', rules: ['art12.1', 'anexa1'] },
+      line: { titlu: 'Anexa 1 — linie electrică', intro: 'Descrie linia primului utilizator și punctele de racordare. Scrie distanța de la punctul de racordare (PR) pentru fiecare utilizator; tronsoanele și costurile se generează automat (cote egale pe fiecare tronson).', rules: ['art12.1', 'anexa1'] },
       station: { titlu: 'Anexa 2 — stație / post de transformare', intro: 'Descrie stația/postul și bifează utilizatorii racordați. Compensația se plătește primului utilizator, proporțional cu puterea aprobată.', rules: ['art13', 'anexa2'] },
       complex: { titlu: 'Anexa 3 — instalație complexă', intro: 'Alege varianta punctului de racordare; aplicația însumează componentele: linia l_U1, stația și, la varianta 4, linia l_U2.', rules: ['art14', 'anexa3'] },
       transitional: { titlu: 'Anexa 4 pct. A — vechea metodologie', intro: 'Compensația stabilită sub Ord. 28/2003, pentru contracte anterioare 07.01.2016. Rezultatul se poate trece apoi în „Prevederi tranzitorii” la linie/stație.', rules: ['art18.1a', 'anexa4'] },

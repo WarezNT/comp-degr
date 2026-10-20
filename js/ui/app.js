@@ -13,6 +13,7 @@
   var V = global.AppValidate;
   var G = global.AppGuide;
   var Views = global.AppViews;
+  var HELP = global.AppHelp;
 
   var TABS = [['date', '1 · Date generale'], ['utilizatori', '2 · Utilizatori'], ['instalatie', '3 · Instalație'], ['rezultate', '4 · Rezultate']];
 
@@ -21,6 +22,29 @@
   function closeMenu(e) {
     var d = e.target.closest ? e.target.closest('details') : null;
     if (d) d.removeAttribute('open');
+  }
+
+  // Ajutorul pasului curent (același conținut ca fostul panou din dreapta).
+  function currentHelp() {
+    var s = HELP.STEPS, tab = store.tab, m = store.state.meta.model;
+    if (tab === 'date') return s.date;
+    if (tab === 'utilizatori') return s.utilizatori;
+    if (tab === 'instalatie') return (s.instalatie && (s.instalatie[m] || s.instalatie.line)) || null;
+    return s.rezultate;
+  }
+
+  function HelpMenu() {
+    var b = currentHelp();
+    if (!b) return null;
+    return html`<details class="menu help-menu">
+      <summary class="btn ghost" aria-label="Ajutor pentru pasul curent">Ajutor ▾</summary>
+      <div class="menu-pop help-pop">
+        <strong>${b.titlu}</strong>
+        <p>${b.intro}</p>
+        ${b.rules && b.rules.length ? html`<p class="helper-refs">Temei: ${b.rules.map(function (r) { return html`<${K.RefChip} id=${r} /> `; })}</p>` : null}
+        <p class="hint">Pune cursorul pe ⓘ de lângă un câmp pentru explicația lui.</p>
+      </div>
+    </details>`;
   }
 
   function Header() {
@@ -35,6 +59,7 @@
         <span id="save-status" class=${'save-status ' + st} role="status">${has ? txt : ''}</span>
         ${has ? html`<button type="button" data-action="undo" class="btn ghost" disabled=${!store.undoStack.length}
           title="Anulează ultima modificare distructivă (ștergere, import, exemplu, proiect nou)" onClick=${store.undo}>↶ Anulează</button>` : null}
+        ${has ? html`<${HelpMenu} />` : null}
         <details class="menu"><summary class="btn ghost">Proiect ▾</summary>
           <div class="menu-pop" onClick=${closeMenu}>
             <button type="button" data-action="new" class="menu-item" onClick=${store.newProject}>Proiect nou (cu ghid)</button>
@@ -195,6 +220,11 @@
       if (store.norma) { store.closeNorma(); return; }
       var m = document.querySelector('details.menu[open]');
       if (m) m.removeAttribute('open');
+    });
+    // Închide meniurile din antet la click în afara lor.
+    document.addEventListener('click', function (e) {
+      if (e.target && e.target.closest && e.target.closest('details.menu')) return;
+      Array.prototype.forEach.call(document.querySelectorAll('details.menu[open]'), function (d) { d.removeAttribute('open'); });
     });
     // Nu pierdem ultima tastare dacă pagina se închide în fereastra de debounce.
     global.addEventListener('pagehide', function () { if (store.hasPendingSave()) store.flushSave(); });

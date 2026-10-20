@@ -991,6 +991,62 @@
         if (Math.abs(r.payments[u3.id][u2.id] - 500) > 0.01) throw new Error('U3->U2=' + r.payments[u3.id][u2.id]);
       });
 
+      test('Anexa 3: schema de ansamblu are 4 butoane de variantă; click pe 3 setează varianta', function () {
+        var p = emptyOk();
+        p.meta.model = 'complex';
+        p.complexConfig.varianta = 1;
+        var u1 = window.AppState.addUser(p, { nume: 'U1', prim: true });
+        var u2 = window.AppState.addUser(p, { nume: 'U2', putere: 100 });
+        p.linii.push(
+          { id: 'L1', nume: 'l_U1', IL: 50000, L: 100, bL: 0, bLManual: false, tronsoane: [
+            { id: 'T1', nume: 'T1', lungime: 100, cost: 0, costManual: false, utilizatori: [u1.id, u2.id] }] },
+          { id: 'L2', nume: 'l_U2', IL: 30000, L: 200, bL: 0, bLManual: false, tronsoane: [
+            { id: 'T2', nume: 'T2', lungime: 200, cost: 0, costManual: false, utilizatori: [u1.id, u2.id] }] }
+        );
+        p.complexConfig.liniiIds = ['L1'];
+        p.complexConfig.liniiU2Ids = ['L2'];
+        p.statii.push({ id: 'S1', nume: 'PT', Sn: 400, SnRezerva: 0, IT: 100000, elementeComune: 0, utilizatori: [u1.id, u2.id] });
+        p.complexConfig.statiiIds = ['S1'];
+        p.meta.nouUtilizatoriIds = [u2.id];
+        window.AppUI.setProject(p);
+        // Câmpul rămas focusat din testul anterior dispare la re-randare → blur → commit ar
+        // schimba pasul ghidului; îl eliberăm înainte (ca la un click real pe un tab).
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        window.AppUI.setTab('instalatie');
+
+        if (!document.querySelector('.cx-scheme')) throw new Error('schema de ansamblu lipsește');
+        var btns = document.querySelectorAll('.cx-scheme .cx-variant');
+        if (btns.length !== 4) throw new Error('butoane de variantă: ' + btns.length);
+        var b3 = document.querySelector('.cx-scheme .cx-variant[data-variant="3"]');
+        if (!b3) throw new Error('butonul variantei 3 lipsește');
+        if (b3.getAttribute('aria-pressed') !== 'false') throw new Error('aria-pressed inițial: ' + b3.getAttribute('aria-pressed'));
+
+        b3.click();
+        var st = window.AppUI.getState();
+        if (Number(st.complexConfig.varianta) !== 3) throw new Error('varianta setată: ' + st.complexConfig.varianta);
+        if (st.complexConfig.variantaConfirmata !== true) throw new Error('varianta nu a fost confirmată');
+        var b3n = document.querySelector('.cx-scheme .cx-variant[data-variant="3"]');
+        if (!b3n || b3n.getAttribute('aria-pressed') !== 'true' || b3n.className.indexOf('active') < 0) throw new Error('butonul activ nu e marcat');
+        if (window.AppUI.store.tab !== 'instalatie') throw new Error('click-ul nu trebuie să schimbe pasul: ' + window.AppUI.store.tab);
+      });
+
+      test('Anexa 3: varianta 3 fără stație inclusă → avertisment (neblocant)', function () {
+        var p = emptyOk();
+        p.meta.model = 'complex';
+        p.complexConfig.varianta = 3;
+        window.AppState.addUser(p, { nume: 'U1', prim: true });
+        p.linii.push({ id: 'L1', nume: 'l_U1', IL: 10000, L: 100, bL: 0, bLManual: false, tronsoane: [] });
+        p.complexConfig.liniiIds = ['L1'];
+        p.complexConfig.statiiIds = [];
+        window.AppUI.setProject(p);
+        window.AppUI.setTab('instalatie');
+
+        var w = document.querySelector('.cx-scheme .cx-warn');
+        if (!w) throw new Error('avertismentul despre stația lipsă lipsește');
+        if (w.textContent.indexOf('stație') < 0) throw new Error('textul avertismentului: ' + w.textContent);
+        if (document.querySelector('.cx-scheme .cx-variant[data-variant="3"]').disabled) throw new Error('avertismentul nu trebuie să blocheze varianta');
+      });
+
       var s = document.createElement('div');
       s.className = 'summary' + (fail === 0 ? '' : ' fail');
       s.textContent = 'Rezultat: ' + pass + ' trecute, ' + fail + ' eșuate.';

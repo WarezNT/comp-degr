@@ -91,7 +91,7 @@
         users.forEach(function (u) {
           var r = (l.racordari || []).filter(function (x) { return x.userId === u.id; })[0];
           add('line-dist:' + id + ':' + u.id, 'instalatie', 'dist:' + id + ':' + u.id,
-            'Distanța de la PR pentru ' + nm(u), 'Gol = utilizatorul nu este racordat pe această linie.',
+            'Distanța de la punctul de racordare (PR) pentru ' + nm(u), 'Gol = utilizatorul nu este racordat pe această linie.',
             !!r && num(r.distanta) > 0);
         });
         return;

@@ -128,14 +128,12 @@ const focusedKey = (page) => page.evaluate(() => {
   await page.click('#tab-utilizatori');
   const thead = await page.evaluate(() => getComputedStyle(document.querySelector('table.users thead')).display);
   check('tabelul de utilizatori devine carduri pe mobil', thead === 'none', thead);
-  const helperOpen = await page.evaluate(() => { const d = document.querySelector('.helper details'); return d ? d.open : null; });
-  check('ajutorul e restrâns pe mobil', helperOpen === false, String(helperOpen));
-  const helperBelow = await page.evaluate(() => {
-    const main = document.querySelector('.panel-main').getBoundingClientRect();
-    const help = document.querySelector('.helper').getBoundingClientRect();
-    return help.top >= main.bottom - 1;
+  const helper = await page.evaluate(() => {
+    const menu = document.querySelector('details.help-menu');
+    return { exists: !!menu, open: menu ? menu.open : null, aside: !!document.querySelector('.helper') };
   });
-  check('ajutorul stă sub conținut pe mobil', helperBelow, 'deasupra');
+  check('ajutorul e în bara de sus, restrâns', helper.exists && helper.open === false, JSON.stringify(helper));
+  check('fără panoul de ajutor în coloana din dreapta', helper.aside === false, 'există încă');
   await page.close();
 
   /* ---------- 4. Contrast ---------- */

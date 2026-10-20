@@ -77,38 +77,71 @@
     if (!g.L || !g.bounds.length) {
       return html`<p class="hint">Diagrama apare după ce completezi lungimea liniei și distanțele de racordare.</p>`;
     }
-    var W = 1000, pad = 46, baseY = 72;
-    var scale = (W - 2 * pad) / g.L;
-    function x(d) { return pad + Number(d) * scale; }
-    var segs = [], prev = 0;
-    g.bounds.forEach(function (b, i) {
-      var x1 = x(prev), x2 = x(b), xm = (x1 + x2) / 2;
+    var pad = 46, baseY = 72, MINW = 140, AVAIL = 800;
+    var bL = C.lineBl(l);
+
+    // Segmente: lățime proporțională cu lungimea, dar cu un minim lizibil.
+    var segsData = [], prev = 0;
+    g.bounds.forEach(function (b) {
       var len = b - prev;
-      segs.push(html`<g key=${'s' + i}>
-        <line x1=${x1} y1=${baseY} x2=${x2} y2=${baseY} class="dl-seg" />
-        <line x1=${x1} y1=${baseY - 6} x2=${x1} y2=${baseY + 6} class="dl-tick" />
-        <text x=${xm} y=${baseY - 20} class="dl-lab">${Math.round(len)} m · ${money(len * C.lineBl(l))} lei</text>
-      </g>`);
+      segsData.push({ from: prev, to: b, len: len, cost: len * bL });
       prev = b;
     });
-    var endX = x(g.L);
-    var usersG = g.rec.map(function (r, i) {
-      var cx = x(r.distanta);
-      return html`<g key=${'u' + i}>
-        <circle cx=${cx} cy=${baseY} r="7" class=${'dl-user rol-' + roleOf(r.userId)} />
-        <text x=${cx} y=${baseY + 26} class="dl-name">${userName(r.userId)}</text>
-        <text x=${cx} y=${baseY + 41} class="dl-m">${Math.round(r.distanta)} m</text>
+    var distorted = false;
+    segsData.forEach(function (s) {
+      var prop = g.L > 0 ? (s.len / g.L) * AVAIL : 0;
+      s.w = Math.max(MINW, prop);
+      if (prop < MINW) distorted = true;
+    });
+    var totalW = pad * 2 + segsData.reduce(function (a, s) { return a + s.w; }, 0);
+
+    // Poziția fiecărei limite (distanțe) în pixeli.
+    var pos = {}; pos[0] = pad;
+    var acc = pad;
+    segsData.forEach(function (s) { acc += s.w; pos[s.to] = acc; });
+    var endX = pos[g.L];
+    function xOf(d) { return pos[d] !== undefined ? pos[d] : pad; }
+
+    var segs = segsData.map(function (s, i) {
+      var x1 = pos[s.from], x2 = pos[s.to], xm = (x1 + x2) / 2;
+      return html`<g key=${'s' + i}>
+        <line x1=${x1} y1=${baseY} x2=${x2} y2=${baseY} class="dl-seg" />
+        <line x1=${x1} y1=${baseY - 6} x2=${x1} y2=${baseY + 6} class="dl-tick" />
+        <text x=${xm} y=${baseY - 34} class="dl-tnum">T${i + 1}</text>
+        <text x=${xm} y=${baseY - 18} class="dl-lab">${Math.round(s.len)} m · ${money(s.cost)} lei</text>
       </g>`;
     });
+
+    // Utilizatori: la aceeași distanță, etichetele se stivuiesc vertical.
+    var seen = {};
+    var sorted = g.rec.slice().sort(function (a, b) { return a.distanta - b.distanta; });
+    var usersG = sorted.map(function (r, i) {
+      var d = Number(r.distanta);
+      var cx = xOf(d);
+      var k = seen[d] || 0; seen[d] = k + 1;
+      var y0 = baseY + 26 + k * 30;
+      return html`<g key=${'u' + i}>
+        <circle cx=${cx} cy=${baseY} r="7" class=${'dl-user rol-' + roleOf(r.userId)} />
+        <text x=${cx} y=${y0} class="dl-name">${userName(r.userId)}</text>
+        <text x=${cx} y=${y0 + 15} class="dl-m">${Math.round(d)} m</text>
+      </g>`;
+    });
+    var maxStack = 1;
+    Object.keys(seen).forEach(function (k) { if (seen[k] > maxStack) maxStack = seen[k]; });
+    var H = 132 + (maxStack - 1) * 30;
+
     return html`<div class="diagram-wrap">
-      <svg class="diagram" viewBox=${'0 0 ' + W + ' 132'} role="img" aria-label="Schema liniei, de la punctul de racordare la capăt">
+      <svg class="diagram" viewBox=${'0 0 ' + totalW + ' ' + H}
+        style=${totalW > 900 ? { minWidth: totalW + 'px' } : null}
+        role="img" aria-label="Schema liniei, de la punctul de racordare la capăt">
         <text x="6" y=${baseY + 5} class="dl-pr">PR</text>
-        <line x1=${x(0)} y1=${baseY} x2=${endX} y2=${baseY} class="dl-base" />
+        <line x1=${pos[0]} y1=${baseY} x2=${endX} y2=${baseY} class="dl-base" />
         ${segs}
         <line x1=${endX} y1=${baseY - 6} x2=${endX} y2=${baseY + 6} class="dl-tick" />
         ${usersG}
       </svg>
-    </div>`;
+    </div>
+    ${distorted ? html`<p class="hint">Schemă orientativă — nu este la scară (segmentele scurte au lățime minimă).</p>` : null}`;
   }
 
   function DistEditor(props) {
@@ -118,7 +151,7 @@
     var rec = {};
     (l.racordari || []).forEach(function (r) { rec[r.userId] = r.distanta; });
     return html`<div class="dist-editor">
-      <p class="hint">Setează <strong>distanța de la PR (m)</strong> pentru fiecare utilizator. Tronsoanele și costurile se generează automat.
+      <p class="hint">Setează <strong>distanța de la punctul de racordare (PR) în metri</strong> pentru fiecare utilizator. Tronsoanele și costurile se generează automat.
         Gol = utilizatorul nu e racordat pe această linie.</p>
       <div class="dist-rows">
         ${us.map(function (u) {
@@ -127,7 +160,7 @@
             <span class="dist-name"><span class=${'dot rol-' + u.rol}></span>${uName(u)} <span class="muted">(${V.ROL_LABEL[u.rol]})</span></span>
             <span class="dist-input">
               <input type="number" min="1" step="1" inputmode="numeric" data-guide=${'dist:' + l.id + ':' + u.id}
-                value=${v != null ? v : ''} placeholder="—" aria-label=${'Distanța de la PR pentru ' + uName(u) + ' (m)'}
+                value=${v != null ? v : ''} placeholder="—" aria-label=${'Distanța de la punctul de racordare (PR) pentru ' + uName(u) + ' (m)'}
                 onChange=${function (e) { store.setRacordare(l.id, u.id, e.target.value); }} /> <span class="muted">m</span>
             </span>
           </label>`;
@@ -346,6 +379,137 @@
     4: 'Varianta 4 — racordare pe linia U2, mai departe. Anexa 1 (l_U1) + Anexa 2 (stație/PT) + echipamentele comune ale stației (cote egale) + Anexa 1 (l_U2).'
   };
 
+  /* --- schema de ansamblu: PR → l_U1 → stație → l_U2, cu marcajele variantelor --- */
+
+  // Poziția marcajelor pe traseu (coordonată x în viewBox-ul de 1000 px) și descrierea lor.
+  var CX_VARIANTS = [
+    { n: 1, x: 160, where: 'pe linia U1, în amonte de stație' },
+    { n: 2, x: 306, where: 'la bara U1 a stației' },
+    { n: 3, x: 654, where: 'pe linia U2, imediat în aval de stație' },
+    { n: 4, x: 880, where: 'pe linia U2, mai departe de stație' }
+  ];
+
+  function cxLines(p, ids) {
+    var list = (ids || []).map(function (id) { return C.byId(p.linii, id); }).filter(Boolean);
+    return {
+      list: list,
+      L: list.reduce(function (s, l) { return s + (Number(l.L) || 0); }, 0),
+      IL: list.reduce(function (s, l) { return s + (Number(l.IL) || 0); }, 0)
+    };
+  }
+  function cxStation(p, ids) {
+    var list = (ids || []).map(function (id) { return C.byId(p.statii, id); }).filter(Boolean);
+    return list[0] || null;
+  }
+  function cxLineText(x) {
+    if (!x.list.length) return 'neinclusă';
+    return K.fmtNum(x.L) + ' m · ' + money(x.IL) + ' lei';
+  }
+
+  // Selectarea variantei din butoane: același efect ca selectorul existent, dar fără să
+  // mute pasul ghidului (utilizatorul rămâne în „Instalație”, pe schemă).
+  function cxPick(n) {
+    store.set('complex.varianta', String(n));
+    store.set('complex.variantaConfirmata', true);
+    store.commit({ noFocus: true });
+  }
+
+  function cxMarker(o, active, baseY) {
+    return html`<g key=${'mk' + o.n} class=${'cx-mk' + (active ? ' active' : '')}>
+      <line x1=${o.x} y1=${baseY + 6} x2=${o.x} y2=${baseY + 27} class="cx-mk-stem" />
+      <circle cx=${o.x} cy=${baseY + 40} r="13" />
+      <text x=${o.x} y=${baseY + 45}>${o.n}</text>
+    </g>`;
+  }
+
+  function ComplexScheme() {
+    var p = store.state;
+    var c = p.complexConfig;
+    var v = Number(c.varianta) || 3;
+    var u1 = cxLines(p, c.liniiIds);
+    var u2 = cxLines(p, c.liniiU2Ids);
+    var st = cxStation(p, c.statiiIds);
+    var baseY = 92;
+
+    // Avertismente: varianta aleasă cere componente care lipsesc (nu blochează calculul).
+    var warns = [];
+    if (!u1.list.length) warns.push('Varianta ' + v + ' necesită cel puțin o linie l_U1 inclusă în instalația complexă.');
+    if (v >= 2 && !st) warns.push('Varianta ' + v + ' necesită o stație / PT inclusă în instalația complexă.');
+    if (v === 4 && !u2.list.length) warns.push('Varianta 4 necesită o linie l_U2 inclusă în instalația complexă.');
+
+    var snEf = st ? (Number(st.Sn) || 0) - (Number(st.SnRezerva) || 0) : 0;
+    var stSn = st ? 'S_n = ' + K.fmtNum(st.Sn) + ' kVA' + (Number(st.SnRezerva) > 0 ? ' (efectiv ' + K.fmtNum(snEf) + ' kVA)' : '') : '';
+    var stIT = st ? 'I_T = ' + money(st.IT) + ' lei' : '';
+
+    var stName = String(st && st.nume || 'Stație / PT');
+    if (stName.length > 34) stName = stName.slice(0, 33) + '…';
+
+    var stationSvg = st
+      ? html`<g class="cx-st">
+          <rect x="330" y=${baseY - 50} width="300" height="100" rx="12" />
+          <text x="480" y=${baseY - 26} class="cx-st-name">${stName}</text>
+          <text x="480" y=${baseY + 1} class="cx-st-val">${stSn}</text>
+          <text x="480" y=${baseY + 22} class="cx-st-val">${stIT}</text>
+          ${Number(st.elementeComune) > 0 ? html`<text x="480" y=${baseY + 41} class="cx-st-note">echipamente comune ${money(st.elementeComune)} lei</text>` : null}
+        </g>`
+      : html`<g class="cx-st empty">
+          <rect x="330" y=${baseY - 50} width="300" height="100" rx="12" />
+          <text x="480" y=${baseY - 4} class="cx-st-name">Stație / PT neinclusă</text>
+          <text x="480" y=${baseY + 20} class="cx-st-note">variantele 2–4 o cer</text>
+        </g>`;
+
+    var buttons = CX_VARIANTS.map(function (o) {
+      var on = v === o.n;
+      return html`<button type="button" key=${o.n} class=${'cx-variant' + (on ? ' active' : '')} data-variant=${o.n}
+        aria-pressed=${on ? 'true' : 'false'}
+        aria-label=${'Varianta ' + o.n + ' — racordare ' + o.where}
+        onClick=${function () { cxPick(o.n); }}>
+        <span class="cx-vnum" aria-hidden="true">${o.n}</span>
+        <span class="cx-vtext"><strong>Varianta ${o.n}</strong><span class="cx-vwhere">${o.where}</span></span>
+      </button>`;
+    });
+
+    // Legenda: ce componente se însumează în varianta aleasă.
+    var legend = [html`<li key="u1"><strong>Anexa 1 — linia l_U1</strong> <span class="muted">${cxLineText(u1)}</span></li>`];
+    if (v === 2) {
+      legend.push(html`<li key="eq"><strong>Echipamentele stației</strong> <span class="muted">în cote egale între utilizatorii care au contribuit <${K.RefChip} id="art12.1" /></span></li>`);
+    }
+    if (v >= 3) {
+      legend.push(html`<li key="a2"><strong>Anexa 2 — stația / PT</strong> <span class="muted">${st ? stSn + ' · ' + stIT : 'stație neinclusă'}</span></li>`);
+      legend.push(html`<li key="com"><strong>Echipamentele comune ale stației</strong> <span class="muted">în cote egale</span></li>`);
+    }
+    if (v === 4) {
+      legend.push(html`<li key="u2"><strong>Anexa 1 — linia l_U2</strong> <span class="muted">${cxLineText(u2)}</span></li>`);
+    }
+
+    return html`<section class="cx-scheme" data-variant=${v} aria-labelledby="cx-title">
+      <div class="cx-scheme-head">
+        <strong id="cx-title">Schema de ansamblu</strong>
+        <span class="muted">Punctul de racordare (PR) → linia l_U1 → stația T → linia l_U2. Marcajele 1–4 arată variantele.</span>
+      </div>
+      <div class="cx-canvas">
+        <svg viewBox="0 32 1000 122" aria-hidden="true" focusable="false">
+          <text x="2" y=${baseY + 5} class="cx-pr">PR</text>
+          <circle cx="34" cy=${baseY} r="5" class="cx-pr-dot" />
+          <line x1="34" y1=${baseY} x2="330" y2=${baseY} class=${'cx-line cx-u1' + (u1.list.length ? '' : ' cx-off')} />
+          <text x="182" y=${baseY - 26} class="cx-lab">${'L_U1 · ' + cxLineText(u1)}</text>
+          <line x1="630" y1=${baseY} x2="964" y2=${baseY} class=${'cx-line cx-u2' + (u2.list.length ? '' : ' cx-off')} />
+          <text x="797" y=${baseY - 26} class="cx-lab">${'L_U2 · ' + cxLineText(u2)}</text>
+          <line x1="964" y1=${baseY - 8} x2="964" y2=${baseY + 8} class="cx-tick" />
+          <text x="970" y=${baseY + 4} class="cx-end">capăt</text>
+          ${stationSvg}
+          ${CX_VARIANTS.map(function (o) { return cxMarker(o, v === o.n, baseY); })}
+        </svg>
+      </div>
+      <div class="cx-variants" role="group" aria-label="Varianta punctului de racordare">${buttons}</div>
+      ${warns.length ? html`<ul class="cx-warns">${warns.map(function (w, i) { return html`<li class="cx-warn" key=${i}>${w}</li>`; })}</ul>` : null}
+      <div class="cx-legend">
+        <p class="cx-legend-title">Ce intră în calcul la <strong>varianta ${v}</strong>:</p>
+        <ul>${legend}</ul>
+      </div>
+    </section>`;
+  }
+
   function ComplexView() {
     var p = store.state;
     var c = p.complexConfig;
@@ -356,6 +520,7 @@
           onPicked=${function () { store.set('complex.variantaConfirmata', true); }} />
       <//>
       <p class="hint">${VARIANT_TEXT[v]} <${K.RefChip} id="anexa3" /></p>
+      <${ComplexScheme} />
       <h3>Linii (Anexa 1)</h3>
       <div class="toolbar">
         <button type="button" class="btn" data-guide="btn:add-line" onClick=${function () { store.addLine('u1'); }}>+ Linie l_U1</button>
