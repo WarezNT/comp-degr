@@ -311,6 +311,10 @@
       ${res ? html`<p class="hint">Rezultatul se actualizează automat când modifici datele.</p>` : null}
       <${StatusBlock} />
       <div id="results-region" aria-live="polite">${body}</div>
+      ${ok && store.state.meta.model === 'line' ? html`<div class="print-line-schemes">
+        <h2>Schemele liniilor — Anexa 1</h2>
+        ${store.state.linii.map(function (l) { return html`<${Views.LineReport} l=${l} key=${l.id} />`; })}
+      </div>` : null}
       <${ConditionsCard} />
     <//>`;
   }

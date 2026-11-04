@@ -167,6 +167,7 @@
         det.plati.push({ deLa: p.de, catre: p.catre, suma: p.suma });
         explain(explicatii, p, {
           tip: t.tip === 'stalpi' ? 'stalpi' : 'tronson', sursa: t.nume || t.id,
+          lineId: t.lineId, tronsonId: t.id,
           rule: t.tip === 'stalpi' ? 'art15.1' : 'art12.1'
         });
       });

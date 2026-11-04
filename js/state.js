@@ -472,8 +472,22 @@
         var out = technicalData(z);
         out.id = safeId(z.id, 'zona');
         out.deLa = str(z.deLa);
+        if (l.mod === 'ramuri') out.branchId = str(z.branchId);
         return out;
       });
+      if (l.mod === 'ramuri') {
+        l.ramuri = arr(l.ramuri).filter(isObj).map(function (b) {
+          var out = technicalData(b);
+          out.id = safeId(b.id, 'ramura');
+          out.nume = str(b.nume);
+          out.parentId = str(b.parentId);
+          out.deLa = str(b.deLa);
+          out.L = str(b.L);
+          out.IL = str(b.IL);
+          out.costManual = !!b.costManual;
+          return out;
+        });
+      }
       l.tronsoane = arr(l.tronsoane).filter(isObj);
       l.tronsoane.forEach(function (t) {
         t.id = safeId(t.id, 't');
@@ -492,13 +506,23 @@
       return refs(list).filter(function (id) { return userMap[id]; });
     }
     p.linii.forEach(function (l) {
+      var branchIds = (l.ramuri || []).map(function (b) { return b.id; });
+      function branchRef(id) {
+        var mapped = ref(id);
+        return mapped && branchIds.indexOf(mapped) >= 0 ? mapped : 'ramura-inexistenta';
+      }
+      if (l.mod === 'ramuri') {
+        l.ramuri.forEach(function (b) { if (b.parentId) b.parentId = branchRef(b.parentId); });
+        l.zoneTehnice.forEach(function (z) { z.branchId = branchRef(z.branchId); });
+      }
       l.tronsoane.forEach(function (t) { t.utilizatori = userRefs(t.utilizatori); });
       l.racordari = arr(l.racordari).filter(isObj).map(function (r) {
         r.userId = ref(r.userId);
-        r.distanta = Number(r.distanta) || 0;
+        r.distanta = l.mod === 'ramuri' ? str(r.distanta) : Number(r.distanta) || 0;
+        if (l.mod === 'ramuri') r.branchId = branchRef(r.branchId);
         return r;
       }).filter(function (r) { return r.userId && userMap[r.userId]; });
-      if (l.mod !== 'distante' && l.mod !== 'tronsoane') delete l.mod;
+      if (l.mod !== 'distante' && l.mod !== 'tronsoane' && l.mod !== 'ramuri') delete l.mod;
     });
     p.statii.forEach(function (s) { s.utilizatori = userRefs(s.utilizatori); });
 
@@ -542,6 +566,7 @@
       if (!Array.isArray(l.racordari)) l.racordari = [];
       // sanitize() normalizează și proiectele vechi fără date descriptive.
       if (!Array.isArray(l.zoneTehnice)) l.zoneTehnice = [];
+      if (l.mod === 'ramuri' && !Array.isArray(l.ramuri)) l.ramuri = [];
       (l.tronsoane || []).forEach(function (t) {
         if (t.costManual === undefined) t.costManual = false;
       });

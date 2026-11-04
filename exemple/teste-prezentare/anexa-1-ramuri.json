@@ -1,0 +1,48 @@
+{
+  "meta": {
+    "operator": "Operator demonstrativ — rețea ramificată",
+    "dataCalcul": "2026-11-04",
+    "tva": 21,
+    "withTva": true,
+    "model": "line",
+    "modelConfirmat": true,
+    "exemplu": true
+  },
+  "utilizatori": [
+    { "id": "u1", "codPA": "RADIAL-01", "nume": "U1 — finanțator, ramura A", "putere": 100, "rol": "prim", "dataContract": "2023-01-10", "dataATR": "2022-12-01", "dataTR": "2023-01-15" },
+    { "id": "u2", "codPA": "RADIAL-02", "nume": "U2 — existent, ramura B", "putere": 60, "rol": "existent", "dataContract": "2024-01-10", "dataATR": "2023-12-01", "dataTR": "2024-01-15" },
+    { "id": "u3", "codPA": "RADIAL-03", "nume": "U3 — nou pe subramura A1", "putere": 80, "rol": "nou", "dataContract": "2026-02-10", "dataATR": "2026-01-10", "dataTR": "2026-02-15" },
+    { "id": "u4", "codPA": "RADIAL-04", "nume": "U4 — nou pe ramura B", "putere": 50, "rol": "nou", "dataContract": "2026-09-10", "dataATR": "2026-08-10", "dataTR": "2026-09-15" }
+  ],
+  "linii": [{
+    "id": "radial",
+    "nume": "Plecare JT — ramuri A, B și subramura A1",
+    "mod": "ramuri",
+    "IL": 2640,
+    "punctRacordare": { "tip": "post", "denumire": "PT RADIAL DEMO", "tensiune": 0.4, "observatii": "Rețea fictivă fără bucle." },
+    "ramuri": [
+      { "id": "root", "nume": "Linia principală", "parentId": "", "deLa": 0, "L": 100, "costManual": false, "tipLinie": "LES", "conductor": "ACYY", "sectiune": 150 },
+      { "id": "a", "nume": "Ramura A", "parentId": "root", "deLa": 100, "L": 60, "costManual": false, "tipLinie": "LEA", "conductor": "AAC", "sectiune": 70 },
+      { "id": "b", "nume": "Ramura B", "parentId": "root", "deLa": 100, "L": 40, "costManual": false, "tipLinie": "LES", "conductor": "ACYY", "sectiune": 95 },
+      { "id": "a1", "nume": "Subramura A1", "parentId": "a", "deLa": 30, "L": 20, "costManual": true, "IL": 240, "tipLinie": "LES", "conductor": "ACYY", "sectiune": 70 }
+    ],
+    "racordari": [
+      { "userId": "u1", "branchId": "a", "distanta": 60 },
+      { "userId": "u2", "branchId": "b", "distanta": 40 },
+      { "userId": "u3", "branchId": "a1", "distanta": 20 },
+      { "userId": "u4", "branchId": "b", "distanta": 40 }
+    ],
+    "zoneTehnice": [],
+    "tronsoane": []
+  }],
+  "conditii": {
+    "primCapacitateMaiMare": true,
+    "capacitateDisponibila": true,
+    "dataPIF": "2023-02-01",
+    "solutieComuna": true,
+    "verificate": true,
+    "tarifAchitatIntegral": true,
+    "fonduriPublice": false,
+    "calcInformativ": false
+  }
+}

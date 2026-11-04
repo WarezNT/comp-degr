@@ -24,6 +24,7 @@
   <script src="../js/help.js"></script>
   <script src="../js/select.js"></script>
   <script src="../js/state.js"></script>
+  <script src="../js/tree.js"></script>
   <script src="../js/validate.js"></script>
   <script src="../js/engine.js"></script>
   <script src="../js/calc.js"></script>
@@ -33,6 +34,7 @@
   <script src="../js/ui/views_select.js"></script>
   <script src="../js/ui/views_basic.js"></script>
   <script src="../js/ui/views_install.js"></script>
+  <script src="../js/ui/views_tree.js"></script>
   <script src="../js/ui/views_results.js"></script>
   <script src="../js/ui/app.js"></script>
   <script>
@@ -1165,6 +1167,220 @@
         window.AppUI.store.convertLine('l');
         var l = window.AppUI.getState().linii[0];
         if (l.zoneTehnice.length !== 2 || l.tronsoane.length !== 2 || l.tronsoane[1].tipLinie !== 'LEA') throw new Error('caracteristici sau limite pierdute');
+      });
+
+      test('Explicații: identifică linia și tronsonul, chiar cu denumiri identice', function () {
+        var p = emptyOk();
+        window.AppState.addUser(p, { id: 'prim', rol: 'prim' });
+        window.AppState.addUser(p, { id: 'nou', rol: 'nou' });
+        p.linii = ['l1', 'l2'].map(function (id, i) {
+          return { id: id, nume: 'Aceeași denumire', L: 100, IL: (i + 1) * 1000, mod: 'distante',
+            racordari: [{ userId: 'prim', distanta: 100 }, { userId: 'nou', distanta: 100 }], tronsoane: [] };
+        });
+        window.AppCalc.deriveAll(p);
+        var result = window.AppCalc.runCalculation(p);
+        if (result.error) throw new Error(result.error);
+        p.linii.forEach(function (l, i) {
+          var items = result.explicatii.filter(function (e) { return e.lineId === l.id; });
+          if (items.length !== 1 || items[0].tronsonId !== l.tronsoane[0].id ||
+            items[0].suma !== (i + 1) * 500) throw new Error('asociere greșită cu linia/tronsonul');
+        });
+        if (result.central.totalFaraTVA !== 1500) throw new Error('total modificat');
+      });
+
+      test('Explicații: respectă ordinea noilor utilizatori și regimul tranzitoriu', function () {
+        var p = emptyOk();
+        window.AppState.addUser(p, { id: 'prim', rol: 'prim', dataContract: '2015-01-01' });
+        window.AppState.addUser(p, { id: 'ignorat', rol: 'existent', dataContract: '2015-02-01' });
+        window.AppState.addUser(p, { id: 'nou1', rol: 'nou' });
+        window.AppState.addUser(p, { id: 'nou2', rol: 'operator' });
+        p.linii = [{ id: 'l', L: 100, IL: 1200, compVeche: 600, mod: 'distante',
+          racordari: p.utilizatori.map(function (u) { return { userId: u.id, distanta: 100 }; }), tronsoane: [] }];
+        window.AppCalc.deriveAll(p);
+        var result = window.AppCalc.runCalculation(p);
+        if (result.error) throw new Error(result.error);
+        var first = result.explicatii.filter(function (e) { return e.de === 'nou1'; });
+        var second = result.explicatii.filter(function (e) { return e.de === 'nou2'; });
+        if (first.length !== 1 || first[0].cost !== 600 || first[0].suma !== 300 ||
+          first[0].inainte !== 1 || first[0].dupa !== 2) throw new Error('primul nou / cost net incorect');
+        if (second.length !== 2 || second.some(function (e) {
+          return e.suma !== 100 || e.inainte !== 2 || e.dupa !== 3 || e.catre === 'ignorat' ||
+            e.lineId !== 'l' || e.tronsonId !== p.linii[0].tronsoane[0].id;
+        })) throw new Error('ordinea sau excluderile ignorate');
+      });
+
+      function treeProject() {
+        var p = emptyOk();
+        window.AppState.addUser(p, { id: 'prim', rol: 'prim', nume: 'Prim' });
+        window.AppState.addUser(p, { id: 'existent', rol: 'existent', nume: 'Existent' });
+        window.AppState.addUser(p, { id: 'nou', rol: 'nou', nume: 'Nou' });
+        p.linii = [{ id: 'retea', nume: 'Rețea', IL: 2640, mod: 'ramuri', ramuri: [
+          { id: 'root', nume: 'Principală', parentId: '', L: 100 },
+          { id: 'a', nume: 'A', parentId: 'root', deLa: 100, L: 60 },
+          { id: 'b', nume: 'B', parentId: 'root', deLa: 100, L: 40 },
+          { id: 'sub', nume: 'Sub A', parentId: 'a', deLa: 30, L: 20 }
+        ], racordari: [
+          { userId: 'prim', branchId: 'a', distanta: 60 },
+          { userId: 'existent', branchId: 'b', distanta: 40 },
+          { userId: 'nou', branchId: 'sub', distanta: 20 }
+        ], tronsoane: [], zoneTehnice: [] }];
+        window.AppCalc.deriveAll(p);
+        return p;
+      }
+
+      test('Ramuri: lungime fizică, cost unic și traseu numai prin strămoși', function () {
+        var p = treeProject(), l = p.linii[0], tree = window.AppTree.analyze(l);
+        if (tree.errors.length || l.L !== 220 || tree.rate !== 12) throw new Error('lungime/tarif incorect');
+        if (l.tronsoane.reduce(function (s, t) { return s + t.cost; }, 0) !== 2640) throw new Error('cost dublat');
+        var path = l.tronsoane.filter(function (t) { return t.utilizatori.indexOf('nou') >= 0; });
+        if (path.map(function (t) { return t.branchId; }).join() !== 'root,a,sub' ||
+          path.reduce(function (s, t) { return s + t.lungime; }, 0) !== 150) throw new Error('traseu greșit');
+        var result = window.AppCalc.runCalculation(p);
+        if (result.error || result.central.totalFaraTVA !== 580) throw new Error(result.error || 'compensație incorectă');
+        if (result.explicatii.some(function (e) {
+          return l.tronsoane.some(function (t) { return t.id === e.tronsonId && t.branchId === 'b'; });
+        })) throw new Error('plată pe ramură soră');
+      });
+
+      test('Subramuri: desprindere în interior, racordare la 0 și lungimi zecimale', function () {
+        var p = treeProject(), l = p.linii[0];
+        l.ramuri[3].deLa = 12.5; l.racordari[2].distanta = 0;
+        window.AppCalc.deriveAll(p);
+        var tree = window.AppTree.analyze(l);
+        if (tree.errors.length || tree.routes[2].distance !== 112.5) throw new Error('traseu la origine incorect');
+        var used = l.tronsoane.filter(function (t) { return t.utilizatori.indexOf('nou') >= 0; });
+        if (used.length !== 2 || used[1].lungime !== 12.5 || used.some(function (t) { return t.branchId === 'sub'; })) throw new Error('alocare la 0 incorectă');
+        if (window.AppCalc.runCalculation(p).central.totalFaraTVA !== 475) throw new Error('cost zecimal incorect');
+      });
+
+      test('Ramuri: cost propriu inclus în I_L și rest repartizat numai pe ramuri automate', function () {
+        var p = treeProject(), l = p.linii[0];
+        l.ramuri[2].costManual = true; l.ramuri[2].IL = 840;
+        window.AppCalc.deriveAll(p);
+        if (window.AppCalc.lineBl(l) !== 10 || l.tronsoane.filter(function (t) { return t.branchId === 'b'; })[0].cost !== 840) throw new Error('tarif propriu greșit');
+        if (l.tronsoane.reduce(function (sum, t) { return sum + t.cost; }, 0) !== 2640) throw new Error('buget neconservat');
+        if (window.AppCalc.runCalculation(p).central.totalFaraTVA !== 483.34) throw new Error('centralizator greșit');
+        l.ramuri.forEach(function (b) { b.costManual = true; b.IL = 0; });
+        if (!window.AppTree.analyze(l).errors.some(function (e) { return /suma lor/.test(e); })) throw new Error('buget propriu incomplet acceptat');
+        l.ramuri[0].IL = 2640;
+        if (window.AppTree.analyze(l).errors.length) throw new Error('buget complet refuzat');
+        l.ramuri[0].IL = 2641;
+        if (!window.AppTree.analyze(l).errors.some(function (e) { return /depășesc/.test(e); })) throw new Error('buget depășit acceptat');
+      });
+
+      test('Ramuri: bucle, părinți inexistenți, origini multiple și intervale invalide blochează calculul', function () {
+        var cases = [
+          function (l) { l.ramuri[1].parentId = 'sub'; },
+          function (l) { l.ramuri[1].parentId = 'absent'; },
+          function (l) { l.ramuri[1].parentId = ''; },
+          function (l) { l.ramuri[1].deLa = 101; },
+          function (l) { l.ramuri[1].L = 0; },
+          function (l) { l.ramuri[1].L = 'abc'; },
+          function (l) { l.racordari[0].distanta = 61; },
+          function (l) { l.racordari[0].branchId = 'absent'; },
+          function (l) { l.ramuri[2].id = 'a'; },
+          function (l) { l.racordari.push({ userId: 'nou', branchId: 'b', distanta: 10 }); }
+        ];
+        cases.forEach(function (change, i) {
+          var p = treeProject(); change(p.linii[0]); window.AppCalc.deriveAll(p);
+          if (!window.AppTree.analyze(p.linii[0]).errors.length || !window.AppCalc.runCalculation(p).error ||
+            p.linii[0].tronsoane.length) throw new Error('cas invalide acceptat: ' + i);
+        });
+      });
+
+      test('Ramuri: limite tehnice locale, fără influență asupra racordărilor și compensației', function () {
+        var p = treeProject(), l = p.linii[0];
+        l.ramuri[1].tipLinie = 'LES';
+        l.zoneTehnice = [{ id: 'z', branchId: 'a', deLa: 15, tipLinie: 'LEA', conductor: 'AAC' }];
+        window.AppCalc.deriveAll(p);
+        var a = l.tronsoane.filter(function (t) { return t.branchId === 'a'; });
+        if (a.length !== 3 || a[0].tipLinie !== 'LES' || a[1].tipLinie !== 'LEA' ||
+          window.AppCalc.runCalculation(p).central.totalFaraTVA !== 580) throw new Error('limite sau calcule incorecte');
+        l.zoneTehnice.push({ id: 'z2', branchId: 'a', deLa: 15 });
+        if (!window.AppTree.analyze(l).errors.length) throw new Error('duplicate acceptate');
+        l.zoneTehnice[1].branchId = 'b';
+        if (window.AppTree.analyze(l).errors.length) throw new Error('aceeași distanță pe altă ramură refuzată');
+        l.zoneTehnice[1].deLa = 40;
+        if (!window.AppTree.analyze(l).errors.length) throw new Error('limită la capăt acceptată');
+      });
+
+      test('Ramuri: migrare JSON remapează părinți, racordări și limite; import invalid rămâne invalid', function () {
+        var p = treeProject(), l = p.linii[0];
+        l.ramuri[0].id = 'root spațiu';
+        l.ramuri[1].parentId = 'root spațiu'; l.ramuri[2].parentId = 'root spațiu';
+        l.zoneTehnice.push({ id: 'z', branchId: 'a', deLa: 10 });
+        var copy = window.AppState.migrate(JSON.parse(JSON.stringify(p)));
+        window.AppCalc.deriveAll(copy);
+        if (copy.linii[0].ramuri[1].parentId !== 'root_spa_iu' || window.AppTree.analyze(copy.linii[0]).errors.length ||
+          window.AppCalc.runCalculation(copy).central.totalFaraTVA !== 580) throw new Error('referințe pierdute');
+        p.linii[0].racordari[0].distanta = 'nu';
+        copy = window.AppState.migrate(JSON.parse(JSON.stringify(p)));
+        if (!window.AppTree.analyze(copy.linii[0]).errors.length) throw new Error('distanță invalidă normalizată la 0');
+      });
+
+      test('Ramuri: noii utilizatori rămân secvențiali și păstrează factorul tranzitoriu', function () {
+        var p = treeProject();
+        window.AppState.addUser(p, { id: 'nou2', rol: 'nou' });
+        p.linii[0].racordari.push({ userId: 'nou2', branchId: 'b', distanta: 40 });
+        window.AppCalc.deriveAll(p);
+        var result = window.AppCalc.runCalculation(p);
+        if (result.error || result.central.perNou.nou.faraTVA !== 580 || result.central.perNou.nou2.faraTVA !== 540) throw new Error('ordine sau plăți incorecte');
+        p.utilizatori[0].dataContract = '2015-01-01'; p.linii[0].compVeche = 1320;
+        result = window.AppCalc.runCalculation(p);
+        if (result.error || result.central.totalFaraTVA !== 560) throw new Error('factor tranzitoriu greșit');
+      });
+
+      test('Ramuri: conversie explicită păstrează calculul, zonele și undo', function () {
+        var p = treeProject(), l = p.linii[0];
+        l.mod = 'distante'; l.L = 100; l.IL = 1200;
+        l.racordari = [{ userId: 'prim', distanta: 100 }, { userId: 'existent', distanta: 100 }, { userId: 'nou', distanta: 60 }];
+        l.zoneTehnice = [{ id: 'z', deLa: 15, tipLinie: 'LES' }];
+        window.AppUI.setProject(p);
+        var before = window.AppUI.calculate().central.totalFaraTVA;
+        if (!window.AppUI.store.convertTree('retea')) throw new Error('conversie refuzată');
+        l = window.AppUI.getState().linii[0];
+        if (l.mod !== 'ramuri' || l.ramuri.length !== 1 || l.zoneTehnice[0].branchId !== l.ramuri[0].id ||
+          window.AppUI.calculate().central.totalFaraTVA !== before) throw new Error('date/calcule modificate');
+        window.AppUI.undo();
+        if (window.AppUI.getState().linii[0].mod !== 'distante' || window.AppUI.calculate().central.totalFaraTVA !== before) throw new Error('undo incorect');
+      });
+
+      test('Ramuri: ștergerea elimină numai subarborele și undo reface racordările', function () {
+        window.AppUI.setProject(treeProject());
+        var store = window.AppUI.store;
+        if (!store.delBranch('retea', 'a')) throw new Error('ștergere refuzată');
+        var l = store.state.linii[0];
+        if (l.ramuri.map(function (b) { return b.id; }).join() !== 'root,b' ||
+          l.racordari.map(function (r) { return r.userId; }).join() !== 'existent') throw new Error('referințe orfane');
+        store.undo();
+        if (store.state.linii[0].ramuri.length !== 4 || store.state.linii[0].racordari.length !== 3) throw new Error('undo incomplet');
+        if (store.editTree('retea', function (next) { next.ramuri[1].parentId = 'sub'; }) !== false) throw new Error('buclă salvată');
+      });
+
+      test('Ramuri: import cu mai multe erori permite corectarea lor pe rând, fără calcul parțial', function () {
+        var p = treeProject();
+        p.linii[0].racordari[0].distanta = 61;
+        p.linii[0].racordari[1].distanta = 41;
+        window.AppUI.setProject(p);
+        var store = window.AppUI.store;
+        if (!store.editTree('retea', function (next) { next.racordari[0].distanta = 60; })) throw new Error('corectare parțială refuzată');
+        if (!window.AppCalc.runCalculation(store.state).error) throw new Error('calcul invalid acceptat');
+        if (!store.editTree('retea', function (next) { next.racordari[1].distanta = 40; }) ||
+          window.AppCalc.runCalculation(store.state).central.totalFaraTVA !== 580) throw new Error('corectare finală eșuată');
+      });
+
+      test('Ramuri: o linie nouă se poate converti înaintea racordărilor și refuză distanțele invalide', function () {
+        window.AppUI.setProject(emptyOk());
+        var store = window.AppUI.store;
+        store.addLine();
+        var l = store.state.linii[0];
+        store.set('line.' + l.id + '.L', 100);
+        store.set('line.' + l.id + '.IL', 1200);
+        if (!store.convertTree(l.id) || store.state.linii[0].ramuri.length !== 1) throw new Error('conversie linie nouă eșuată');
+        store.undo();
+        l = store.state.linii[0];
+        l.racordari = [{ userId: 'absent', distanta: 101 }];
+        if (store.convertTree(l.id) !== false || l.mod !== 'distante') throw new Error('conversie invalidă salvată');
       });
 
       var s = document.createElement('div');

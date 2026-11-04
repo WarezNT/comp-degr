@@ -18,6 +18,9 @@
 
   function users() { return store.state.utilizatori; }
   function uName(u) { return u.nume || u.codPA || 'fără nume'; }
+  function reportUserLabel(id) {
+    return 'U' + (users().map(function (u) { return u.id; }).indexOf(id) + 1);
+  }
 
   /* ----------------------- prevederi tranzitorii (art. 17–18) ----------------------- */
 
@@ -116,7 +119,7 @@
           </div>`;
         })}
         <button type="button" class="btn tiny" onClick=${function () { store.addTechnicalZone(l.id); }}>+ Zonă tehnică</button>
-      </div>` : html`<div>
+      </div>` : l.mod === 'ramuri' ? html`<p class="hint">Caracteristicile și limitele tehnice se editează în inspectorul fiecărei ramuri.</p>` : html`<div>
         <p class="hint">În modul manual, caracteristicile se completează direct pe fiecare tronson. Limitele sunt cele din tabel.</p>
         ${(l.tronsoane || []).filter(function (t) { return t.tip !== 'stalpi'; }).map(function (t) {
           return html`<details class="advanced" key=${t.id}><summary>${t.nume || t.id} — caracteristici</summary>
@@ -127,7 +130,7 @@
   }
 
   // Limitele și racordările, indiferent de mod (distanțe sau tronsoane clasice).
-  function lineGeo(l) {
+  function lineGeo(l, report) {
     var L = Number(l.L) || 0;
     var rec = [], bounds = [];
     if (l.mod === 'distante') {
@@ -138,6 +141,7 @@
       (l.tronsoane || []).forEach(function (t) {
         if (!t || t.tip === 'stalpi') return;
         cum += Number(t.lungime) || 0;
+        if (report && cum > 0 && bounds.indexOf(cum) < 0) bounds.push(cum);
         (t.utilizatori || []).forEach(function (u) { dist[u] = cum; });
       });
       rec = Object.keys(dist).map(function (u) { return { userId: u, distanta: dist[u] }; });
@@ -157,7 +161,7 @@
 
   function LineDiagram(props) {
     var l = props.l;
-    var g = lineGeo(l);
+    var g = lineGeo(l, props.report);
     var drag = useRef(null);
     var editable = l.mod === 'distante';
     var selected = g.rec.filter(function (r) { return r.userId === props.selectedId; })[0];
@@ -199,19 +203,24 @@
         tipLinie: technical.tipLinie || '', technical: technical, tronson: tronson });
       prev = b;
     });
+    var segmentOffset = props.segmentOffset || 0;
+    if (props.report) segsData = segsData.slice(segmentOffset, segmentOffset + 3);
+    if (!segsData.length) return null;
+    var firstDistance = segsData[0].from;
+    var lastDistance = segsData[segsData.length - 1].to;
     var distorted = false;
     segsData.forEach(function (s) {
       var prop = g.L > 0 ? (s.len / g.L) * AVAIL : 0;
-      s.w = Math.max(MINW, prop);
+      s.w = props.report ? 180 : Math.max(MINW, prop);
       if (prop < MINW) distorted = true;
     });
-    var totalW = pad * 2 + segsData.reduce(function (a, s) { return a + s.w; }, 0);
+    var totalW = pad * 2 + (props.report ? 540 : segsData.reduce(function (a, s) { return a + s.w; }, 0));
 
     // Poziția fiecărei limite (distanțe) în pixeli.
-    var pos = {}; pos[0] = pad;
+    var pos = {}; pos[firstDistance] = pad;
     var acc = pad;
     segsData.forEach(function (s) { acc += s.w; pos[s.to] = acc; });
-    var endX = pos[g.L];
+    var endX = pos[lastDistance];
     segsData.forEach(function (s) { s.x1 = pos[s.from]; s.x2 = pos[s.to]; });
     function xOf(d) { return pos[d] !== undefined ? pos[d] : pad; }
     function distToX(d) {
@@ -354,6 +363,7 @@
     var segs = segsData.map(function (s, i) {
       var x1 = pos[s.from], x2 = pos[s.to], xm = (x1 + x2) / 2;
       var t = s.tronson || {};
+      var contribution = props.contributions && props.contributions[t.id];
       var selectedSegment = props.selectedTronsonId === t.id;
       var segName = t.nume || ('Tronson ' + (i + 1));
       var startLabel = s.from.toLocaleString('ro-RO') + ' m';
@@ -365,6 +375,7 @@
         <line x1=${x1} y1=${baseY} x2=${x2} y2=${baseY}
           class=${'dl-seg' + (s.tipLinie ? ' tip-' + s.tipLinie : '') +
             (selected && selected.distanta >= s.to ? ' dl-route' : '') +
+            (contribution ? ' dl-compensated' : '') +
             (selectedSegment ? ' dl-segment-selected' : '')} />
         ${props.onPlace ? html`<line x1=${x1} y1=${baseY} x2=${x2} y2=${baseY} class="dl-place"
           tabindex="0" role="button" aria-label=${segName + ', ' + startLabel + '–' + endLabel + '. ' + clickLabel}
@@ -384,15 +395,18 @@
         </line>` : null}
         ${selectedSegment ? html`<text x=${xm} y=${baseY + 53} class="dl-inspector-label">Selectat</text>` : null}
         <line x1=${x1} y1=${baseY - 6} x2=${x1} y2=${baseY + 6} class="dl-tick" />
-        <text x=${xm} y=${baseY - 34} class="dl-tnum">T${i + 1}</text>
+        <text x=${xm} y=${baseY - 34} class="dl-tnum">T${segmentOffset + i + 1}</text>
+        ${contribution ? html`<text x=${xm} y=${baseY - 50} class="dl-compensation-label">Comp. ${money(contribution.total)} lei</text>` : null}
         <text x=${xm} y=${baseY - 18} class="dl-lab">${money(s.len)} m · ${money(s.cost)} lei</text>
       </g>`;
     });
-    var zoneMarkers = technicalZones.filter(function (zone) { return Number(zone.deLa) > 0; }).map(function (zone) {
+    var zoneMarkers = technicalZones.filter(function (zone) {
+      return Number(zone.deLa) > 0 && Number(zone.deLa) >= firstDistance && Number(zone.deLa) <= lastDistance;
+    }).map(function (zone) {
       var x = distToX(Number(zone.deLa));
       var selectedZone = zone.id === props.selectedZoneId;
       return html`<g key=${zone.id} class=${'dl-zone-handle' + (selectedZone ? ' dl-zone-selected' : '')}
-        tabindex="0" role="button" aria-pressed=${selectedZone}
+        tabindex=${props.report ? null : '0'} role=${props.report ? null : 'button'} aria-pressed=${props.report ? null : selectedZone}
         aria-label=${'Limită tehnică la ' + zone.deLa + ' m'}
         onPointerDown=${function (e) { onZoneDown(e, zone); }}
         onPointerMove=${onMove} onPointerUp=${function (e) { onEnd(e, false); }}
@@ -407,7 +421,9 @@
 
     // Utilizatori: la aceeași distanță, etichetele se stivuiesc vertical.
     var seen = {};
-    var sorted = g.rec.slice().sort(function (a, b) { return a.distanta - b.distanta; });
+    var sorted = g.rec.filter(function (r) {
+      return r.distanta >= firstDistance && r.distanta <= lastDistance;
+    }).sort(function (a, b) { return a.distanta - b.distanta; });
     var usersG = sorted.map(function (r, i) {
       var d = Number(r.distanta);
       var cx = xOf(d);
@@ -429,11 +445,11 @@
               if (next !== d) { store.pushUndo(); store.setRacordare(l.id, r.userId, next); }
             }
           }}
-          onPointerDown=${function (e) { onDown(e, r); }}
+          onPointerDown=${function (e) { if (!props.report) onDown(e, r); }}
           onPointerMove=${onMove} onPointerUp=${function (e) { onEnd(e, false); }}
           onPointerCancel=${function (e) { onEnd(e, true); }}
           onLostPointerCapture=${function (e) { onEnd(e, true); }} />
-        <text x=${cx} y=${y0} class="dl-name">${userName(r.userId)}</text>
+        <text x=${cx} y=${y0} class="dl-name">${props.report ? reportUserLabel(r.userId) : userName(r.userId)}</text>
         <text x=${cx} y=${y0 + 15} class="dl-m">${d} m</text>
       </g>`;
     });
@@ -449,23 +465,24 @@
 
     return html`<div class="diagram-wrap">
       <svg class="diagram" viewBox=${'0 0 ' + totalW + ' ' + H}
-        style=${totalW > 900 ? { minWidth: totalW + 'px' } : null}
+        style=${!props.report && totalW > 900 ? { minWidth: totalW + 'px' } : null}
         role=${props.onSelect ? 'group' : 'img'} aria-label="Schema liniei, de la punctul de racordare la capăt">
-        <text x="6" y=${baseY - 13} class="dl-origin-label">PR · ${prTypeLabel((l.punctRacordare || {}).tip)}</text>
-        <text x="6" y=${baseY + 4} class="dl-origin-name">${(l.punctRacordare || {}).denumire || 'Origine linie'}</text>
-        <text x="6" y=${baseY + 20} class="dl-origin-voltage">${(l.punctRacordare || {}).tensiune ? l.punctRacordare.tensiune + ' kV' : ''}</text>
-        <${PRSymbol} x=${pad - 22} y=${baseY} data=${l.punctRacordare || {}} />
-        <line x1=${pos[0]} y1=${baseY} x2=${endX} y2=${baseY} class="dl-base" />
+        ${firstDistance === 0 ? html`<text x="6" y=${baseY - 13} class="dl-origin-label">PR · ${prTypeLabel((l.punctRacordare || {}).tip)}</text>
+          <text x="6" y=${baseY + 4} class="dl-origin-name">${(l.punctRacordare || {}).denumire || 'Origine linie'}</text>
+          <text x="6" y=${baseY + 20} class="dl-origin-voltage">${(l.punctRacordare || {}).tensiune ? l.punctRacordare.tensiune + ' kV' : ''}</text>
+          <${PRSymbol} x=${pad - 22} y=${baseY} data=${l.punctRacordare || {}} />` :
+          html`<text x="6" y=${baseY} class="dl-origin-label">Continuare de la ${firstDistance} m</text>`}
+        <line x1=${pad} y1=${baseY} x2=${endX} y2=${baseY} class="dl-base" />
         ${segs}
         ${zoneMarkers}
         <line x1=${endX} y1=${baseY - 6} x2=${endX} y2=${baseY + 6} class="dl-tick" />
         ${usersG}
       </svg>
     </div>
-    <ol class="diagram-vlist" aria-label="Tronsoane (listă)">${vlist}</ol>
+    ${props.report ? null : html`<ol class="diagram-vlist" aria-label="Tronsoane (listă)">${vlist}</ol>
     <p class="hint">${distorted ? 'Schemă orientativă — nu este la scară (segmentele scurte au lățime minimă). ' : ''}
       ${props.tool === 'zones' ? 'Apasă pe linie pentru a adăuga o limită; trage un marcaj pentru a-l muta. Distanța exactă se editează în inspector.' :
-        editable ? 'Trage de cerc pentru a muta un utilizator pe linie. Distanțele numerice determină calculul.' : 'Schemă orientativă; alocările se editează în tabel.'}</p>`;
+        editable ? 'Trage de cerc pentru a muta un utilizator pe linie. Distanțele numerice determină calculul.' : 'Schemă orientativă; alocările se editează în tabel.'}</p>`}`;
   }
 
   function RacordareInput(props) {
@@ -524,6 +541,17 @@
     var u = S.findUser(store.state, selectedId);
     var selectedTronson = (l.tronsoane || []).filter(function (t) { return t.id === selectedTronsonId; })[0];
     var selectedZone = (l.zoneTehnice || []).filter(function (z) { return z.id === selectedZoneId; })[0];
+    var compensation = u && S.newIds(store.state).indexOf(u.id) >= 0 && store.state.meta.model === 'line'
+      ? C.runCalculation(store.state) : null;
+    var contributions = Object.create(null);
+    if (compensation && !compensation.error) {
+      (compensation.explicatii || []).forEach(function (item) {
+        if (item.de !== u.id || item.lineId !== l.id) return;
+        if (!contributions[item.tronsonId]) contributions[item.tronsonId] = { total: 0, items: [] };
+        contributions[item.tronsonId].total += item.suma;
+        contributions[item.tronsonId].items.push(item);
+      });
+    }
     function moveZone(id, d) {
       var moved = store.moveTechnicalZone(l.id, id, d);
       if (!moved) store.toast('Limita nu poate coincide cu o altă limită sau depăși linia.', 'error');
@@ -583,6 +611,7 @@
         </div>
         <${LineLegend} />
         ${Number(l.L) > 0 ? html`<${LineDiagram} l=${l} selectedId=${selectedId} selectedTronsonId=${selectedTronsonId}
+          contributions=${contributions}
           selectedZoneId=${selectedZoneId}
           tool=${tool} onSelect=${function (id) { select(id); selectTronson(''); selectZone(''); }}
           onSelectZone=${function (id) { selectZone(id); selectTronson(''); }}
@@ -602,7 +631,10 @@
           }} />` : html`<p class="hint">Completează lungimea totală L de mai sus pentru a desena linia.</p>`}
         <p class="hint">Selectează un tronson pentru detalii; pentru o racordare, selectează utilizatorul și schimbă acțiunea.
           Din tastatură, folosește Tab și Enter. Poziția grafică nu stabilește rolul sau ordinea racordării.</p>
+        ${compensation ? html`<${LineCompensation} l=${l} user=${u} result=${compensation} contributions=${contributions}
+          onSelect=${function (id) { selectTronson(id); selectZone(''); setTool('inspect'); }} />` : null}
         <${TronsonTable} l=${l} selectedId=${selectedId} selectedTronsonId=${selectedTronsonId}
+          contributions=${contributions}
           onSelect=${function (id) { selectTronson(id); selectZone(''); }} />
       </section>
       <section class="scheme-properties" aria-label=${selectedZone ? 'Proprietăți zonă tehnică' : selectedTronson ? 'Proprietăți tronson' : 'Proprietăți utilizator'}>
@@ -641,6 +673,92 @@
       <li><span class="dl-legend-line unknown"></span>Tip nespecificat / altul</li>
       <li><span class="dl-zone-key">◆</span>Limită tehnică</li>
     </ul>`;
+  }
+
+  function LineCompensation(props) {
+    var result = props.result;
+    if (result.error) return html`<section class="line-compensation">
+      <h3>Compensația pentru ${uName(props.user)}</h3>
+      <p class="warn">${result.blocked ? 'Calcul blocat: condițiile cumulative nu sunt îndeplinite.' : 'Datele proiectului trebuie corectate înainte de calcul.'}</p>
+      <p>${result.error}</p>
+      <button type="button" class="btn tiny" onClick=${function () { store.calculate(); store.setTab('rezultate'); }}>Verifică în Rezultate</button>
+    </section>`;
+    var entries = (props.l.tronsoane || []).filter(function (t) { return !!props.contributions[t.id]; });
+    var total = entries.reduce(function (sum, t) { return sum + props.contributions[t.id].total; }, 0);
+    var informative = (result.conditions || []).some(function (c) { return !c.ok; });
+    var projectTotal = result.central.perNou[props.user.id];
+    return html`<section class="line-compensation" aria-label="Explicația vizuală a compensației">
+      <h3>Compensația pentru ${uName(props.user)}</h3>
+      ${informative ? html`<p class="warn"><strong>INFORMATIV — condițiile nu sunt îndeplinite; sumele nu sunt datorate.</strong></p>` : null}
+      <p><strong class="line-compensation-total">Total pe această linie: ${money(total)} lei fără TVA</strong></p>
+      <p class="hint">Tronsoanele care contribuie la plată sunt marcate cu roșu și „Comp.”.
+        Albastrul indică traseul utilizatorului, nu automat o compensație.
+        Sumele sunt preluate din motorul de calcul, în ordinea utilizatorilor noi din proiect.</p>
+      ${entries.length ? html`<ul class="line-compensation-items">${entries.map(function (t) {
+        var entry = props.contributions[t.id];
+        return html`<li key=${t.id}>
+          <button type="button" class="linkish" onClick=${function () { props.onSelect(t.id); }}>${t.nume || t.id}</button>
+          <strong> — ${money(entry.total)} lei</strong>
+          <ul>${entry.items.map(function (item) {
+            return html`<li>Către ${userName(item.catre)}:
+              ${money(item.cost)} / ${item.inainte} − ${money(item.cost)} / ${item.dupa}
+              = <strong>${money(item.suma)} lei</strong> <${K.RefChip} id=${item.rule} /></li>`;
+          })}</ul>
+        </li>`;
+      })}</ul>` : html`<p>Nicio compensație de plată pe această linie pentru utilizatorul selectat.</p>`}
+      <p class="hint">Total în proiect (toate liniile): ${money(projectTotal ? projectTotal.faraTVA : 0)} lei fără TVA.
+        Centralizatorul rotunjește sumele cumulate pe beneficiar; valorile afișate pe tronsoane pot avea diferențe de rotunjire.</p>
+    </section>`;
+  }
+
+  function LineReport(props) {
+    var l = props.l;
+    if (l.mod === 'ramuri') return html`<${V.TreeReport} l=${l} />`;
+    var g = lineGeo(l, true);
+    var chunks = [];
+    for (var i = 0; i < g.bounds.length; i += 3) chunks.push(i);
+    var pr = l.punctRacordare || {};
+    var from = 0;
+    var reportUsers = users().filter(function (u) {
+      return g.rec.some(function (r) { return r.userId === u.id; }) ||
+        (l.tronsoane || []).some(function (t) { return (t.utilizatori || []).indexOf(u.id) >= 0; });
+    });
+    return html`<section class="line-report">
+      <h3>Schema liniei — ${l.nume || l.id}</h3>
+      <p>PR: ${prTypeLabel(pr.tip)} · ${pr.denumire || 'denumire nespecificată'}
+        ${pr.tensiune ? ' · ' + pr.tensiune + ' kV' : ''}${pr.observatii ? ' · ' + pr.observatii : ''}</p>
+      <p class="hint">Schemă orientativă, nu este la scară. Distanțele sunt măsurate de la PR.
+        ${l.mod !== 'distante' ? 'În modul manual, cercul indică ultimul tronson al utilizatorului; alocările exacte sunt în tabel.' : ''}</p>
+      ${chunks.map(function (offset, index) {
+        return html`<figure class="line-report-block" key=${offset}>
+          <figcaption>${l.nume || l.id} · partea ${index + 1}/${chunks.length} ·
+            ${offset ? g.bounds[offset - 1] : 0}–${g.bounds[Math.min(offset + 2, g.bounds.length - 1)]} m de la PR</figcaption>
+          <${LineDiagram} l=${l} report=${true} segmentOffset=${offset} />
+          <${LineLegend} />
+        </figure>`;
+      })}
+      <h4>Utilizatori în schemă</h4>
+      <ul class="line-report-users">${reportUsers.map(function (u) {
+        var rec = g.rec.filter(function (r) { return r.userId === u.id; })[0];
+        return html`<li key=${u.id}><strong>${reportUserLabel(u.id)}</strong> — ${uName(u)}
+          ${u.codPA ? ' · PA ' + u.codPA : ''} · ${V.ROL_LABEL[u.rol]}${rec ? ' · ' + rec.distanta + ' m' : ''}</li>`;
+      })}</ul>
+      <table class="grid line-report-table">
+        <caption>Tronsoane, caracteristici și alocări — ${l.nume || l.id}</caption>
+        <thead><tr><th scope="col">Tronson / interval de la PR</th><th scope="col">Caracteristici tehnice</th>
+          <th scope="col">Lungime / cost</th><th scope="col">Utilizatori</th></tr></thead>
+        <tbody>${(l.tronsoane || []).map(function (t) {
+          var start = from;
+          if (t.tip !== 'stalpi') from += Number(t.lungime) || 0;
+          return html`<tr key=${t.id}>
+            <td>${t.nume || t.id}<br />${t.tip === 'stalpi' ? 'Circuit pe stâlpi existenți' : start + '–' + from + ' m'}</td>
+            <td>${technicalLabel(t)}${t.observatii ? html`<br />${t.observatii}` : null}</td>
+            <td>${t.tip === 'stalpi' ? '—' : money(Number(t.lungime) || 0) + ' m'}<br />${money(C.tronsonCost(l, t))} lei</td>
+            <td>${(t.utilizatori || []).map(reportUserLabel).join(', ') || 'Niciun utilizator'}</td>
+          </tr>`;
+        })}</tbody>
+      </table>
+    </section>`;
   }
 
   function ZoneDistanceInput(props) {
@@ -736,14 +854,17 @@
       <caption class="sr-only">Tronsoane: lungime, cost și utilizatori</caption>
       <thead><tr><th scope="col">Tronson</th><th scope="col">Lungime (m)</th><th scope="col">Cost (lei)</th><th scope="col">Utilizatori care îl folosesc</th></tr></thead>
       <tbody>${trs.map(function (t) {
+        var contribution = props.contributions && props.contributions[t.id];
         return html`<tr key=${t.id} class=${(props.selectedTronsonId === t.id ? 'scheme-tronson-selected ' : '') +
-          (props.selectedId && (t.utilizatori || []).indexOf(props.selectedId) >= 0 ? 'scheme-user-route' : '')}>
+          (props.selectedId && (t.utilizatori || []).indexOf(props.selectedId) >= 0 ? 'scheme-user-route ' : '') +
+          (contribution ? 'scheme-compensated' : '')}>
           <td>${props.onSelect ? html`<button type="button" class="linkish" aria-pressed=${props.selectedTronsonId === t.id}
             onClick=${function () { props.onSelect(t.id); }}>${t.nume || t.id}</button>` : t.nume || t.id}
             ${t.tip === 'stalpi' ? html` <${K.RefChip} id="art15.1" />` : null}
             <div class="hint">${technicalLabel(t)}</div>${t.observatii ? html`<div class="hint">${t.observatii}</div>` : null}</td>
           <td class="num">${t.tip === 'stalpi' ? '—' : money(Number(t.lungime) || 0)}</td>
-          <td class="num">${money(C.tronsonCost(l, t))}</td>
+          <td class="num">${money(C.tronsonCost(l, t))}
+            ${contribution ? html`<div class="hint">Compensație: ${money(contribution.total)} lei</div>` : null}</td>
           <td>${(t.utilizatori || []).map(function (u) { return html`<span class="chip-s">${userName(u)}</span>`; })}</td>
         </tr>`;
       })}</tbody></table></div>`;
@@ -839,21 +960,28 @@
       </div>
       <div class="row3">
         <${K.Field} label="① Cost lucrări I_L (lei)" path=${'line.' + id + '.IL'} info="line.IL"><${K.NumInput} path=${'line.' + id + '.IL'} /><//>
-        <${K.Field} label="② Lungime totală L (m)" path=${'line.' + id + '.L'} info="line.L"><${K.NumInput} path=${'line.' + id + '.L'} /><//>
+        <${K.Field} label="② Lungime totală L (m)" path=${'line.' + id + '.L'} info="line.L">${l.mod === 'ramuri'
+          ? html`<output>${l.L} m — suma ramurilor</output>` : html`<${K.NumInput} path=${'line.' + id + '.L'} />`}<//>
         <${K.Field} label="③ Cost specific b_L (lei/m)" path=${'line.' + id + '.bL'} info="line.bL">
-          <${K.NumInput} path=${'line.' + id + '.bL'} />
+          ${l.mod === 'ramuri' ? html`<output>${money(bL)} lei/m — ramuri automate</output>` : html`<${K.NumInput} path=${'line.' + id + '.bL'} />`}
           <button type="button" class="linkish bL-auto" hidden=${!l.bLManual} onClick=${function () { store.setLineBlAuto(id); }}>↺ automat = I_L / L</button>
         <//>
       </div>
-      <p class="hint">Costul fiecărui tronson = <strong>lungime × b_L = <span data-line-bl=${id}>${money(bL)}</span> lei/m</strong>. <${K.RefChip} id="art12.1" />
+      <p class="hint">${l.mod === 'ramuri' ? 'După deducerea costurilor proprii, restul investiției se distribuie pe lungimea ramurilor automate.' : 'Costul fiecărui tronson = lungime × b_L.'}
+        <strong> <span data-line-bl=${id}>${money(bL)}</span> lei/m</strong>. <${K.RefChip} id="art12.1" />
         <span data-line-status=${id}>${lineStatus(l)}</span></p>
       <${TranzDetails} kind="line" x=${l} />
       <${LineTechnicalEditor} l=${l} />
-      ${p.meta.model === 'line' ? html`<div class="toolbar scheme-mode" role="group" aria-label="Mod de introducere">
+      ${p.meta.model === 'line' && l.mod === 'distante' ? html`<div class="toolbar">
+        <button type="button" class="btn tiny" onClick=${function () {
+          if (global.confirm('Transformi linia într-o rețea cu ramuri și subramuri, fără bucle? Racordările și limitele existente se păstrează pe linia principală. Poți reveni cu „Anulează”.')) store.convertTree(id);
+        }}>→ Rețea cu ramuri</button>
+      </div>` : null}
+      ${p.meta.model === 'line' && l.mod !== 'ramuri' ? html`<div class="toolbar scheme-mode" role="group" aria-label="Mod de introducere">
         <button type="button" class="btn tiny" aria-pressed=${!scheme} onClick=${function () { mode[1](false); }}>Formular / tabel</button>
         <button type="button" class="btn tiny" aria-pressed=${scheme} onClick=${function () { mode[1](true); }}>Schemă</button>
       </div>` : null}
-      ${scheme ? html`<${LineScheme} l=${l} />` : html`<div>
+      ${l.mod === 'ramuri' ? html`<${V.TreeEditor} l=${l} />` : scheme ? html`<${LineScheme} l=${l} />` : html`<div>
       <${LineDiagram} l=${l} />
       ${l.mod === 'distante' ? html`<div>
         <div class="toolbar"><strong>Puncte de racordare</strong>
@@ -1208,4 +1336,15 @@
   }
 
   V.InstallView = InstallView;
+  V.LineReport = LineReport;
+  V.LineCompensation = LineCompensation;
+  V.LineLegend = LineLegend;
+  V.PRSymbol = PRSymbol;
+  V.SpecialCircuits = function (props) {
+    var l = Object.assign({}, props.l, { tronsoane: (props.l.tronsoane || []).filter(function (t) { return t.tip === 'stalpi'; }) });
+    return html`<details class="advanced"><summary>Circuite pe stâlpi existenți (art. 15 alin. 1)</summary>
+      <button type="button" class="btn tiny" onClick=${function () { store.addStalpi(l.id); }}>+ Circuit pe stâlpi existenți</button>
+      <${AllocMatrix} l=${l} />
+    </details>`;
+  };
 })(typeof window !== 'undefined' ? window : this);

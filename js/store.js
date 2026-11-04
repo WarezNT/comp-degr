@@ -188,7 +188,10 @@
     if (!global.confirm('Ștergi utilizatorul „' + (u && (u.nume || u.codPA) || id) + '” (și apariția lui pe tronsoane/stații)? Poți anula cu „Anulează”.')) return;
     mutate(function (p) {
       p.utilizatori = p.utilizatori.filter(function (x) { return x.id !== id; });
-      p.linii.forEach(function (l) { l.tronsoane.forEach(function (t) { t.utilizatori = t.utilizatori.filter(function (x) { return x !== id; }); }); });
+      p.linii.forEach(function (l) {
+        l.racordari = (l.racordari || []).filter(function (r) { return r.userId !== id; });
+        l.tronsoane.forEach(function (t) { t.utilizatori = t.utilizatori.filter(function (x) { return x !== id; }); });
+      });
       p.statii.forEach(function (s) { s.utilizatori = s.utilizatori.filter(function (x) { return x !== id; }); });
     }, { undo: true });
   };
@@ -345,6 +348,77 @@
       var l = byId(p.linii, lineId);
       l.zoneTehnice = l.zoneTehnice.filter(function (z) { return z.id !== zoneId; });
     }, { undo: true });
+  };
+
+  store.convertTree = function (lineId) {
+    var l = byId(store.state.linii, lineId);
+    if (!l || l.mod !== 'distante' || !(Number(l.L) > 0)) {
+      store.toast('Conversia necesită o linie pe distanțe, cu lungime pozitivă și date valide.', 'error');
+      return false;
+    }
+    if (l.bLManual && (!isFinite(Number(l.bL)) || l.bL === '' || Math.abs(C.lineBl(l) * Number(l.L) - Number(l.IL)) > 1e-6)) {
+      store.toast('Înainte de conversie, costul specific trebuie să corespundă investiției I_L / L.', 'error');
+      return false;
+    }
+    var rootId = S.uid('ramura');
+    var next = JSON.parse(JSON.stringify(l));
+    next.mod = 'ramuri';
+    next.ramuri = [{ id: rootId, nume: 'Linia principală', parentId: '', deLa: 0, L: l.L, IL: '', costManual: false }];
+    next.racordari = next.racordari || [];
+    next.zoneTehnice = next.zoneTehnice || [];
+    next.racordari.forEach(function (r) { r.branchId = rootId; });
+    next.zoneTehnice.forEach(function (z) { z.branchId = rootId; });
+    var errors = global.AppTree.analyze(next).errors;
+    if (errors.length) { store.toast(errors.join(' '), 'error'); return false; }
+    mutate(function (p) {
+      p.linii[p.linii.indexOf(l)] = next;
+    }, { undo: true });
+    return true;
+  };
+
+  store.editTree = function (lineId, change) {
+    var line = byId(store.state.linii, lineId);
+    if (!line || line.mod !== 'ramuri') { store.toast('Rețeaua ramificată nu este disponibilă.', 'error'); return false; }
+    var next = JSON.parse(JSON.stringify(line));
+    change(next);
+    var errors = global.AppTree.analyze(next).errors;
+    var previous = global.AppTree.analyze(line).errors.slice();
+    var introduced = errors.filter(function (error) {
+      var index = previous.indexOf(error);
+      if (index < 0) return true;
+      previous.splice(index, 1);
+      return false;
+    });
+    if (introduced.length) { store.toast(introduced.join(' '), 'error'); return false; }
+    mutate(function (p) {
+      p.linii[p.linii.indexOf(line)] = next;
+    }, { undo: true });
+    return true;
+  };
+
+  store.addBranch = function (lineId, parentId) {
+    var id = S.uid('ramura');
+    var ok = store.editTree(lineId, function (l) {
+      var parent = byId(l.ramuri, parentId);
+      l.ramuri.push({ id: id, nume: 'Ramura ' + (l.ramuri.length + 1), parentId: parentId,
+        deLa: parent ? Number(parent.L) : 0, L: 100, IL: '', costManual: false });
+    });
+    return ok ? id : null;
+  };
+
+  store.delBranch = function (lineId, branchId) {
+    return store.editTree(lineId, function (l) {
+      var removed = [branchId], count;
+      do {
+        count = removed.length;
+        l.ramuri.forEach(function (b) {
+          if (removed.indexOf(b.parentId) >= 0 && removed.indexOf(b.id) < 0) removed.push(b.id);
+        });
+      } while (removed.length !== count);
+      l.ramuri = l.ramuri.filter(function (b) { return removed.indexOf(b.id) < 0; });
+      l.racordari = l.racordari.filter(function (r) { return removed.indexOf(r.branchId) < 0; });
+      l.zoneTehnice = l.zoneTehnice.filter(function (z) { return removed.indexOf(z.branchId) < 0; });
+    });
   };
 
   // Trecerea unei linii „clasice" (tronsoane bifate manual) la modul pe distanțe.

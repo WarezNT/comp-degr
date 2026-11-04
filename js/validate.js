@@ -101,6 +101,11 @@
       var pr = l.punctRacordare || {};
       nonNeg('Tensiunea punctului de racordare', pr.tensiune, 'instalatie', 'pr.' + l.id + '.tensiune');
       var limits = {};
+      if (l.mod === 'ramuri') {
+        global.AppTree.analyze(l).errors.forEach(function (text) {
+          err(null, 'Rețeaua „' + nm + '”: ' + text, 'instalatie', 'tree:' + l.id);
+        });
+      }
       (l.mod === 'distante' ? l.zoneTehnice || [] : []).forEach(function (z) {
         var target = 'zona.' + l.id + '.' + z.id + '.deLa';
         var d = Number(z.deLa);

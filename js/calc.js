@@ -27,6 +27,7 @@
   // Sursa unică pentru costurile liniei: b_L = I_L / L (dacă nu e fixat manual)
   // și costul tronsonului = lungime × b_L (dacă nu e fixat manual).
   function lineBl(l) {
+    if (l.mod === 'ramuri') return global.AppTree.analyze(l).rate;
     if (l.bLManual) return Number(l.bL) || 0;
     var L = Number(l.L) || 0;
     return L > 0 ? (Number(l.IL) || 0) / L : 0;
@@ -41,6 +42,14 @@
   // Pentru liniile în modul „distanțe", tronsoanele se regenerează din punctele de racordare.
   function deriveAll(p) {
     (p.linii || []).forEach(function (l) {
+      if (l.mod === 'ramuri') {
+        var tree = global.AppTree.analyze(l);
+        l.L = tree.length;
+        l.bL = tree.rate;
+        l.bLManual = false;
+        l.tronsoane = tree.segments.concat((l.tronsoane || []).filter(function (t) { return t.tip === 'stalpi'; }));
+        return;
+      }
       if (!l.bLManual) l.bL = lineBl(l);
       if (l.mod === 'distante') syncLine(l);
       (l.tronsoane || []).forEach(function (t) {
@@ -207,6 +216,7 @@
       (l.tronsoane || []).forEach(function (t) {
         out.push({
           id: t.id,
+          lineId: l.id,
           tip: t.tip,
           nume: (l.nume ? l.nume + ' · ' : '') + (t.nume || ''),
           lungime: t.lungime,

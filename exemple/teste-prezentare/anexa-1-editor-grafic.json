@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "operator": "Operator demonstrativ — verificare editor grafic",
+    "dataCalcul": "2026-11-04",
+    "tva": 21,
+    "withTva": true,
+    "model": "line",
+    "modelConfirmat": true,
+    "exemplu": true
+  },
+  "utilizatori": [
+    { "id": "u1", "codPA": "DEMO-G01", "nume": "U1 — finanțator", "putere": 100, "rol": "prim", "dataContract": "2023-01-10", "dataATR": "2022-12-01", "dataTR": "2023-01-15" },
+    { "id": "u2", "codPA": "DEMO-G02", "nume": "U2 — existent", "putere": 60, "rol": "existent", "dataContract": "2024-01-10", "dataATR": "2023-12-01", "dataTR": "2024-01-15" },
+    { "id": "u3", "codPA": "DEMO-G03", "nume": "U3 — nou, etapa 1", "putere": 80, "rol": "nou", "dataContract": "2026-02-10", "dataATR": "2026-01-10", "dataTR": "2026-02-15" },
+    { "id": "u4", "codPA": "DEMO-G04", "nume": "U4 — nou, etapa 2", "putere": 50, "rol": "nou", "dataContract": "2026-09-10", "dataATR": "2026-08-10", "dataTR": "2026-09-15" }
+  ],
+  "linii": [
+    {
+      "id": "linie-demo",
+      "nume": "Plecare JT — LES / LEA / LES",
+      "L": 1000,
+      "IL": 12000,
+      "bLManual": false,
+      "mod": "distante",
+      "punctRacordare": {
+        "tip": "post",
+        "denumire": "PT DEMO 01",
+        "tensiune": 0.4,
+        "observatii": "Date fictive pentru verificarea schemei și a raportului PDF."
+      },
+      "zoneTehnice": [
+        { "id": "zona-les-1", "deLa": 0, "tipLinie": "LES", "conductor": "ACYY", "sectiune": 150, "observatii": "Plecare subterană din PT." },
+        { "id": "zona-lea", "deLa": 150, "tipLinie": "LEA", "conductor": "AAC", "sectiune": 70, "observatii": "Porțiune aeriană; limita nu coincide cu o racordare." },
+        { "id": "zona-les-2", "deLa": 500, "tipLinie": "LES", "conductor": "ACYY", "sectiune": 95, "observatii": "Revenire în subteran; același cost specific al liniei." }
+      ],
+      "racordari": [
+        { "userId": "u1", "distanta": 400 },
+        { "userId": "u2", "distanta": 200 },
+        { "userId": "u3", "distanta": 600 },
+        { "userId": "u4", "distanta": 800 }
+      ],
+      "tronsoane": []
+    }
+  ],
+  "conditii": {
+    "primCapacitateMaiMare": true,
+    "capacitateDisponibila": true,
+    "dataPIF": "2023-02-01",
+    "solutieComuna": true,
+    "verificate": true,
+    "tarifAchitatIntegral": true,
+    "fonduriPublice": false,
+    "calcInformativ": false
+  }
+}

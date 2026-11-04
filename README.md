@@ -101,14 +101,64 @@ Formularul rămâne modul inițial. În „Schemă”:
   Din tastatură, cercurile se selectează cu Enter/Spațiu și se mută cu săgețile stânga/dreapta.
 - Traseul utilizatorului selectat și tronsoanele folosite sunt evidențiate cu albastru.
   „Deconectează de pe linie” elimină doar racordarea, nu utilizatorul.
+- La selectarea unui utilizator **Nou** (sau **Operator de rețea**), schema explică
+  automat compensația: tronsoanele care generează plăți sunt marcate cu roșu și
+  „Comp.”, iar panoul arată contribuția fiecăruia, beneficiarii, formula și totalul
+  fără TVA pe linie, separat de totalul întregului proiect. Click pe contribuție
+  deschide inspectorul tronsonului. Traseul albastru nu implică automat o plată.
+  Explicațiile folosesc motorul existent, inclusiv ordinea noilor utilizatori și
+  regulile tranzitorii; datele invalide sau condițiile neîndeplinite blochează și
+  explicația. Calculul informativ este etichetat explicit, iar centralizatorul rămâne
+  reperul pentru rotunjirea sumelor cumulate pe beneficiar.
 - Liniile cu tronsoane manuale cer conversie explicită, cu avertisment și posibilitatea de
   anulare: conversia poate înlocui costurile și alocările manuale.
+- În **Rezultate → Printează / PDF**, raportul Anexei 1 include automat schemele
+  tuturor liniilor, PR, utilizatorii, limitele tehnice și legenda LEA/LES. Alege
+  „Salvează ca PDF” în dialogul browserului; nu este necesară o bibliotecă externă.
+  Liniile lungi sunt împărțite în blocuri de cel mult trei tronsoane, cu numerotare
+  continuă și tabele cu distanțe, caracteristici, costuri și alocări exacte.
+  Pentru liniile manuale, cercul indică ultimul tronson al utilizatorului, nu
+  folosirea tuturor tronsoanelor anterioare; alocările din tabel sunt determinante.
 
 Schema este orientativă; calculul folosește distanțele numerice și aceleași date ca
-formularul. Poziția în desen nu stabilește rolurile sau ordinea racordării. Nu sunt
-modelate ramificații libere; stațiile și celelalte anexe păstrează editorii existenți.
+formularul. Poziția în desen nu stabilește rolurile sau ordinea racordării.
+Stațiile și celelalte anexe păstrează editorii existenți.
 Datele se salvează local și se exportă în același format JSON. Alegerea modului și
 selecția vizuală nu sunt salvate în proiect.
+
+### Ramuri și subramuri — Anexa 1
+
+- În **Instalație**, apasă **→ Rețea cu ramuri** pentru o linie validă pe distanțe.
+  Conversia este explicită: linia existentă devine ramura principală, păstrând
+  racordările, zonele și calculul. **Anulează** revine la starea anterioară.
+  Liniile cu alocări manuale necesită mai întâi conversia explicită pe distanțe;
+  un cost specific manual diferit de `I_L / L` trebuie corectat înainte.
+- Selectează ramura, apoi **+ Ramură / subramură**. Inspectorul permite alegerea
+  părintelui, punctului de desprindere, lungimii și caracteristicilor LEA/LES.
+  Rețeaua are o singură origine la PR, fără bucle sau reuniri.
+- Distanțele utilizatorilor și limitelor tehnice sunt **locale**, măsurate de la
+  începutul ramurii. Selectează utilizatorul și ramura, introdu distanța exactă
+  (acceptă virgulă zecimală), sau folosește **Racordează pe schemă** și click.
+  **Inspectează** selectează tronsoane fără să schimbe racordările.
+- Lungimea totală este suma lungimilor fizice ale ramurilor, nu suma traseelor
+  utilizatorilor. Fiecare utilizator folosește numai drumul său până la PR;
+  ramurile surori nu sunt incluse, iar trunchiul comun se numără o singură dată.
+- `I_L` rămâne **investiția totală inclusiv costurile proprii**. Opțional, bifează
+  **Cost propriu pentru întreaga ramură**: acel cost se repartizează uniform pe
+  ramura respectivă, iar restul investiției se distribuie proporțional cu
+  lungimile ramurilor automate. Adăugarea unei ramuri nu mărește automat `I_L`.
+  Costurile proprii nu pot depăși investiția; dacă toate ramurile au cost propriu,
+  suma lor trebuie să fie exact `I_L`.
+- Limitele tehnice se editează în inspectorul ramurii; caracteristicile descriu
+  rețeaua și nu adaugă tarife. Ștergerea unei ramuri cere confirmare și elimină
+  subramurile, limitele și racordările dependente, nu utilizatorii din proiect.
+- Traseul albastru și compensațiile roșii folosesc același motor de calcul,
+  inclusiv ordinea noilor utilizatori. PDF-ul include fiecare ramură, părintele,
+  desprinderea, utilizatorii și alocările exacte. Ramurile cu mulți utilizatori
+  au continuări grafice de maximum șase racordări per bloc.
+
+Exemplu de verificare: [rețea ramificată](exemple/teste-prezentare/anexa-1-ramuri.json)
+și [pașii de testare](exemple/teste-prezentare/README.md).
 
 Referința vizuală este [E.ON UI-Kit Storybook](https://storybook.web-ui.eon.com/eon/master/?path=/docs/intro--docs),
 inclusiv componenta **Form / Segmented Button Group** pentru selectorul de mod:
@@ -210,6 +260,7 @@ js/rules.js              # registrul unic de reguli/referințe (id → „art. �
 js/help.js               # texte de ajutor pe câmp și pe pas
 js/select.js             # ghidul de alegere a anexei/variantei (recommend, tabel de încadrare)
 js/state.js              # model de date (roluri), IndexedDB, sanitizare import, demo
+js/tree.js               # rețea radială: validare, trasee, tronsoane și costuri pe ramuri
 js/validate.js           # validare → probleme { rule, tab, target, text }
 js/engine.js             # motorul de calcul (Anexa 1–5, condiții, centralizator, explicații)
 js/calc.js               # configurații pentru motor, costuri, condiții, calcul complet, CSV

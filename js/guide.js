@@ -86,6 +86,17 @@
       add('line-L:' + id, 'instalatie', 'line.' + id + '.L', 'Completează lungimea totală a liniei „' + nmL + '” (L, m)',
         'Din I_L / L rezultă costul specific b_L.', num(l.L) > 0, { rule: 'anexa1' });
 
+      if (l.mod === 'ramuri') {
+        add('tree:' + id, 'instalatie', 'tree:' + id, 'Verifică ramurile și racordările rețelei „' + nmL + '”',
+          'Distanțe locale pe ramuri; lungimea totală și alocările se derivă automat.',
+          !global.AppTree.analyze(l).errors.length);
+        users.forEach(function (u) {
+          add('tree-user:' + id + ':' + u.id, 'instalatie', 'tree:' + id,
+            'Racordează ' + nm(u) + ' pe ramura potrivită', 'Fiecare utilizator folosește numai traseul său spre PR.',
+            (l.racordari || []).some(function (r) { return r.userId === u.id && Number(r.distanta) > 0; }));
+        });
+        return;
+      }
       if (l.mod === 'distante') {
         // Editor pe distanțe: fiecare utilizator primește distanța de la PR.
         users.forEach(function (u) {
