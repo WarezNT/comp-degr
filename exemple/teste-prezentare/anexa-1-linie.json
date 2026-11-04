@@ -1,0 +1,48 @@
+{
+  "meta": {
+    "operator": "Operator demonstrativ",
+    "dataCalcul": "2025-01-01",
+    "tva": 21,
+    "withTva": true,
+    "model": "line",
+    "modelConfirmat": true,
+    "exemplu": true
+  },
+  "utilizatori": [
+    { "id": "u1", "codPA": "DEMO-001", "nume": "U1 — finanțator", "putere": 100, "dataATR": "2022-01-01", "dataTR": "2022-02-01", "tipClient": "noncasnic", "rol": "prim", "dataContract": "2022-02-01" },
+    { "id": "u2", "codPA": "DEMO-002", "nume": "U2 — existent", "putere": 100, "dataATR": "2022-06-01", "dataTR": "2022-07-01", "tipClient": "noncasnic", "rol": "existent" },
+    { "id": "u3", "codPA": "DEMO-003", "nume": "U3 — nou", "putere": 80, "dataATR": "2024-01-01", "dataTR": "2024-02-01", "tipClient": "noncasnic", "rol": "nou" }
+  ],
+  "linii": [
+    {
+      "id": "l1",
+      "nume": "Linie comună — costuri pe tronsoane",
+      "IL": 13000,
+      "L": 130,
+      "bL": 100,
+      "bLManual": false,
+      "compVeche": 0,
+      "capacitate": 0,
+      "tronsoane": [
+        { "id": "t1", "nume": "Tronson folosit de U1, U2 și U3", "lungime": 60, "cost": 6000, "costManual": true, "utilizatori": ["u1", "u2", "u3"] },
+        { "id": "t2", "nume": "Tronson folosit doar de U1 și U2", "lungime": 40, "cost": 4000, "costManual": true, "utilizatori": ["u1", "u2"] },
+        { "id": "t3", "nume": "Tronson folosit de U2 și U3", "lungime": 30, "cost": 3000, "costManual": true, "utilizatori": ["u2", "u3"] }
+      ]
+    }
+  ],
+  "statii": [],
+  "complexConfig": { "varianta": 3, "variantaConfirmata": true, "liniiIds": [], "liniiU2Ids": [], "statiiIds": [] },
+  "tranzitoriu": { "B": 0, "S": 0, "S2": 0, "l2": 0, "L": 0 },
+  "dezvoltator": { "Itotal": 0, "Ief": 0, "dezvoltatori": [] },
+  "conditii": {
+    "primCapacitateMaiMare": true,
+    "capacitateDisponibila": true,
+    "aniDeLaPF": 2,
+    "dataPIF": "2023-01-01",
+    "solutieComuna": true,
+    "verificate": true,
+    "tarifAchitatIntegral": true,
+    "fonduriPublice": false,
+    "calcInformativ": false
+  }
+}

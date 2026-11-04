@@ -1,0 +1,41 @@
+{
+  "meta": {
+    "operator": "Operator demonstrativ",
+    "dataCalcul": "2025-01-01",
+    "tva": 21,
+    "withTva": true,
+    "model": "complex",
+    "modelConfirmat": true,
+    "exemplu": true
+  },
+  "utilizatori": [
+    { "id": "u1", "codPA": "DEMO-341", "nume": "U1 — finanțator", "putere": 100, "dataATR": "2022-01-01", "dataTR": "2022-02-01", "tipClient": "noncasnic", "rol": "prim", "dataContract": "2022-02-01" },
+    { "id": "u2", "codPA": "DEMO-342", "nume": "U2 — existent", "putere": 100, "dataATR": "2022-06-01", "dataTR": "2022-07-01", "tipClient": "noncasnic", "rol": "existent" },
+    { "id": "u3", "codPA": "DEMO-343", "nume": "U3 — nou", "putere": 100, "dataATR": "2024-01-01", "dataTR": "2024-02-01", "tipClient": "noncasnic", "rol": "nou" }
+  ],
+  "linii": [
+    { "id": "l1", "nume": "l_U1 — linie de racordare", "IL": 30000, "L": 100, "bL": 300, "bLManual": false, "compVeche": 0, "capacitate": 0, "tronsoane": [
+      { "id": "t1", "nume": "Tronson comun U1", "lungime": 100, "cost": 30000, "costManual": true, "utilizatori": ["u1", "u2", "u3"] }
+    ] },
+    { "id": "l2", "nume": "l_U2 — linie de tensiune diferită", "IL": 18000, "L": 60, "bL": 300, "bLManual": false, "compVeche": 0, "capacitate": 0, "tronsoane": [
+      { "id": "t2", "nume": "Tronson comun U2", "lungime": 60, "cost": 18000, "costManual": true, "utilizatori": ["u1", "u2", "u3"] }
+    ] }
+  ],
+  "statii": [
+    { "id": "s1", "nume": "Post de transformare — transformator și echipamente comune", "Sn": 400, "SnRezerva": 0, "IT": 100000, "elementeComune": 12000, "intarire": false, "compVeche": 0, "utilizatori": ["u1", "u2", "u3"] }
+  ],
+  "complexConfig": { "varianta": 4, "variantaConfirmata": true, "liniiIds": ["l1"], "liniiU2Ids": ["l2"], "statiiIds": ["s1"] },
+  "tranzitoriu": { "B": 0, "S": 0, "S2": 0, "l2": 0, "L": 0 },
+  "dezvoltator": { "Itotal": 0, "Ief": 0, "dezvoltatori": [] },
+  "conditii": {
+    "primCapacitateMaiMare": true,
+    "capacitateDisponibila": true,
+    "aniDeLaPF": 2,
+    "dataPIF": "2023-01-01",
+    "solutieComuna": true,
+    "verificate": true,
+    "tarifAchitatIntegral": true,
+    "fonduriPublice": false,
+    "calcInformativ": false
+  }
+}

@@ -61,6 +61,14 @@
       return isFinite(d) && d > 0 && (!L || d <= L);
     });
     var bounds = [];
+    var zones = (l.zoneTehnice || []).filter(function (z) {
+      var d = Number(z.deLa);
+      return z.deLa !== '' && isFinite(d) && d >= 0 && L > 0 && d < L;
+    }).slice().sort(function (a, b) { return Number(a.deLa) - Number(b.deLa); });
+    zones.forEach(function (z) {
+      var d = Number(z.deLa);
+      if (d > 0 && bounds.indexOf(d) < 0) bounds.push(d);
+    });
     rec.forEach(function (r) { var d = Number(r.distanta); if (bounds.indexOf(d) < 0) bounds.push(d); });
     if (L > 0 && bounds.indexOf(L) < 0) bounds.push(L);
     bounds.sort(function (a, b) { return a - b; });
@@ -72,10 +80,14 @@
       var len = b - prev;
       var users = rec.filter(function (r) { return Number(r.distanta) >= b; })
         .map(function (r) { return r.userId; });
+      var tech = {};
+      zones.forEach(function (z) { if (Number(z.deLa) <= prev) tech = z; });
       out.push({
         id: 'trs-' + l.id + '-' + out.length,
         nume: 'Tronson ' + (out.length + 1) + ' (' + Math.round(prev) + '–' + Math.round(b) + ' m)',
-        lungime: len, cost: len * bL, costManual: false, utilizatori: users
+        lungime: len, cost: len * bL, costManual: false, utilizatori: users,
+        tipLinie: tech.tipLinie || '', conductor: tech.conductor || '',
+        sectiune: tech.sectiune || '', observatii: tech.observatii || ''
       });
       prev = b;
     });
@@ -155,6 +167,16 @@
     } else if (seg[0] === 'tronson') {
       var ln = byId(p.linii, seg[1]);
       if (ln) { var t = byId(ln.tronsoane, seg[2]); if (t) t[seg[3]] = value; }
+    } else if (seg[0] === 'pr') {
+      var prLine = byId(p.linii, seg[1]);
+      if (prLine) {
+        if (!prLine.punctRacordare) prLine.punctRacordare = {};
+        prLine.punctRacordare[seg[2]] = value;
+      }
+    } else if (seg[0] === 'zona') {
+      var zoneLine = byId(p.linii, seg[1]);
+      var zone = zoneLine && byId(zoneLine.zoneTehnice, seg[2]);
+      if (zone) zone[seg[3]] = value;
     } else if (seg[0] === 'devitem') {
       var d = byId(p.dezvoltator.dezvoltatori, seg[1]);
       if (d) d[seg[2]] = value;

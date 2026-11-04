@@ -1,0 +1,36 @@
+{
+  "meta": {
+    "operator": "Operator demonstrativ",
+    "dataCalcul": "2025-01-01",
+    "tva": 21,
+    "withTva": true,
+    "model": "developer",
+    "modelConfirmat": true,
+    "exemplu": true
+  },
+  "utilizatori": [],
+  "linii": [],
+  "statii": [],
+  "complexConfig": { "varianta": 3, "variantaConfirmata": false, "liniiIds": [], "liniiU2Ids": [], "statiiIds": [] },
+  "tranzitoriu": { "B": 0, "S": 0, "S2": 0, "l2": 0, "L": 0 },
+  "dezvoltator": {
+    "Itotal": 150000,
+    "Ief": 90000,
+    "dezvoltatori": [
+      { "id": "d1", "nume": "Dezvoltator A", "putere": 100 },
+      { "id": "d2", "nume": "Dezvoltator B", "putere": 50 },
+      { "id": "d3", "nume": "Dezvoltator C", "putere": 50 }
+    ]
+  },
+  "conditii": {
+    "primCapacitateMaiMare": true,
+    "capacitateDisponibila": true,
+    "aniDeLaPF": 2,
+    "dataPIF": "2023-01-01",
+    "solutieComuna": true,
+    "verificate": true,
+    "tarifAchitatIntegral": false,
+    "fonduriPublice": false,
+    "calcInformativ": false
+  }
+}

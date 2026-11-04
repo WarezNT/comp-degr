@@ -413,6 +413,14 @@
   function arr(v) { return Array.isArray(v) ? v : []; }
   function str(v) { return v === undefined || v === null ? '' : String(v); }
 
+  function technicalData(v) {
+    v = isObj(v) ? v : {};
+    return {
+      tipLinie: ['LEA', 'LES', 'altul'].indexOf(v.tipLinie) >= 0 ? v.tipLinie : '',
+      conductor: str(v.conductor), sectiune: str(v.sectiune), observatii: str(v.observatii)
+    };
+  }
+
   function sanitize(raw) {
     if (!isObj(raw)) throw new Error('Fișierul nu conține un proiect valid (se așteaptă un obiect JSON).');
     var p = raw;
@@ -455,9 +463,22 @@
     });
     p.linii.forEach(function (l) {
       l.id = safeId(l.id, 'lin');
+      var pr = isObj(l.punctRacordare) ? l.punctRacordare : {};
+      l.punctRacordare = {
+        tip: ['post', 'firida', 'statie', 'stalp', 'altul'].indexOf(pr.tip) >= 0 ? pr.tip : '',
+        denumire: str(pr.denumire), tensiune: str(pr.tensiune), observatii: str(pr.observatii)
+      };
+      l.zoneTehnice = arr(l.zoneTehnice).filter(isObj).map(function (z) {
+        var out = technicalData(z);
+        out.id = safeId(z.id, 'zona');
+        out.deLa = str(z.deLa);
+        return out;
+      });
       l.tronsoane = arr(l.tronsoane).filter(isObj);
       l.tronsoane.forEach(function (t) {
         t.id = safeId(t.id, 't');
+        var tech = technicalData(t);
+        Object.keys(tech).forEach(function (k) { t[k] = tech[k]; });
         if (t.tip !== 'stalpi') delete t.tip;   // art. 15 alin. 1: singura valoare permisă
       });
     });
@@ -519,6 +540,8 @@
       if (l.compVeche === undefined) l.compVeche = 0;     // art. 18: compensații primite sub Ord. 28/2003
       if (l.capacitate === undefined) l.capacitate = 0;   // art. 18 alin. 1 lit. b: capacitatea instalației [kVA]
       if (!Array.isArray(l.racordari)) l.racordari = [];
+      // sanitize() normalizează și proiectele vechi fără date descriptive.
+      if (!Array.isArray(l.zoneTehnice)) l.zoneTehnice = [];
       (l.tronsoane || []).forEach(function (t) {
         if (t.costManual === undefined) t.costManual = false;
       });

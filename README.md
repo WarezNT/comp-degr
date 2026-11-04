@@ -76,6 +76,66 @@ opționali, opri mutarea automată a focusului sau ascunde ghidul (meniul „Pro
    **„Cum s-a calculat”** pe fiecare sumă (formulă + articol), condițiile art. 8 (restrânse când
    sunt îndeplinite), export CSV, print.
 
+### Introducere grafică — Anexa 1
+
+În pasul **Instalație**, fiecare linie are opțiunile **Formular / tabel** și **Schemă**.
+Formularul rămâne modul inițial. În „Schemă”:
+
+- Selectează un utilizator din stânga (sau adaugă unul): se activează acțiunea
+  **Racordează utilizator**. Apasă pe linie pentru a-l racorda; lungimea totală trebuie
+  completată în prealabil. Alege **Selectează tronson** pentru a inspecta în panoul din
+  dreapta un tronson fără să creezi o racordare.
+- Selectează un cerc pentru a edita numele, codul PA, rolul, puterea, distanța și datele
+  ATR/TR în panoul de proprietăți. Datele utilizatorului sunt comune tuturor liniilor.
+- Originea este marcată cu simbolul tipului de PR și etichetată cu denumirea/codul și
+  tensiunea. Inspectorul tronsonului arată intervalul de la PR, lungimea, costul,
+  caracteristicile și utilizatorii; aceleași tronsoane pot fi selectate din tabel.
+- Legenda diferențiază **LEA prin linie întreruptă** și **LES prin linie continuă**;
+  zonele cu limite tehnice sunt marcate separat. Tipul nespecificat sau „Altul” are
+  un stil distinct și rămâne identificat textual în legendă.
+- Alege **Editează limite** pentru a adăuga o delimitare prin click pe linie sau pentru
+  a muta un marcaj prin tragere. Inspectorul permite introducerea distanței exacte,
+  inclusiv zecimale; limitele nu pot coincide sau ieși din lungimea liniei. Modificările
+  regenerează tronsoanele, se pot anula și nu schimbă pozițiile utilizatorilor.
+- Mută cercul prin tragere (pas de 1 m) sau introdu distanța exactă, inclusiv zecimale.
+  Din tastatură, cercurile se selectează cu Enter/Spațiu și se mută cu săgețile stânga/dreapta.
+- Traseul utilizatorului selectat și tronsoanele folosite sunt evidențiate cu albastru.
+  „Deconectează de pe linie” elimină doar racordarea, nu utilizatorul.
+- Liniile cu tronsoane manuale cer conversie explicită, cu avertisment și posibilitatea de
+  anulare: conversia poate înlocui costurile și alocările manuale.
+
+Schema este orientativă; calculul folosește distanțele numerice și aceleași date ca
+formularul. Poziția în desen nu stabilește rolurile sau ordinea racordării. Nu sunt
+modelate ramificații libere; stațiile și celelalte anexe păstrează editorii existenți.
+Datele se salvează local și se exportă în același format JSON. Alegerea modului și
+selecția vizuală nu sunt salvate în proiect.
+
+Referința vizuală este [E.ON UI-Kit Storybook](https://storybook.web-ui.eon.com/eon/master/?path=/docs/intro--docs),
+inclusiv componenta **Form / Segmented Button Group** pentru selectorul de mod:
+înălțime 48 px, selecție albastră `#0075c2`, hover activ `#00568f` și focus vizibil.
+Editorul folosește tokenii E.ON comuni aplicației; acțiunile principale rămân roșii.
+Adaptarea este implementată local în HTML/CSS/SVG, nu prin încărcarea bibliotecii
+sau a fonturilor de pe CDN. Fontul E.ON este folosit doar dacă este instalat local.
+
+### Originea liniei și caracteristici tehnice
+
+În fiecare linie, deschide **Originea liniei (PR) și caracteristici tehnice**:
+
+- PR: tip (post de transformare, firidă, stație, stâlp, altul), denumire/cod,
+  nivel de tensiune în kV și observații. Aceste date nu adaugă costul obiectului în calcul.
+- În modul pe distanțe, adaugă **zone tehnice** cu distanța de început de la PR,
+  tip LEA/LES/altul, conductor/cablu, secțiune în mm² și observații.
+  De exemplu: LES de la 0 m, LEA de la 100 m. O zonă continuă până la următoarea
+  sau până la capătul liniei; partea dinaintea primei zone rămâne nespecificată.
+- Limitele tehnice împart automat tronsoanele, chiar dacă nu există utilizatori acolo.
+  Mutarea unui utilizator nu mută și limita tehnică. Toate segmentele păstrează același
+  cost specific al liniei; caracteristicile nu introduc tarife diferite.
+- În modul manual, caracteristicile se introduc direct pe fiecare tronson.
+  La conversia pe distanțe sunt preluate în zone tehnice.
+
+Datele se păstrează în salvarea locală și în JSON. Limitele duplicate, negative sau
+în afara liniei blochează calculul și sunt indicate în validare.
+
 Indicatorii de pe pași arată starea: ✓ completat, număr = pași rămași, ✕ = probleme de corectat.
 Exemplele U4/U6 (meniul „Proiect”) se deschid fără ghid, cu un banner „Exemplu”.
 

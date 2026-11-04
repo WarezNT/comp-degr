@@ -124,10 +124,11 @@
   // este rescris cât timp câmpul e în curs de editare.
   function NumInput(props) {
     var path = props.path;
+    var id = props.id || ('f-' + safeKey(path));
     var value = store.get(path);
     var ref = useRef({ text: null, last: undefined, invalid: false });
     var r = ref.current;
-    var focused = document.activeElement && document.activeElement.getAttribute && document.activeElement.getAttribute('data-bind') === path;
+    var focused = document.activeElement && document.activeElement.id === id;
     if (r.text === null || (value !== r.last && !focused)) { r.text = fmtShow(value); r.invalid = false; }
     r.last = value;
     function onText(e) {
@@ -139,7 +140,7 @@
       store.set(path, n);
     }
     var neg = Number(value) < 0;
-    return html`<input type="text" inputmode="decimal" id=${props.id || ('f-' + safeKey(path))} data-bind=${path}
+    return html`<input type="text" inputmode="decimal" id=${id} data-bind=${path}
       class=${r.invalid || neg ? 'invalid' : ''} aria-invalid=${r.invalid || neg ? 'true' : null}
       value=${r.text} placeholder=${props.ph || '0'} aria-label=${props.label || null} autocomplete="off"
       onInput=${onText} onChange=${onText}

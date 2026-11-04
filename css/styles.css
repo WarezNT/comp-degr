@@ -30,7 +30,9 @@
   --eon-system-warning-dark: #ff711a;
   --eon-system-warning-light: #f9f2d8;
   --eon-system-highlight: #0075c2;
+  --eon-system-highlight-dark: #00568f;
   --eon-system-highlight-light: #ccebff;
+  --eon-grey900-opacity-8: rgba(38, 38, 38, 0.08);
   --eon-blue700: #0075c2;
 
   /* maparea tokenilor pe rolurile aplicației */
@@ -524,6 +526,12 @@ svg.diagram { display: block; width: 100%; height: auto; }
 .dl-tnum { font-size: 12px; font-weight: 700; fill: var(--eon-red700); text-anchor: middle; }
 .dl-lab { font-size: 12px; fill: var(--eon-grey700); text-anchor: middle; }
 .dl-pr { font-size: 12px; font-weight: 700; fill: var(--eon-grey800); }
+.dl-origin-label, .dl-origin-name, .dl-origin-voltage { font-size: 11px; fill: var(--eon-grey800); }
+.dl-origin-label { font-weight: 700; fill: var(--eon-red700); }
+.dl-origin-voltage { fill: var(--eon-grey700); }
+.dl-pr-symbol rect, .dl-pr-symbol circle { fill: var(--eon-white); stroke: var(--eon-grey800); stroke-width: 2; }
+.dl-pr-symbol line { stroke: var(--eon-red600); stroke-width: 2; }
+.dl-pr-symbol text { fill: var(--eon-grey900); font-size: 9px; font-weight: 700; text-anchor: middle; }
 .dl-name { font-size: 12px; fill: var(--eon-grey900); text-anchor: middle; font-weight: 700; }
 .dl-m { font-size: 11px; fill: var(--eon-grey600); text-anchor: middle; }
 .dl-user { stroke: #fff; stroke-width: 2; cursor: grab; touch-action: none; }
@@ -550,6 +558,91 @@ svg.diagram { display: block; width: 100%; height: auto; }
 .chip-s { display: inline-block; background: var(--eon-grey200); border-radius: 6px; padding: 1px 6px; margin: 1px 2px; font-size: 12px; }
 details.advanced { margin-top: 10px; }
 details.advanced > summary { cursor: pointer; font-weight: 600; }
+.technical-editor { padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); }
+.technical-editor > summary { min-height: 24px; }
+.technical-zone { padding: 12px; margin: 12px 0; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); }
+
+/* E.ON Storybook: Segmented Button Group; selecție albastră, acțiuni principale roșii. */
+.scheme-mode { display: inline-flex; gap: 0; margin: 16px 0; }
+.scheme-mode .btn {
+  min-height: 48px; padding: 0 20px; font-size: 18px; font-weight: 400;
+  border: 1px solid var(--ink); border-radius: 0; background: transparent; color: var(--ink);
+}
+.scheme-mode .btn:first-child { border-radius: 4px 0 0 4px; }
+.scheme-mode .btn:last-child { border-radius: 0 4px 4px 0; margin-left: -1px; }
+.scheme-mode .btn:hover { background: var(--eon-grey900-opacity-8); }
+.scheme-mode .btn[aria-pressed="true"] { position: relative; background: var(--info); border-color: var(--info); color: var(--eon-white); }
+.scheme-mode .btn[aria-pressed="true"]:hover { background: var(--eon-system-highlight-dark); border-color: var(--eon-system-highlight-dark); }
+.scheme-mode .btn:focus-visible, .scheme-user:focus-visible { position: relative; outline: 2px solid var(--info); outline-offset: 3px; z-index: 1; }
+.scheme-mode .btn[aria-pressed="true"]:focus-visible { outline-color: var(--ink); }
+.line-scheme { display: grid; grid-template-columns: 190px minmax(0, 1fr) 240px; border: 1px solid var(--line); border-radius: var(--radius); }
+.line-scheme > section { min-width: 0; padding: 14px; }
+.line-scheme h3 { margin: 0 0 12px; }
+.scheme-palette, .scheme-properties { background: var(--bg); }
+.scheme-palette { border-right: 1px solid var(--line); border-radius: var(--radius) 0 0 var(--radius); }
+.scheme-properties { border-left: 1px solid var(--line); border-radius: 0 var(--radius) var(--radius) 0; }
+.scheme-properties .field { margin-bottom: 12px; }
+.scheme-users { display: grid; gap: 8px; margin-top: 12px; }
+.scheme-zone-list { display: grid; gap: 6px; margin-top: 8px; }
+.scheme-zone-list .btn { overflow-wrap: anywhere; }
+.scheme-user { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 10px; font-family: inherit; text-align: left; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; overflow-wrap: anywhere; }
+.scheme-user:hover { background: var(--eon-grey900-opacity-8); }
+.scheme-user[aria-pressed="true"] { border-color: var(--info); box-shadow: inset 0 0 0 1px var(--info); background: var(--info-soft); }
+.scheme-user[aria-pressed="true"]:hover { border-color: var(--eon-system-highlight-dark); box-shadow: inset 0 0 0 1px var(--eon-system-highlight-dark); }
+.scheme-user small { display: block; color: var(--muted); margin-top: 4px; }
+.scheme-canvas .diagram-wrap { display: block; }
+.scheme-canvas svg.diagram { min-width: 760px; }
+.scheme-canvas .diagram-vlist { display: none; }
+.scheme-canvas .table-wrap { max-width: 100%; }
+.scheme-tronson-selected, table.grid tbody tr.scheme-tronson-selected:hover > td { background: var(--info-soft); }
+.scheme-user-route, table.grid tbody tr.scheme-user-route:hover > td { box-shadow: inset 3px 0 var(--info); }
+.dl-seg.dl-route { stroke: var(--info); stroke-width: 7; }
+.dl-seg.tip-LEA { stroke-dasharray: 9 6; }
+.dl-seg.tip-LES { stroke-dasharray: none; }
+.dl-seg.tip-altul { stroke-dasharray: 2 5; }
+.dl-seg.dl-segment-selected { stroke: var(--eon-red600); stroke-width: 9; }
+.dl-seg.dl-segment-selected.dl-route { stroke: var(--eon-system-highlight-dark); }
+.dl-inspector-label { fill: var(--eon-red700); font-size: 11px; font-weight: 700; text-anchor: middle; }
+.dl-zone-marker { fill: var(--eon-red600); stroke: var(--eon-white); stroke-width: 1; }
+.dl-zone-guide { stroke: var(--eon-red600); stroke-width: 1.5; stroke-dasharray: 3 3; pointer-events: none; }
+.dl-zone-handle { cursor: pointer; }
+.tool-zones .dl-zone-handle { cursor: grab; touch-action: none; }
+.dl-zone-handle.dragging { cursor: grabbing; }
+.dl-zone-handle:focus-visible .dl-zone-marker { stroke: var(--info); stroke-width: 3; }
+.dl-zone-selected .dl-zone-marker { stroke: var(--info); stroke-width: 3; }
+.dl-user.dl-selected { stroke: var(--info); stroke-width: 3; }
+.dl-user:focus-visible { outline: 3px solid var(--info); outline-offset: 4px; }
+.dl-place { stroke: transparent; stroke-width: 28; cursor: crosshair; }
+.tool-inspect .dl-place { cursor: pointer; }
+.dl-place:focus-visible { stroke: var(--eon-system-highlight); stroke-width: 2; outline: none; }
+.dl-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; list-style: none; margin: 8px 0 12px; padding: 0; color: var(--ink); font-size: 12px; }
+.dl-legend li { display: inline-flex; align-items: center; gap: 7px; }
+.dl-legend-line { display: inline-block; width: 30px; border-top: 3px solid var(--eon-grey800); }
+.dl-legend-line.lea { border-top-style: dashed; }
+.dl-legend-line.unknown { border-top-style: dotted; border-color: var(--eon-grey500); }
+.dl-zone-key { color: var(--eon-red600); font-size: 14px; }
+.scheme-tools { margin: 8px 0; }
+.scheme-tools .btn { padding-right: 10px; padding-left: 10px; font-size: 14px; white-space: normal; }
+.scheme-tools .btn:disabled { opacity: .5; cursor: not-allowed; }
+.tronson-inspector h3 { margin: 0; }
+.tronson-inspector h4 { margin: 18px 0 8px; }
+.tronson-inspector .toolbar { justify-content: space-between; }
+.tronson-inspector dl { display: grid; grid-template-columns: minmax(85px, .75fr) minmax(0, 1fr); gap: 8px 10px; }
+.tronson-inspector dt { color: var(--muted); }
+.tronson-inspector dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.inspector-users { margin: 0; padding-left: 18px; }
+.inspector-users .linkish { text-align: left; }
+.scheme-properties .technical-editor { margin-top: 8px; }
+.scheme-legacy { background: var(--warn-soft); border-radius: var(--radius); padding: 16px; }
+@media (max-width: 1100px) {
+  .line-scheme { grid-template-columns: 160px minmax(0, 1fr); }
+  .scheme-properties { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); border-radius: 0 0 var(--radius) var(--radius); }
+}
+@media (max-width: 700px) {
+  .line-scheme { grid-template-columns: minmax(0, 1fr); }
+  .scheme-palette { border-right: 0; border-bottom: 1px solid var(--line); border-radius: var(--radius) var(--radius) 0 0; }
+  .scheme-users { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+}
 
 /* --- diagrama stației (bare după putere) --- */
 .st-diagram { margin: 12px 0; }

@@ -1121,6 +1121,52 @@
         if (a.getAttribute('target') !== '_blank') throw new Error('nu se deschide în pagină nouă');
       });
 
+      test('Date tehnice: migrare și import/export normalizează PR, zone și tronsoane', function () {
+        var p = window.AppState.migrate({ linii: [{ id: 'l', tronsoane: [] }] });
+        if (!p.linii[0].punctRacordare || p.linii[0].zoneTehnice.length) throw new Error('proiect vechi nemigrat');
+        p.linii[0].punctRacordare = { tip: 'post', denumire: 'PT 123', tensiune: '0.4', observatii: 'Plecare JT' };
+        p.linii[0].zoneTehnice = [{ id: 'z 1', deLa: 0, tipLinie: 'LES', conductor: 'ACYY', sectiune: 150, observatii: 'Subteran' }];
+        var copy = window.AppState.migrate(JSON.parse(JSON.stringify(p)));
+        if (copy.linii[0].punctRacordare.denumire !== 'PT 123' || copy.linii[0].zoneTehnice[0].conductor !== 'ACYY') throw new Error('date pierdute');
+        if (copy.linii[0].zoneTehnice[0].id !== 'z_1') throw new Error('id nesanitizat');
+      });
+
+      test('Zone tehnice: limite independente, caracteristici stabile la mutare și calcul identic', function () {
+        var p = emptyOk();
+        var a = window.AppState.addUser(p, { id: 'a', rol: 'prim', nume: 'A' });
+        var b = window.AppState.addUser(p, { id: 'b', rol: 'nou', nume: 'B' });
+        p.linii = [{ id: 'l', L: 800, IL: 24000, mod: 'distante', racordari: [
+          { userId: a.id, distanta: 800 }, { userId: b.id, distanta: 400 }], tronsoane: [] }];
+        window.AppUI.setProject(p);
+        var baseline = window.AppUI.calculate().central.totalFaraTVA;
+        var l = window.AppUI.getState().linii[0];
+        l.zoneTehnice = [{ id: 'z0', deLa: 0, tipLinie: 'LES', conductor: 'Cablu', sectiune: 150 },
+          { id: 'z1', deLa: 100, tipLinie: 'LEA', conductor: 'Conductor', sectiune: 70 }];
+        window.AppCalc.deriveAll(window.AppUI.getState());
+        if (l.tronsoane.length !== 3 || l.tronsoane[0].lungime !== 100) throw new Error('limita tehnică nu a împărțit linia');
+        if (l.tronsoane[1].tipLinie !== 'LEA' || l.tronsoane[2].sectiune !== 70) throw new Error('caracteristici nederivate');
+        if (window.AppUI.calculate().central.totalFaraTVA !== baseline) throw new Error('cost modificat de descriere');
+        window.AppUI.store.setRacordare('l', 'b', 50);
+        if (l.tronsoane.length !== 3 || l.tronsoane[1].tipLinie !== 'LES' || l.tronsoane[2].tipLinie !== 'LEA') throw new Error('mutarea a pierdut zona tehnică');
+        l.zoneTehnice[1].deLa = 800;
+        if (!window.AppValidate.validate(window.AppUI.getState()).errors.some(function (e) { return e.target === 'zona.l.z1.deLa'; })) throw new Error('limita invalidă nesemnalată');
+        l.zoneTehnice[1].deLa = 0;
+        if (!window.AppValidate.validate(window.AppUI.getState()).errors.some(function (e) { return /aceeași distanță/.test(e.text); })) throw new Error('limite duplicate acceptate');
+      });
+
+      test('Conversia manuală păstrează caracteristicile și limita tehnică fără utilizator', function () {
+        var p = emptyOk();
+        var a = window.AppState.addUser(p, { id: 'a', rol: 'prim' });
+        var b = window.AppState.addUser(p, { id: 'b', rol: 'nou' });
+        p.linii = [{ id: 'l', L: 300, IL: 9000, tronsoane: [
+          { id: 't1', lungime: 100, tipLinie: 'LES', conductor: 'Cablu', utilizatori: [a.id, b.id] },
+          { id: 't2', lungime: 200, tipLinie: 'LEA', conductor: 'Aer', utilizatori: [a.id, b.id] }] }];
+        window.AppUI.setProject(p);
+        window.AppUI.store.convertLine('l');
+        var l = window.AppUI.getState().linii[0];
+        if (l.zoneTehnice.length !== 2 || l.tronsoane.length !== 2 || l.tronsoane[1].tipLinie !== 'LEA') throw new Error('caracteristici sau limite pierdute');
+      });
+
       var s = document.createElement('div');
       s.className = 'summary' + (fail === 0 ? '' : ' fail');
       s.textContent = 'Rezultat: ' + pass + ' trecute, ' + fail + ' eșuate.';

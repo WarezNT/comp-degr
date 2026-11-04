@@ -1,0 +1,34 @@
+{
+  "meta": {
+    "operator": "Operator demonstrativ",
+    "dataCalcul": "2025-01-01",
+    "tva": 21,
+    "withTva": true,
+    "model": "station",
+    "modelConfirmat": true,
+    "exemplu": true
+  },
+  "utilizatori": [
+    { "id": "u1", "codPA": "DEMO-101", "nume": "U1 — finanțator", "putere": 100, "dataATR": "2022-01-01", "dataTR": "2022-02-01", "tipClient": "noncasnic", "rol": "prim", "dataContract": "2022-02-01" },
+    { "id": "u2", "codPA": "DEMO-102", "nume": "U2 — existent", "putere": 100, "dataATR": "2022-06-01", "dataTR": "2022-07-01", "tipClient": "noncasnic", "rol": "existent" },
+    { "id": "u3", "codPA": "DEMO-103", "nume": "U3 — nou", "putere": 80, "dataATR": "2024-01-01", "dataTR": "2024-02-01", "tipClient": "noncasnic", "rol": "nou" }
+  ],
+  "linii": [],
+  "statii": [
+    { "id": "s1", "nume": "Post de transformare — N-1 și echipamente comune", "Sn": 500, "SnRezerva": 100, "IT": 200000, "elementeComune": 9000, "intarire": false, "compVeche": 0, "utilizatori": ["u1", "u2", "u3"] }
+  ],
+  "complexConfig": { "varianta": 3, "variantaConfirmata": false, "liniiIds": [], "liniiU2Ids": [], "statiiIds": [] },
+  "tranzitoriu": { "B": 0, "S": 0, "S2": 0, "l2": 0, "L": 0 },
+  "dezvoltator": { "Itotal": 0, "Ief": 0, "dezvoltatori": [] },
+  "conditii": {
+    "primCapacitateMaiMare": true,
+    "capacitateDisponibila": true,
+    "aniDeLaPF": 2,
+    "dataPIF": "2023-01-01",
+    "solutieComuna": true,
+    "verificate": true,
+    "tarifAchitatIntegral": true,
+    "fonduriPublice": false,
+    "calcInformativ": false
+  }
+}

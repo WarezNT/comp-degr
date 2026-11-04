@@ -63,6 +63,8 @@
       case 'complex': return p.complexConfig[seg[1]];
       case 'user': o = S.findUser(p, seg[1]); return o ? o[seg[2]] : undefined;
       case 'line': o = byId(p.linii, seg[1]); return o ? o[seg[2]] : undefined;
+      case 'pr': o = byId(p.linii, seg[1]); return o && o.punctRacordare ? o.punctRacordare[seg[2]] : undefined;
+      case 'zona': o = byId(p.linii, seg[1]); o = o && byId(o.zoneTehnice, seg[2]); return o ? o[seg[3]] : undefined;
       case 'stat': o = byId(p.statii, seg[1]); return o ? o[seg[2]] : undefined;
       case 'tronson': o = byId(p.linii, seg[1]); o = o && byId(o.tronsoane, seg[2]); return o ? o[seg[3]] : undefined;
       case 'devitem': o = byId(p.dezvoltator.dezvoltatori, seg[1]); return o ? o[seg[2]] : undefined;
@@ -303,11 +305,67 @@
     });
   };
 
+  store.addTechnicalZone = function (lineId, distance) {
+    var l = byId(store.state.linii, lineId);
+    if (!l) return null;
+    var zones = Array.isArray(l.zoneTehnice) ? l.zoneTehnice : [];
+    var d = distance === undefined ? (zones.length ? '' : 0) : Number(distance);
+    if (d !== '' && (!isFinite(d) || d < 0 ||
+      (distance !== undefined && (!(Number(l.L) > 0) || d >= Number(l.L))) ||
+      (Number(l.L) > 0 && d >= Number(l.L)) ||
+      zones.some(function (z) { return z.deLa !== '' && Math.abs(Number(z.deLa) - d) < 1e-6; }))) return null;
+    var id = S.uid('zona');
+    mutate(function (p) {
+      var line = byId(p.linii, lineId);
+      if (!Array.isArray(line.zoneTehnice)) line.zoneTehnice = [];
+      line.zoneTehnice.push({ id: id, deLa: d,
+        tipLinie: '', conductor: '', sectiune: '', observatii: '' });
+    }, { undo: true });
+    return id;
+  };
+  store.moveTechnicalZone = function (lineId, zoneId, distance) {
+    var l = byId(store.state.linii, lineId);
+    var d = Number(distance);
+    var zones = l && Array.isArray(l.zoneTehnice) ? l.zoneTehnice : [];
+    if (!l || !isFinite(d) || d < 0 || d >= Number(l.L) ||
+      zones.some(function (z) {
+        return z.id !== zoneId && z.deLa !== '' && Math.abs(Number(z.deLa) - d) < 1e-6;
+      })) return false;
+    var zone = byId(l.zoneTehnice, zoneId);
+    if (!zone || Math.abs(Number(zone.deLa) - d) < 1e-6) return false;
+    mutate(function (p) {
+      var line = byId(p.linii, lineId);
+      var target = byId(line.zoneTehnice, zoneId);
+      if (target) target.deLa = d;
+    }, { undo: true });
+    return true;
+  };
+  store.delTechnicalZone = function (lineId, zoneId) {
+    mutate(function (p) {
+      var l = byId(p.linii, lineId);
+      l.zoneTehnice = l.zoneTehnice.filter(function (z) { return z.id !== zoneId; });
+    }, { undo: true });
+  };
+
   // Trecerea unei linii „clasice" (tronsoane bifate manual) la modul pe distanțe.
   store.convertLine = function (lineId) {
     mutate(function (p) {
       var l = byId(p.linii, lineId);
       if (!l) return;
+      if (!(l.zoneTehnice || []).length) {
+        var distance = 0;
+        l.zoneTehnice = [];
+        (l.tronsoane || []).forEach(function (t) {
+          if (t.tip === 'stalpi') return;
+          if (t.tipLinie || t.conductor || t.sectiune || t.observatii) {
+            l.zoneTehnice.push({ id: S.uid('zona'), deLa: distance, tipLinie: t.tipLinie || '',
+              conductor: t.conductor || '', sectiune: t.sectiune || '', observatii: t.observatii || '' });
+          } else if (l.zoneTehnice.length) {
+            l.zoneTehnice.push({ id: S.uid('zona'), deLa: distance, tipLinie: '', conductor: '', sectiune: '', observatii: '' });
+          }
+          distance += Number(t.lungime) || 0;
+        });
+      }
       if (!Array.isArray(l.racordari) || !l.racordari.length) {
         l.racordari = C.racordariFromTronsoane(l);
       }

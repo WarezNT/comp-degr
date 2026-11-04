@@ -13,6 +13,8 @@
   var V = global.AppViews;
   var HELP = global.AppHelp;
   var money = K.money;
+  var useState = global.preactHooks.useState;
+  var useRef = global.preactHooks.useRef;
 
   function users() { return store.state.utilizatori; }
   function uName(u) { return u.nume || u.codPA || 'fără nume'; }
@@ -47,6 +49,82 @@
 
   function userName(id) { var u = S.findUser(store.state, id); return u ? uName(u) : id; }
   function roleOf(id) { var u = S.findUser(store.state, id); return u ? u.rol : 'existent'; }
+  var PR_TYPES = [['', 'Nespecificat'], ['post', 'Post de transformare'], ['firida', 'Firidă'],
+    ['statie', 'Stație'], ['stalp', 'Stâlp'], ['altul', 'Altul']];
+
+  function technicalLabel(t) {
+    return [t.tipLinie, t.conductor, t.sectiune ? t.sectiune + ' mm²' : ''].filter(Boolean).join(' · ');
+  }
+
+  function prTypeLabel(tip) {
+    var match = PR_TYPES.filter(function (o) { return o[0] === tip && o[0]; })[0];
+    return match ? match[1] : 'Punct de racordare';
+  }
+
+  function prShort(tip) {
+    return { post: 'PT', firida: 'F', statie: 'ST', stalp: 'S', altul: 'PR' }[tip] || 'PR';
+  }
+
+  function PRSymbol(props) {
+    var x = props.x, y = props.y, tip = (props.data || {}).tip;
+    return html`<g class="dl-pr-symbol" role="img" aria-label=${prTypeLabel(tip) + ' ' + ((props.data || {}).denumire || '')}>
+      ${tip === 'stalp'
+        ? html`<circle cx=${x} cy=${y} r="15" /><line x1=${x - 11} y1=${y} x2=${x + 11} y2=${y} />`
+        : html`<rect x=${x - 18} y=${y - 14} width="36" height="28" rx=${tip === 'firida' ? 2 : 5} />
+          ${tip === 'post' || tip === 'statie' ? html`<line x1=${x - 10} y1=${y - 5} x2=${x + 10} y2=${y - 5} />
+            <line x1=${x - 10} y1=${y + 3} x2=${x + 10} y2=${y + 3} />` : null}`}
+      <text x=${x} y=${y + 4}>${prShort(tip)}</text>
+    </g>`;
+  }
+
+  function TechnicalFields(props) {
+    var k = props.path;
+    return html`<div class="row2">
+      <${K.Field} label="Tip linie" path=${k + 'tipLinie'}><${K.SelectInput} path=${k + 'tipLinie'}
+        options=${[['', 'Nespecificat'], ['LEA', 'LEA — aeriană'], ['LES', 'LES — subterană'], ['altul', 'Altul']]} /><//>
+      <${K.Field} label="Conductor / cablu" path=${k + 'conductor'}><${K.TextInput} path=${k + 'conductor'} /><//>
+      <${K.Field} label="Secțiune (mm²)" path=${k + 'sectiune'}><${K.NumInput} path=${k + 'sectiune'} /><//>
+      <${K.Field} label="Observații" path=${k + 'observatii'}><${K.TextInput} path=${k + 'observatii'} /><//>
+    </div>`;
+  }
+
+  function LineTechnicalEditor(props) {
+    var l = props.l;
+    var k = 'pr.' + l.id + '.';
+    return html`<details class="advanced technical-editor">
+      <summary>Originea liniei (PR) și caracteristici tehnice</summary>
+      <p class="hint">Date descriptive, fără costuri suplimentare. PR este originea măsurării distanțelor:
+        un post sau o firidă descrisă aici nu este inclusă automat în compensație.</p>
+      <div class="row2">
+        <${K.Field} label="Tip punct de racordare" path=${k + 'tip'}><${K.SelectInput} path=${k + 'tip'} options=${PR_TYPES} /><//>
+        <${K.Field} label="Denumire / cod PR" path=${k + 'denumire'}><${K.TextInput} path=${k + 'denumire'} /><//>
+        <${K.Field} label="Nivel de tensiune (kV)" path=${k + 'tensiune'}><${K.NumInput} path=${k + 'tensiune'} /><//>
+        <${K.Field} label="Observații PR" path=${k + 'observatii'}><${K.TextInput} path=${k + 'observatii'} /><//>
+      </div>
+      ${l.mod === 'distante' ? html`<div class="technical-zones">
+        <h3>Zone tehnice ale liniei</h3>
+        <p class="hint">Fiecare zonă începe la distanța indicată și continuă până la următoarea zonă sau la capătul liniei.
+          Începe cu 0 m pentru a descrie linia de la PR. Limitele tehnice împart tronsoanele, independent de utilizatori.
+          Porțiunea anterioară primei zone rămâne nespecificată. Costurile se calculează în continuare cu același b_L.</p>
+        ${(l.zoneTehnice || []).map(function (z, i) {
+          var path = 'zona.' + l.id + '.' + z.id + '.';
+          return html`<div class="technical-zone" key=${z.id}>
+            <div class="toolbar"><strong>Zona tehnică ${i + 1}</strong>
+              <button type="button" class="btn tiny danger" onClick=${function () { store.delTechnicalZone(l.id, z.id); }}>Șterge zona</button></div>
+            <${K.Field} label="Început zonă — distanță de la PR (m)" path=${path + 'deLa'}><${K.NumInput} path=${path + 'deLa'} ph="0 (originea liniei)" /><//>
+            <${TechnicalFields} path=${path} />
+          </div>`;
+        })}
+        <button type="button" class="btn tiny" onClick=${function () { store.addTechnicalZone(l.id); }}>+ Zonă tehnică</button>
+      </div>` : html`<div>
+        <p class="hint">În modul manual, caracteristicile se completează direct pe fiecare tronson. Limitele sunt cele din tabel.</p>
+        ${(l.tronsoane || []).filter(function (t) { return t.tip !== 'stalpi'; }).map(function (t) {
+          return html`<details class="advanced" key=${t.id}><summary>${t.nume || t.id} — caracteristici</summary>
+            <${TechnicalFields} path=${'tronson.' + l.id + '.' + t.id + '.'} /></details>`;
+        })}
+      </div>`}
+    </details>`;
+  }
 
   // Limitele și racordările, indiferent de mod (distanțe sau tronsoane clasice).
   function lineGeo(l) {
@@ -65,6 +143,12 @@
       rec = Object.keys(dist).map(function (u) { return { userId: u, distanta: dist[u] }; });
     }
     rec.forEach(function (r) { if (bounds.indexOf(r.distanta) < 0) bounds.push(r.distanta); });
+    if (l.mod === 'distante') {
+      (l.zoneTehnice || []).forEach(function (z) {
+        var d = Number(z.deLa);
+        if (d > 0 && d < L && bounds.indexOf(d) < 0) bounds.push(d);
+      });
+    }
     if (L > 0 && bounds.indexOf(L) < 0) bounds.push(L);
     bounds.sort(function (a, b) { return a - b; });
     if (!L) L = bounds.length ? bounds[bounds.length - 1] : 0;
@@ -74,17 +158,45 @@
   function LineDiagram(props) {
     var l = props.l;
     var g = lineGeo(l);
+    var drag = useRef(null);
+    var editable = l.mod === 'distante';
+    var selected = g.rec.filter(function (r) { return r.userId === props.selectedId; })[0];
     if (!g.L || !g.bounds.length) {
       return html`<p class="hint">Diagrama apare după ce completezi lungimea liniei și distanțele de racordare.</p>`;
     }
-    var pad = 46, baseY = 72, MINW = 140, AVAIL = 800;
+    var pad = 186, baseY = 72, MINW = 140, AVAIL = 800;
     var bL = C.lineBl(l);
+    var regularTronsoane = (l.tronsoane || []).filter(function (t) { return t.tip !== 'stalpi'; });
+    var regularInfo = [], regularLength = 0;
+    regularTronsoane.forEach(function (t) {
+      var length = Number(t.lungime) || 0;
+      regularInfo.push({ from: regularLength, to: regularLength + length, tronson: t });
+      regularLength += length;
+    });
+    var technicalZones = (l.zoneTehnice || []).filter(function (z) {
+      return z.deLa !== '' && isFinite(Number(z.deLa));
+    }).slice().sort(function (a, b) { return Number(a.deLa) - Number(b.deLa); });
+    var zoneIndex = 0, technicalIndex = 0, tronsonIndex = 0;
 
     // Segmente: lățime proporțională cu lungimea, dar cu un minim lizibil.
     var segsData = [], prev = 0;
     g.bounds.forEach(function (b) {
       var len = b - prev;
-      segsData.push({ from: prev, to: b, len: len, cost: len * bL });
+      var technical = {};
+      if (l.mod === 'distante') {
+        while (zoneIndex < technicalZones.length && Number(technicalZones[zoneIndex].deLa) <= prev) zoneIndex++;
+        if (zoneIndex > 0) technical = technicalZones[zoneIndex - 1];
+      } else {
+        while (technicalIndex < regularInfo.length && regularInfo[technicalIndex].to <= prev) technicalIndex++;
+        var existing = regularInfo[technicalIndex] && regularInfo[technicalIndex].from <= prev
+          ? regularInfo[technicalIndex].tronson : null;
+        technical = existing || {};
+      }
+      while (tronsonIndex < regularInfo.length && regularInfo[tronsonIndex].to < b - 1e-6) tronsonIndex++;
+      var tronson = regularInfo[tronsonIndex] && Math.abs(regularInfo[tronsonIndex].to - b) < 1e-6
+        ? regularInfo[tronsonIndex].tronson : null;
+      segsData.push({ from: prev, to: b, len: len, cost: tronson ? C.tronsonCost(l, tronson) : len * bL,
+        tipLinie: technical.tipLinie || '', technical: technical, tronson: tronson });
       prev = b;
     });
     var distorted = false;
@@ -110,55 +222,186 @@
       return endX;
     }
 
-    // Tragere de cerc: mută utilizatorul pe linie (snap la 1 m), apoi salvează.
+    // CTM include scalarea și marginile SVG, inclusiv într-un container derulat.
+    function distanceAt(ev, svg, precision, min, max) {
+      var point = svg.createSVGPoint();
+      point.x = ev.clientX; point.y = ev.clientY;
+      var x = point.matrixTransform(svg.getScreenCTM().inverse()).x;
+      var d = g.L;
+      for (var i = 0; i < segsData.length; i++) {
+        var s = segsData[i];
+        if (x <= s.x2) { d = s.from + Math.max(0, Math.min(1, (x - s.x1) / s.w)) * s.len; break; }
+      }
+      precision = precision || 1;
+      min = min === undefined ? Math.min(1, g.L) : min;
+      max = max === undefined ? g.L : max;
+      return Math.max(min, Math.min(max, Math.round(d / precision) * precision));
+    }
+
     function onDown(ev, r) {
-      if (ev.button > 0) return;
+      if (!editable || ev.button > 0) return;
       ev.preventDefault();
       var circle = ev.currentTarget;
-      var gEl = circle.parentNode;
-      var svg = circle.ownerSVGElement;
-      var pid = ev.pointerId;
-      try { circle.setPointerCapture(pid); } catch (e) { /* ignorat */ }
-      gEl.classList.add('dragging');
-      var nameEl = gEl.querySelector('.dl-name');
-      var mEl = gEl.querySelector('.dl-m');
-      function move(e2) {
-        var rect = svg.getBoundingClientRect();
-        var vb = svg.viewBox && svg.viewBox.baseVal;
-        var x = (e2.clientX - rect.left) * (vb && rect.width ? vb.width / rect.width : 1);
-        var d = g.L;
-        for (var i = 0; i < segsData.length; i++) {
-          var s = segsData[i];
-          if (x <= s.x2) { d = s.from + Math.max(0, Math.min(1, (x - s.x1) / s.w)) * s.len; break; }
+      if (drag.current) return;
+      drag.current = { pointerId: ev.pointerId, userId: r.userId, original: r.distanta,
+        distance: r.distanta, startX: ev.clientX, startY: ev.clientY, moved: false };
+      circle.setPointerCapture(ev.pointerId);
+      circle.parentNode.classList.add('dragging');
+    }
+
+    function zoneRange(zoneId) {
+      var index = -1;
+      for (var i = 0; i < technicalZones.length; i++) {
+        if (technicalZones[i].id === zoneId) { index = i; break; }
+      }
+      if (index < 0) return null;
+      var min = index ? Number(technicalZones[index - 1].deLa) + 0.1 : 0.1;
+      var max = index + 1 < technicalZones.length ? Number(technicalZones[index + 1].deLa) - 0.1 : g.L - 0.1;
+      return { min: Math.max(0.1, min), max: Math.min(g.L - 0.1, max) };
+    }
+
+    function zonePoints(x) {
+      return x + ',' + (baseY - 12) + ' ' + (x + 6) + ',' + (baseY - 6) + ' ' +
+        x + ',' + baseY + ' ' + (x - 6) + ',' + (baseY - 6);
+    }
+
+    function onZoneDown(ev, zone) {
+      if (props.tool !== 'zones' || ev.button > 0) {
+        if (props.onSelectZone) props.onSelectZone(zone.id);
+        ev.stopPropagation();
+        return;
+      }
+      ev.preventDefault();
+      ev.stopPropagation();
+      var group = ev.currentTarget;
+      if (drag.current) return;
+      var range = zoneRange(zone.id);
+      drag.current = { kind: 'zone', pointerId: ev.pointerId, zoneId: zone.id,
+        original: Number(zone.deLa), distance: Number(zone.deLa), range: range,
+        startX: ev.clientX, startY: ev.clientY, moved: false };
+      group.setPointerCapture(ev.pointerId);
+      group.classList.add('dragging');
+    }
+
+    function onZoneKey(ev, zone) {
+      if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (props.onSelectZone) props.onSelectZone(zone.id);
+    }
+
+    function preview(circle, d) {
+      var group = circle.parentNode;
+      var cx = distToX(d);
+      circle.setAttribute('cx', cx);
+      group.querySelector('.dl-name').setAttribute('x', cx);
+      var label = group.querySelector('.dl-m');
+      label.setAttribute('x', cx);
+      label.textContent = d + ' m';
+    }
+
+    function onMove(ev) {
+      var current = drag.current;
+      if (!current || ev.pointerId !== current.pointerId) return;
+      if (Math.abs(ev.clientX - current.startX) + Math.abs(ev.clientY - current.startY) < 3 && !current.moved) return;
+      current.moved = true;
+      if (current.kind === 'zone') {
+        if (!current.range || current.range.max < current.range.min) return;
+        current.distance = distanceAt(ev, ev.currentTarget.ownerSVGElement, 0.1,
+          current.range.min, current.range.max);
+        var group = ev.currentTarget;
+        var x = distToX(current.distance);
+        group.querySelector('.dl-zone-guide').setAttribute('x1', x);
+        group.querySelector('.dl-zone-guide').setAttribute('x2', x);
+        group.querySelector('.dl-zone-marker').setAttribute('points', zonePoints(x));
+      } else {
+        current.distance = distanceAt(ev, ev.currentTarget.ownerSVGElement);
+        preview(ev.currentTarget, current.distance);
+      }
+    }
+
+    function onEnd(ev, cancel) {
+      var current = drag.current;
+      if (!current || ev.pointerId !== current.pointerId) return;
+      drag.current = null;
+      var target = ev.currentTarget;
+      if (current.kind === 'zone') {
+        target.classList.remove('dragging');
+        var originalX = distToX(current.original);
+        target.querySelector('.dl-zone-guide').setAttribute('x1', originalX);
+        target.querySelector('.dl-zone-guide').setAttribute('x2', originalX);
+        target.querySelector('.dl-zone-marker').setAttribute('points', zonePoints(originalX));
+        if (target.hasPointerCapture(ev.pointerId)) target.releasePointerCapture(ev.pointerId);
+        if (cancel) return;
+        if (props.onSelectZone) props.onSelectZone(current.zoneId);
+        if (current.moved && current.distance !== current.original && props.onMoveZone) {
+          props.onMoveZone(current.zoneId, current.distance);
         }
-        d = Math.max(1, Math.min(g.L, Math.round(d)));
-        var cx = distToX(d);
-        circle.setAttribute('cx', cx);
-        if (nameEl) nameEl.setAttribute('x', cx);
-        if (mEl) { mEl.setAttribute('x', cx); mEl.textContent = d + ' m'; }
+      } else {
+        target.parentNode.classList.remove('dragging');
+        preview(target, current.original);
+        if (target.hasPointerCapture(ev.pointerId)) target.releasePointerCapture(ev.pointerId);
+        if (!cancel) {
+          if (props.onSelect) props.onSelect(current.userId);
+          if (current.moved && current.distance !== current.original) {
+            store.pushUndo();
+            store.setRacordare(l.id, current.userId, current.distance);
+          }
+        }
       }
-      function up() {
-        try { circle.releasePointerCapture(pid); } catch (e) { /* ignorat */ }
-        gEl.classList.remove('dragging');
-        circle.removeEventListener('pointermove', move);
-        circle.removeEventListener('pointerup', up);
-        circle.removeEventListener('pointercancel', up);
-        var dd = mEl ? parseInt(String(mEl.textContent).replace(/[^0-9]/g, ''), 10) : NaN;
-        if (isFinite(dd) && dd > 0) store.setRacordare(l.id, r.userId, dd);
-      }
-      circle.addEventListener('pointermove', move);
-      circle.addEventListener('pointerup', up);
-      circle.addEventListener('pointercancel', up);
-      move(ev);
     }
 
     var segs = segsData.map(function (s, i) {
       var x1 = pos[s.from], x2 = pos[s.to], xm = (x1 + x2) / 2;
+      var t = s.tronson || {};
+      var selectedSegment = props.selectedTronsonId === t.id;
+      var segName = t.nume || ('Tronson ' + (i + 1));
+      var startLabel = s.from.toLocaleString('ro-RO') + ' m';
+      var endLabel = s.to.toLocaleString('ro-RO') + ' m';
+      var clickLabel = props.tool === 'place' ? 'Racordează utilizatorul selectat' :
+        props.tool === 'zones' ? 'Adaugă limită tehnică' : 'Selectează tronsonul';
       return html`<g key=${'s' + i}>
-        <line x1=${x1} y1=${baseY} x2=${x2} y2=${baseY} class="dl-seg" />
+        <title>${segName}, ${startLabel}–${endLabel}, ${technicalLabel(s.technical)} · ${clickLabel}</title>
+        <line x1=${x1} y1=${baseY} x2=${x2} y2=${baseY}
+          class=${'dl-seg' + (s.tipLinie ? ' tip-' + s.tipLinie : '') +
+            (selected && selected.distanta >= s.to ? ' dl-route' : '') +
+            (selectedSegment ? ' dl-segment-selected' : '')} />
+        ${props.onPlace ? html`<line x1=${x1} y1=${baseY} x2=${x2} y2=${baseY} class="dl-place"
+          tabindex="0" role="button" aria-label=${segName + ', ' + startLabel + '–' + endLabel + '. ' + clickLabel}
+          onClick=${function (e) {
+            if (props.tool === 'zones' && props.onAddZone) props.onAddZone(distanceAt(e, e.currentTarget.ownerSVGElement, 0.1, 0.1, g.L - 0.1));
+            else if (props.tool === 'place') props.onPlace(distanceAt(e, e.currentTarget.ownerSVGElement));
+            else if (props.onSegmentSelect && s.tronson) props.onSegmentSelect(s.tronson.id);
+          }}
+          onKeyDown=${function (e) {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
+            if (props.tool === 'zones' && props.onAddZone) props.onAddZone(Math.max(0.1, Math.min(g.L - 0.1, Math.round((s.from + s.to) * 5) / 10)));
+            else if (props.tool === 'place') props.onPlace(Math.max(1, Math.round((s.from + s.to) / 2)));
+            else if (props.onSegmentSelect && s.tronson) props.onSegmentSelect(s.tronson.id);
+          }}>
+          <title>${clickLabel}</title>
+        </line>` : null}
+        ${selectedSegment ? html`<text x=${xm} y=${baseY + 53} class="dl-inspector-label">Selectat</text>` : null}
         <line x1=${x1} y1=${baseY - 6} x2=${x1} y2=${baseY + 6} class="dl-tick" />
         <text x=${xm} y=${baseY - 34} class="dl-tnum">T${i + 1}</text>
-        <text x=${xm} y=${baseY - 18} class="dl-lab">${Math.round(s.len)} m · ${money(s.cost)} lei</text>
+        <text x=${xm} y=${baseY - 18} class="dl-lab">${money(s.len)} m · ${money(s.cost)} lei</text>
+      </g>`;
+    });
+    var zoneMarkers = technicalZones.filter(function (zone) { return Number(zone.deLa) > 0; }).map(function (zone) {
+      var x = distToX(Number(zone.deLa));
+      var selectedZone = zone.id === props.selectedZoneId;
+      return html`<g key=${zone.id} class=${'dl-zone-handle' + (selectedZone ? ' dl-zone-selected' : '')}
+        tabindex="0" role="button" aria-pressed=${selectedZone}
+        aria-label=${'Limită tehnică la ' + zone.deLa + ' m'}
+        onPointerDown=${function (e) { onZoneDown(e, zone); }}
+        onPointerMove=${onMove} onPointerUp=${function (e) { onEnd(e, false); }}
+        onPointerCancel=${function (e) { onEnd(e, true); }}
+        onLostPointerCapture=${function (e) { onEnd(e, true); }}
+        onClick=${function (e) { e.stopPropagation(); if (props.onSelectZone) props.onSelectZone(zone.id); }}
+        onKeyDown=${function (e) { onZoneKey(e, zone); }}>
+        <line x1=${x} y1=${baseY - 15} x2=${x} y2=${baseY + 8} class="dl-zone-guide" />
+        <polygon points=${zonePoints(x)} class="dl-zone-marker"><title>Limită tehnică la ${zone.deLa} m</title></polygon>
       </g>`;
     });
 
@@ -170,11 +413,28 @@
       var cx = xOf(d);
       var k = seen[d] || 0; seen[d] = k + 1;
       var y0 = baseY + 26 + k * 30;
-      return html`<g key=${'u' + i}>
-        <circle cx=${cx} cy=${baseY} r="8" class=${'dl-user rol-' + roleOf(r.userId)}
-          onPointerDown=${function (e) { onDown(e, r); }} />
+      return html`<g key=${r.userId}>
+        <circle cx=${cx} cy=${baseY} r=${props.selectedId === r.userId ? 11 : 8}
+          class=${'dl-user rol-' + roleOf(r.userId) + (props.selectedId === r.userId ? ' dl-selected' : '')}
+          tabindex=${props.onSelect ? '0' : null} role=${props.onSelect ? 'button' : null}
+          aria-label=${userName(r.userId) + ', ' + d + ' m'}
+          aria-pressed=${props.onSelect ? props.selectedId === r.userId : null}
+          onClick=${function () { if (props.onSelect) props.onSelect(r.userId); }}
+          onKeyDown=${function (e) {
+            if (!props.onSelect) return;
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onSelect(r.userId); }
+            if (editable && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+              e.preventDefault();
+              var next = Math.max(Math.min(1, g.L), Math.min(g.L, d + (e.key === 'ArrowRight' ? 1 : -1)));
+              if (next !== d) { store.pushUndo(); store.setRacordare(l.id, r.userId, next); }
+            }
+          }}
+          onPointerDown=${function (e) { onDown(e, r); }}
+          onPointerMove=${onMove} onPointerUp=${function (e) { onEnd(e, false); }}
+          onPointerCancel=${function (e) { onEnd(e, true); }}
+          onLostPointerCapture=${function (e) { onEnd(e, true); }} />
         <text x=${cx} y=${y0} class="dl-name">${userName(r.userId)}</text>
-        <text x=${cx} y=${y0 + 15} class="dl-m">${Math.round(d)} m</text>
+        <text x=${cx} y=${y0 + 15} class="dl-m">${d} m</text>
       </g>`;
     });
     var maxStack = 1;
@@ -183,47 +443,287 @@
 
     var vlist = segsData.map(function (s, i) {
       var at = g.rec.filter(function (r) { return Number(r.distanta) === s.to; });
-      return html`<li key=${'v' + i}><strong>T${i + 1}</strong> — ${Math.round(s.from)}–${Math.round(s.to)} m · ${money(s.cost)} lei
-        ${at.length ? html` · ${at.map(function (r) { return userName(r.userId); }).join(', ')}` : null}</li>`;
+      return html`<li key=${'v' + i}><strong>T${i + 1}</strong> — ${money(s.from)}–${money(s.to)} m · ${money(s.cost)} lei
+        ${s.tipLinie ? ' · ' + s.tipLinie : ''}${at.length ? html` · ${at.map(function (r) { return userName(r.userId); }).join(', ')}` : null}</li>`;
     });
 
     return html`<div class="diagram-wrap">
       <svg class="diagram" viewBox=${'0 0 ' + totalW + ' ' + H}
         style=${totalW > 900 ? { minWidth: totalW + 'px' } : null}
-        role="img" aria-label="Schema liniei, de la punctul de racordare la capăt">
-        <text x="6" y=${baseY + 5} class="dl-pr">PR</text>
+        role=${props.onSelect ? 'group' : 'img'} aria-label="Schema liniei, de la punctul de racordare la capăt">
+        <text x="6" y=${baseY - 13} class="dl-origin-label">PR · ${prTypeLabel((l.punctRacordare || {}).tip)}</text>
+        <text x="6" y=${baseY + 4} class="dl-origin-name">${(l.punctRacordare || {}).denumire || 'Origine linie'}</text>
+        <text x="6" y=${baseY + 20} class="dl-origin-voltage">${(l.punctRacordare || {}).tensiune ? l.punctRacordare.tensiune + ' kV' : ''}</text>
+        <${PRSymbol} x=${pad - 22} y=${baseY} data=${l.punctRacordare || {}} />
         <line x1=${pos[0]} y1=${baseY} x2=${endX} y2=${baseY} class="dl-base" />
         ${segs}
+        ${zoneMarkers}
         <line x1=${endX} y1=${baseY - 6} x2=${endX} y2=${baseY + 6} class="dl-tick" />
         ${usersG}
       </svg>
     </div>
     <ol class="diagram-vlist" aria-label="Tronsoane (listă)">${vlist}</ol>
-    <p class="hint">${distorted ? 'Schemă orientativă — nu este la scară (segmentele scurte au lățime minimă). ' : ''}Trage de cerc pentru a muta un utilizator pe linie; pe ecrane mici folosește lista de mai jos.</p>`;
+    <p class="hint">${distorted ? 'Schemă orientativă — nu este la scară (segmentele scurte au lățime minimă). ' : ''}
+      ${props.tool === 'zones' ? 'Apasă pe linie pentru a adăuga o limită; trage un marcaj pentru a-l muta. Distanța exactă se editează în inspector.' :
+        editable ? 'Trage de cerc pentru a muta un utilizator pe linie. Distanțele numerice determină calculul.' : 'Schemă orientativă; alocările se editează în tabel.'}</p>`;
+  }
+
+  function RacordareInput(props) {
+    var l = props.l;
+    var rec = (l.racordari || []).filter(function (x) { return x.userId === props.userId; })[0];
+    var value = rec ? rec.distanta : '';
+    var id = props.id || ('distance-' + l.id + '-' + props.userId);
+    var draft = useRef({ text: null, last: undefined });
+    var r = draft.current;
+    var focused = document.activeElement && document.activeElement.id === id;
+    // O salvare asincronă nu trebuie să rescrie distanța încă neconfirmată.
+    if (r.text === null || (value !== r.last && !focused)) r.text = String(value);
+    r.last = value;
+    return html`<input type="number" min=${Math.min(1, Number(l.L) || 1)} max=${Number(l.L) > 0 ? l.L : null}
+      step="any" inputmode="decimal" data-guide=${'dist:' + l.id + ':' + props.userId}
+      value=${r.text} placeholder="—" id=${id}
+      aria-label=${'Distanța de la punctul de racordare (PR) pentru ' + userName(props.userId) + ' (m)'}
+      onInput=${function (e) { r.text = e.target.value; }}
+      onChange=${function (e) {
+        r.text = e.target.value;
+        if (!e.target.reportValidity()) return;
+        store.setRacordare(l.id, props.userId, e.target.value);
+      }} />`;
   }
 
   function DistEditor(props) {
     var l = props.l;
     var us = users();
     if (!us.length) return html`<p class="muted">Adaugă mai întâi utilizatori în pasul „2 · Utilizatori”.</p>`;
-    var rec = {};
-    (l.racordari || []).forEach(function (r) { rec[r.userId] = r.distanta; });
     return html`<div class="dist-editor">
       <p class="hint">Setează <strong>distanța de la punctul de racordare (PR) în metri</strong> pentru fiecare utilizator. Tronsoanele și costurile se generează automat.
         Gol = utilizatorul nu e racordat pe această linie.</p>
       <div class="dist-rows">
         ${us.map(function (u) {
-          var v = rec[u.id];
           return html`<label class="dist-row" key=${u.id}>
             <span class="dist-name"><span class=${'dot rol-' + u.rol}></span>${uName(u)} <span class="muted">(${V.ROL_LABEL[u.rol]})</span></span>
             <span class="dist-input">
-              <input type="number" min="1" step="1" inputmode="numeric" data-guide=${'dist:' + l.id + ':' + u.id}
-                value=${v != null ? v : ''} placeholder="—" aria-label=${'Distanța de la punctul de racordare (PR) pentru ' + uName(u) + ' (m)'}
-                onChange=${function (e) { store.setRacordare(l.id, u.id, e.target.value); }} /> <span class="muted">m</span>
+              <${RacordareInput} l=${l} userId=${u.id} /> <span class="muted">m</span>
             </span>
           </label>`;
         })}
       </div>
+    </div>`;
+  }
+
+  function LineScheme(props) {
+    var l = props.l;
+    var selection = useState('');
+    var selectedId = selection[0], select = selection[1];
+    var segmentSelection = useState('');
+    var selectedTronsonId = segmentSelection[0], selectTronson = segmentSelection[1];
+    var zoneSelection = useState('');
+    var selectedZoneId = zoneSelection[0], selectZone = zoneSelection[1];
+    var toolState = useState('inspect');
+    var tool = toolState[0], setTool = toolState[1];
+    var u = S.findUser(store.state, selectedId);
+    var selectedTronson = (l.tronsoane || []).filter(function (t) { return t.id === selectedTronsonId; })[0];
+    var selectedZone = (l.zoneTehnice || []).filter(function (z) { return z.id === selectedZoneId; })[0];
+    function moveZone(id, d) {
+      var moved = store.moveTechnicalZone(l.id, id, d);
+      if (!moved) store.toast('Limita nu poate coincide cu o altă limită sau depăși linia.', 'error');
+      return moved;
+    }
+    if (l.mod !== 'distante') return html`<div class="scheme-legacy">
+      <p>Această linie folosește tronsoane introduse manual.</p>
+      <p class="hint">Editorul grafic necesită racordări pe distanțe. Conversia regenerează tronsoanele și costurile;
+        alocările speciale și costurile manuale pot fi înlocuite. Tabelul rămâne disponibil fără conversie.</p>
+      <button type="button" class="btn" onClick=${function () {
+        if (!global.confirm('Conversia pe distanțe regenerează tronsoanele și costurile automate și poate schimba alocările manuale. Continui? Poți reveni cu „Anulează”.')) return;
+        store.pushUndo();
+        store.convertLine(l.id);
+      }}>Pregătește linia pentru schemă</button>
+    </div>`;
+    var rec = {};
+    (l.racordari || []).forEach(function (r) { rec[r.userId] = r.distanta; });
+    var path = u ? 'user.' + u.id + '.' : '';
+    var fieldPrefix = 'scheme-' + l.id + '-' + selectedId + '-';
+    return html`<div class="line-scheme">
+      <section class="scheme-palette" aria-label="Utilizatori de racordat">
+        <h3>Utilizatori</h3>
+        <p class="hint">Selectează un utilizator, apoi apasă pe linie sau introdu distanța.</p>
+        <button type="button" class="btn tiny" onClick=${function () {
+          store.addUser();
+          select(users()[users().length - 1].id);
+        }}>+ Adaugă utilizator</button>
+        <div class="scheme-users">${users().map(function (item) {
+          return html`<button type="button" key=${item.id} class="scheme-user"
+            aria-pressed=${item.id === selectedId} onClick=${function () {
+              select(item.id); selectTronson(''); selectZone(''); setTool('place');
+            }}>
+            <span class=${'dot rol-' + item.rol}></span>
+            <span><strong>${uName(item)}</strong><small>${V.ROL_LABEL[item.rol]} · ${rec[item.id] != null ? rec[item.id] + ' m' : 'neracordat'}</small></span>
+          </button>`;
+        })}</div>
+        ${(l.zoneTehnice || []).length ? html`<h4>Zone tehnice</h4>
+          <div class="scheme-zone-list" aria-label="Selectează o zonă tehnică">
+            ${(l.zoneTehnice || []).map(function (zone, index) {
+              return html`<button type="button" class="btn tiny" key=${zone.id}
+                aria-pressed=${zone.id === selectedZoneId} onClick=${function () {
+                  selectZone(zone.id); selectTronson('');
+                }}>Zona ${index + 1} · ${zone.deLa === '' ? 'distanță lipsă' : zone.deLa + ' m'}</button>`;
+            })}
+          </div>` : null}
+      </section>
+      <section class=${'scheme-canvas tool-' + tool} aria-label="Schemă monofilară">
+        <h3>${l.nume || 'Linie'} · PR ${(l.punctRacordare || {}).denumire || ''} → capăt</h3>
+        <p class="hint">${PR_TYPES.filter(function (o) { return o[0] === (l.punctRacordare || {}).tip && o[0]; }).map(function (o) { return o[1]; }).join('')}
+          ${(l.punctRacordare || {}).tensiune ? ' · ' + l.punctRacordare.tensiune + ' kV' : ''}</p>
+        <div class="toolbar scheme-mode scheme-tools" role="group" aria-label="Acțiunea pe schemă">
+          <button type="button" class="btn tiny" aria-pressed=${tool === 'inspect'} onClick=${function () { setTool('inspect'); }}>Selectează tronson</button>
+          <button type="button" class="btn tiny" aria-pressed=${tool === 'place'} disabled=${!u}
+            onClick=${function () { if (u) setTool('place'); }}>Racordează utilizator</button>
+          <button type="button" class="btn tiny" aria-pressed=${tool === 'zones'} onClick=${function () { setTool('zones'); selectTronson(''); }}>
+            Editează limite</button>
+        </div>
+        <${LineLegend} />
+        ${Number(l.L) > 0 ? html`<${LineDiagram} l=${l} selectedId=${selectedId} selectedTronsonId=${selectedTronsonId}
+          selectedZoneId=${selectedZoneId}
+          tool=${tool} onSelect=${function (id) { select(id); selectTronson(''); selectZone(''); }}
+          onSelectZone=${function (id) { selectZone(id); selectTronson(''); }}
+          onSegmentSelect=${function (id) { selectTronson(id); selectZone(''); }}
+          onAddZone=${function (d) {
+            if (d <= 0 || d >= Number(l.L)) { store.toast('Alege o poziție între 0 m și capătul liniei.', 'error'); return; }
+            var id = store.addTechnicalZone(l.id, d);
+            if (!id) { store.toast('Există deja o limită tehnică la această distanță.', 'error'); return; }
+            selectZone(id); selectTronson('');
+          }}
+          onMoveZone=${moveZone}
+          onPlace=${function (d) {
+            if (!u) { store.toast('Selectează mai întâi un utilizator din listă.', 'info'); return; }
+            if (Number(rec[u.id]) === d) return;
+            store.pushUndo();
+            store.setRacordare(l.id, u.id, d);
+          }} />` : html`<p class="hint">Completează lungimea totală L de mai sus pentru a desena linia.</p>`}
+        <p class="hint">Selectează un tronson pentru detalii; pentru o racordare, selectează utilizatorul și schimbă acțiunea.
+          Din tastatură, folosește Tab și Enter. Poziția grafică nu stabilește rolul sau ordinea racordării.</p>
+        <${TronsonTable} l=${l} selectedId=${selectedId} selectedTronsonId=${selectedTronsonId}
+          onSelect=${function (id) { selectTronson(id); selectZone(''); }} />
+      </section>
+      <section class="scheme-properties" aria-label=${selectedZone ? 'Proprietăți zonă tehnică' : selectedTronson ? 'Proprietăți tronson' : 'Proprietăți utilizator'}>
+        ${selectedZone ? html`<${TechnicalZoneInspector} l=${l} zone=${selectedZone} onMoveZone=${moveZone}
+          onClose=${function () { selectZone(''); }}
+          onDelete=${function () { store.delTechnicalZone(l.id, selectedZone.id); selectZone(''); }} />` :
+          selectedTronson ? html`<${TronsonInspector} l=${l} t=${selectedTronson}
+          onUser=${function (id) { select(id); selectTronson(''); selectZone(''); setTool('place'); }}
+          onClose=${function () { selectTronson(''); }} />` : html`<div>
+        <h3>Proprietăți utilizator</h3>
+        ${u ? html`<div key=${u.id}>
+          <${K.Field} label="Nume / denumire" id=${fieldPrefix + 'nume'}><${K.TextInput} path=${path + 'nume'} id=${fieldPrefix + 'nume'} /><//>
+          <${K.Field} label="Cod PA" id=${fieldPrefix + 'codPA'}><${K.TextInput} path=${path + 'codPA'} id=${fieldPrefix + 'codPA'} /><//>
+          <${K.Field} label="Rol" id=${fieldPrefix + 'rol'}><${K.SelectInput} path=${path + 'rol'} id=${fieldPrefix + 'rol'}
+            options=${Object.keys(V.ROL_LABEL).map(function (role) { return [role, V.ROL_LABEL[role]]; })} /><//>
+          <${K.Field} label="Putere aprobată (kVA)" id=${fieldPrefix + 'putere'}><${K.NumInput} path=${path + 'putere'} id=${fieldPrefix + 'putere'} /><//>
+          <${K.Field} label="Distanță de la PR (m)" id=${fieldPrefix + 'distanta'}>
+            <${RacordareInput} l=${l} userId=${u.id} id=${fieldPrefix + 'distanta'} />
+          <//>
+          <${K.Field} label="Data ATR" id=${fieldPrefix + 'dataATR'}><${K.DateInput} path=${path + 'dataATR'} id=${fieldPrefix + 'dataATR'} /><//>
+          <${K.Field} label="Data achitare TR" id=${fieldPrefix + 'dataTR'}><${K.DateInput} path=${path + 'dataTR'} id=${fieldPrefix + 'dataTR'} /><//>
+          <p class="hint">Datele utilizatorului sunt comune tuturor liniilor. Contractul și celelalte avize se completează în pasul „Utilizatori”.</p>
+          <button type="button" class="btn tiny danger" disabled=${rec[u.id] == null} onClick=${function () {
+            store.pushUndo(); store.setRacordare(l.id, u.id, '');
+          }}>Deconectează de pe linie</button>
+        </div>` : html`<p class="hint">Selectează un utilizator din listă sau din schemă pentru a-i edita datele.</p>`}
+        </div>`}
+      </section>
+    </div>`;
+  }
+
+  function LineLegend() {
+    return html`<ul class="dl-legend" aria-label="Legendă tip linie">
+      <li><span class="dl-legend-line lea"></span>LEA — linie aeriană</li>
+      <li><span class="dl-legend-line les"></span>LES — linie subterană</li>
+      <li><span class="dl-legend-line unknown"></span>Tip nespecificat / altul</li>
+      <li><span class="dl-zone-key">◆</span>Limită tehnică</li>
+    </ul>`;
+  }
+
+  function ZoneDistanceInput(props) {
+    var zone = props.zone;
+    var id = 'zone-distance-' + props.l.id + '-' + zone.id;
+    var value = Number(zone.deLa);
+    var draft = useRef({ text: null, last: undefined });
+    var r = draft.current;
+    var focused = document.activeElement && document.activeElement.id === id;
+    if (r.text === null || (r.last !== value && !focused)) r.text = String(zone.deLa).replace('.', ',');
+    r.last = value;
+    function restore() {
+      r.text = String(props.zone.deLa).replace('.', ',');
+      r.last = Number(props.zone.deLa);
+      store.render();
+    }
+    return html`<${K.Field} label="Început zonă — distanță de la PR (m)" id=${id}>
+      <input type="text" inputmode="decimal" id=${id} value=${r.text} aria-label="Început zonă — distanță de la PR (m)"
+        onInput=${function (e) { r.text = e.target.value; }}
+        onKeyDown=${function (e) { if (e.key === 'Enter') e.target.blur(); }}
+        onBlur=${function (e) {
+          var text = e.target.value.trim();
+          var d = Number(text.replace(',', '.'));
+          if (!text || !isFinite(d) || d < 0 || d >= Number(props.l.L)) {
+            store.toast('Introdu o distanță de la 0 m până înainte de capătul liniei.', 'error');
+            restore();
+            return;
+          }
+          if (Math.abs(d - Number(props.zone.deLa)) < 1e-6) { r.text = text; return; }
+          r.last = d;
+          if (!props.onMoveZone(props.zone.id, d)) restore();
+        }} />
+    <//>`;
+  }
+
+  function TechnicalZoneInspector(props) {
+    var zone = props.zone;
+    return html`<div class="tronson-inspector zone-inspector">
+      <div class="toolbar"><h3>Proprietăți zonă tehnică</h3>
+        <button type="button" class="btn tiny ghost" aria-label="Închide detaliile zonei" onClick=${props.onClose}>×</button></div>
+      <strong>${zone.tipLinie === 'LEA' ? 'LEA — linie aeriană' : zone.tipLinie === 'LES' ? 'LES — linie subterană' : zone.tipLinie || 'Tip nespecificat'}</strong>
+      <${ZoneDistanceInput} l=${props.l} zone=${zone} onMoveZone=${props.onMoveZone} />
+      <dl>
+        <dt>Conductor / cablu</dt><dd>${zone.conductor || 'Nespecificat'}</dd>
+        <dt>Secțiune</dt><dd>${zone.sectiune ? zone.sectiune + ' mm²' : 'Nespecificată'}</dd>
+        ${zone.observatii ? html`<dt>Observații</dt><dd>${zone.observatii}</dd>` : null}
+      </dl>
+      <p class="hint">Limita împarte tronsoanele, independent de poziția utilizatorilor. Costul se recalculează după noua delimitare.</p>
+      <button type="button" class="btn tiny ghost" onClick=${function () {
+        var editor = document.querySelector('.technical-editor');
+        if (editor) { editor.open = true; editor.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      }}>Editează caracteristicile zonei</button>
+      <button type="button" class="btn tiny danger" onClick=${props.onDelete}>Șterge limita tehnică</button>
+    </div>`;
+  }
+
+  function TronsonInspector(props) {
+    var l = props.l, t = props.t;
+    var at = (t.utilizatori || []).map(function (id) { return S.findUser(store.state, id); }).filter(Boolean);
+    return html`<div class="tronson-inspector">
+      <div class="toolbar"><h3>Proprietăți tronson</h3>
+        <button type="button" class="btn tiny ghost" aria-label="Închide detaliile tronsonului" onClick=${props.onClose}>×</button></div>
+      <strong>${t.nume || 'Tronson'}</strong>
+      <dl>
+        <dt>De la PR</dt><dd>${money((l.tronsoane || []).slice(0, (l.tronsoane || []).indexOf(t))
+          .reduce(function (sum, x) { return x.tip === 'stalpi' ? sum : sum + (Number(x.lungime) || 0); }, 0))} m</dd>
+        <dt>Lungime</dt><dd>${money(Number(t.lungime) || 0)} m</dd>
+        <dt>Cost</dt><dd>${money(C.tronsonCost(l, t))} lei</dd>
+        <dt>Tip linie</dt><dd>${t.tipLinie === 'LEA' ? 'LEA — aeriană' : t.tipLinie === 'LES' ? 'LES — subterană' : t.tipLinie || 'Nespecificat'}</dd>
+        <dt>Conductor / cablu</dt><dd>${t.conductor || 'Nespecificat'}</dd>
+        <dt>Secțiune</dt><dd>${t.sectiune ? t.sectiune + ' mm²' : 'Nespecificată'}</dd>
+        ${t.observatii ? html`<dt>Observații</dt><dd>${t.observatii}</dd>` : null}
+      </dl>
+      <h4>Utilizatori care folosesc tronsonul</h4>
+      ${at.length ? html`<ul class="inspector-users">${at.map(function (user) {
+        return html`<li key=${user.id}><button type="button" class="linkish" onClick=${function () { props.onUser(user.id); }}>
+          ${uName(user)} — ${V.ROL_LABEL[user.rol]}</button></li>`;
+      })}</ul>` : html`<p class="hint">Niciun utilizator nu folosește acest tronson.</p>`}
+      <p class="hint">Caracteristicile tehnice sunt descriptive. Costul este calculat automat din lungime și b_L.</p>
+      <button type="button" class="btn tiny ghost" onClick=${function () {
+        var editor = document.querySelector('.technical-editor');
+        if (editor) { editor.open = true; editor.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      }}>Editează datele tehnice ale liniei</button>
     </div>`;
   }
 
@@ -236,8 +736,12 @@
       <caption class="sr-only">Tronsoane: lungime, cost și utilizatori</caption>
       <thead><tr><th scope="col">Tronson</th><th scope="col">Lungime (m)</th><th scope="col">Cost (lei)</th><th scope="col">Utilizatori care îl folosesc</th></tr></thead>
       <tbody>${trs.map(function (t) {
-        return html`<tr key=${t.id}>
-          <td>${t.nume || t.id}${t.tip === 'stalpi' ? html` <${K.RefChip} id="art15.1" />` : null}</td>
+        return html`<tr key=${t.id} class=${(props.selectedTronsonId === t.id ? 'scheme-tronson-selected ' : '') +
+          (props.selectedId && (t.utilizatori || []).indexOf(props.selectedId) >= 0 ? 'scheme-user-route' : '')}>
+          <td>${props.onSelect ? html`<button type="button" class="linkish" aria-pressed=${props.selectedTronsonId === t.id}
+            onClick=${function () { props.onSelect(t.id); }}>${t.nume || t.id}</button>` : t.nume || t.id}
+            ${t.tip === 'stalpi' ? html` <${K.RefChip} id="art15.1" />` : null}
+            <div class="hint">${technicalLabel(t)}</div>${t.observatii ? html`<div class="hint">${t.observatii}</div>` : null}</td>
           <td class="num">${t.tip === 'stalpi' ? '—' : money(Number(t.lungime) || 0)}</td>
           <td class="num">${money(C.tronsonCost(l, t))}</td>
           <td>${(t.utilizatori || []).map(function (u) { return html`<span class="chip-s">${userName(u)}</span>`; })}</td>
@@ -319,6 +823,8 @@
     var id = l.id;
     var bL = C.lineBl(l);
     var complex = p.meta.model === 'complex';
+    var mode = useState(false);
+    var scheme = !complex && p.meta.model === 'line' && mode[0];
     var role = p.complexConfig.liniiIds.indexOf(id) >= 0 ? 'u1' : (p.complexConfig.liniiU2Ids.indexOf(id) >= 0 ? 'u2' : '');
     return html`<div class="card line-card" key=${id}>
       <div class="card-head">
@@ -342,6 +848,12 @@
       <p class="hint">Costul fiecărui tronson = <strong>lungime × b_L = <span data-line-bl=${id}>${money(bL)}</span> lei/m</strong>. <${K.RefChip} id="art12.1" />
         <span data-line-status=${id}>${lineStatus(l)}</span></p>
       <${TranzDetails} kind="line" x=${l} />
+      <${LineTechnicalEditor} l=${l} />
+      ${p.meta.model === 'line' ? html`<div class="toolbar scheme-mode" role="group" aria-label="Mod de introducere">
+        <button type="button" class="btn tiny" aria-pressed=${!scheme} onClick=${function () { mode[1](false); }}>Formular / tabel</button>
+        <button type="button" class="btn tiny" aria-pressed=${scheme} onClick=${function () { mode[1](true); }}>Schemă</button>
+      </div>` : null}
+      ${scheme ? html`<${LineScheme} l=${l} />` : html`<div>
       <${LineDiagram} l=${l} />
       ${l.mod === 'distante' ? html`<div>
         <div class="toolbar"><strong>Puncte de racordare</strong>
@@ -357,6 +869,7 @@
           <button type="button" class="btn tiny" onClick=${function () { store.convertLine(id); }} title="Trece linia la editorul pe distanțe (puncte de racordare)">→ Editează pe distanțe</button>
         </div>
         <${AllocMatrix} l=${l} />
+      </div>`}
       </div>`}
     </div>`;
   }
