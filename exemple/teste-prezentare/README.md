@@ -10,6 +10,7 @@ demonstrative; după import pot înlocui proiectul deschis.
 | `anexa-1-editor-grafic.json` | Anexa 1 — schemă cu PR, LES/LEA și doi utilizatori noi | U3: 2.000 lei; U4: 2.600 lei; total 4.600 lei |
 | `anexa-1-ramuri.json` | Anexa 1 — ramuri A, B și subramura A1, cost propriu opțional | U3: 580 lei; U4: 540 lei; total 1.120 lei |
 | `anexa-2-statie.json` | Anexa 2 — transformator, rezervă N-1 și echipamente comune | U3 plătește 41.500 lei lui U1 și 1.500 lei lui U2 (total 43.000 lei) |
+| `anexa-2-intarire.json` | Anexa 2 — întărire post, doi utilizatori noi succesivi | U3: 56.333,33 lei; U4: 15.583,33 lei; total 71.916,66 lei |
 | `anexa-3-varianta-1.json` | Anexa 3, varianta 1 — l_U1 | Total 10.000 lei: câte 5.000 lei către U1 și U2 |
 | `anexa-3-varianta-2.json` | Anexa 3, varianta 2 — l_U1 + echipamente comune | Total 14.000 lei: câte 7.000 lei către U1 și U2 |
 | `anexa-3-varianta-3.json` | Anexa 3, varianta 3 — l_U1 + stație/PT | Total 39.000 lei: 32.000 lei către U1 și 7.000 lei către U2 |
@@ -20,6 +21,119 @@ demonstrative; după import pot înlocui proiectul deschis.
 TVA-ul este setat la 21% pentru modelele cu centralizator; rezultatul cu TVA este
 afișat separat de cel fără TVA. Pentru Anexa 5, sumele reprezintă cotele din
 componenta ineficientă a investiției.
+
+## Parcurs grafic — Anexa 3, toate variantele
+
+Importă succesiv scenariile [varianta 1](./anexa-3-varianta-1.json),
+[varianta 2](./anexa-3-varianta-2.json), [varianta 3](./anexa-3-varianta-3.json)
+și [varianta 4](./anexa-3-varianta-4.json).
+
+1. În **Instalație → Schemă**, alege **U3** din „Utilizator nou analizat”.
+   Totalurile trebuie să fie, respectiv, **10.000**, **14.000**, **39.000** și
+   **45.000 lei fără TVA**.
+2. În varianta 4 verifică **10.000 lei l_U1**, **29.000 lei stație**
+   (25.000 transformator + 4.000 echipamente) și **6.000 lei l_U2**.
+   Click pe contribuție deschide inspectorul componentei corecte.
+3. Schimbă varianta în **2**: l_U2 devine inactivă, iar stația contribuie numai
+   cu **4.000 lei echipamente**. Inspectorul stației nu oferă costul transformatorului.
+   Modifică echipamentele din 12.000 în 15.000 lei, confirmă cu Enter:
+   total **15.000 lei**. **Anulează** restaurează totalul de 14.000 lei.
+4. Componentele inactive rămân vizibile și păstrează datele. Schimbarea variantei,
+   rolului liniei sau includerii stației se poate anula.
+5. Liniile acestor exemple sunt manuale: simpla selectare nu le convertește.
+   Pentru plasare grafică, folosește conversia explicită, citește avertismentul
+   și revino cu **Anulează** dacă nu dorești înlocuirea alocărilor manuale.
+6. În **Rezultate → Printează / PDF**, verifică numai rapoartele componentelor
+   active. În varianta 2 nu trebuie să apară un raport de transformator.
+7. Test de validare: în varianta 4 pune rezerva stației la **500 kVA**,
+   peste S_n de 400 kVA — calculul se blochează. Schimbă în **varianta 2**:
+   total **14.000 lei**, fiind folosite numai echipamentele. Datele transformatorului
+   se păstrează; revenirea în varianta 4 readuce eroarea. Anulează modificările.
+8. Test tranzitoriu: în varianta 2, la **Utilizatori**, pune data contractului
+   U1 la **2015-01-01** și U2 la **2015-02-01**. U2 este exclus din repartizare:
+   U3 plătește **15.000 lei pe l_U1 + 6.000 lei echipamente = 21.000 lei** numai
+   către U1. PDF păstrează U2 în racordări, etichetat „Exclus prin regimul tranzitoriu”.
+
+În toate anexele, **Mergi la câmp** deschide inspectorul/secțiunea necesară și
+focalizează controlul. Navigarea nu modifică proiectul; la o linie manuală deschide
+formularul fără să convertească alocările.
+
+## Parcurs grafic — Anexa 4 pct. A
+
+Importă [anexa-4-tranzitoriu.json](./anexa-4-tranzitoriu.json), apoi alege
+**Instalație → Schemă**.
+
+1. Verifică `B = 50.000 lei`, `S = 100 kVA`, `S₂ = 30 kVA`,
+   `l₂ = 90 m`, `L = 100 m`: bara este **90%**, `b = 500 lei/kVA`,
+   **C₂ = 13.500 lei**.
+2. Selectează **Traseu folosit** și introdu `80,5` la l₂. Până la Tab/Enter,
+   calculul nu se schimbă; Escape renunță la draft. Confirmarea produce
+   **C₂ = 12.075 lei**; **Anulează** restaurează 13.500 lei.
+3. `l₂ = 0` produce **0 lei**, `l₂ = 100` produce **15.000 lei**.
+   `l₂ = 101`, `L = 0` sau `S = 0` afișează eroare, fără bară/formulă valide.
+4. Verifică formula în **Printează / PDF** și reîncarcă pagina:
+   valorile confirmate trebuie păstrate. Pct. B rămâne tratat prin regulile
+   tranzitorii ale Anexelor 1–3, nu prin acest desen.
+
+## Parcurs grafic — Anexa 5
+
+Importă [anexa-5-dezvoltator.json](./anexa-5-dezvoltator.json), apoi alege
+**Instalație → Schemă**.
+
+1. Verifică investiția de **150.000 lei**, componenta eficientă de **90.000 lei**
+   (**60%**) și componenta ineficientă de **60.000 lei** (**40%**).
+   Puterile 100/50/50 kVA repartizează **30.000/15.000/15.000 lei**.
+2. Selectează A și confirmă puterea de **150 kVA**:
+   cotele devin **36.000/12.000/12.000 lei**. Poți modifica și denumirea.
+3. Adaugă un dezvoltator: puterea inițială zero nu schimbă cotele celorlalți.
+   Ștergerea cere confirmare, iar adăugarea/ștergerea se pot anula.
+4. Selectează investiția: `I_ef = I_total` produce cote zero, `I_ef = 0`
+   repartizează întreaga investiție. `I_ef > I_total`, `I_total = 0` sau puterea
+   totală zero blochează calculul. Aplicația nu stabilește automat I_ef.
+5. În **Printează / PDF**, verifică numele complete, puterile și formulele.
+   Reîncarcă pagina pentru a verifica persistența; formularul vede aceleași date.
+
+## Parcurs de verificare a stației / PT — Anexa 2
+
+Importă [anexa-2-statie.json](./anexa-2-statie.json), apoi alege
+**Instalație → Schemă**.
+
+1. Verifică **S_n = 500 kVA**, **rezervă = 100 kVA**, capacitate efectivă
+   **400 kVA**, investiție **200.000 lei** și **b_T = 500 lei/kVA**.
+2. Selectează **U3**, de 80 kVA: **40.000 lei** pentru transformator, către U1,
+   plus **1.500 lei** pentru echipamente către fiecare dintre U1 și U2.
+   Total **43.000 lei fără TVA**. Echipamentele au cost 9.000 lei;
+   etapa este **2 → 3 participanți**.
+3. Modifică puterea U3 la **90,5 kVA**, apoi apasă Tab: total **48.250 lei**.
+   Revino cu **Anulează**. Selectarea simplă nu modifică racordările.
+4. Apasă **Deconectează de la stație**: U3 rămâne în proiect, fără plăți aici.
+   **Anulează** restaurează racordarea și compensația.
+5. Selectează transformatorul și pune rezerva la 500 kVA: eroare explicită,
+   fără valori de compensație aparent valide. Revino cu **Anulează**.
+6. În **Rezultate → Printează / PDF**, verifică schema, rezerva N−1,
+   lista de trei utilizatori și formulele. Reîncarcă pagina pentru a verifica
+   persistența datelor.
+
+Pentru întărire, importă [anexa-2-intarire.json](./anexa-2-intarire.json):
+
+- Capacitate efectivă existentă **300 kVA**, ocupată inițial **200 kVA**,
+  deci **100 kVA** suplimentari.
+- U3 folosește **80 kVA**; U4 mai poate compensa doar **20 din cei 80 kVA**.
+- b_T este `200.000 / 300` lei/kVA; motorul păstrează precizia completă,
+  chiar dacă interfața afișează 666,67.
+- Plățile fără TVA trebuie să fie:
+
+  | Plătitor | Beneficiar | Fără TVA |
+  |---|---|---:|
+  | U3 | U1 | 54.833,33 lei |
+  | U3 | U2 | 1.500 lei |
+  | U4 | U1 | 14.083,33 lei |
+  | U4 | U2 | 750 lei |
+  | U4 | U3 | 750 lei |
+  | **Total** | | **71.916,66 lei** |
+
+Nu se schimbă formulele în funcție de poziția din desen; ordinea etapelor este
+ordinea utilizatorilor noi din proiect.
 
 ## Parcurs de verificare a editorului grafic
 

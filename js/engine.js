@@ -221,6 +221,13 @@
    *   puteri: { userId: kVA }
    * }
    * ------------------------------------------------------------- */
+  function stationUsers(cfg, nouList) {
+    var ignorati = cfg.ignorati || [];
+    return (cfg.utilizatori || []).filter(function (u) {
+      return ignorati.indexOf(u) < 0 || nouList.indexOf(u) >= 0 || u === cfg.primId;
+    });
+  }
+
   function computeStation(cfg) {
     cfg = cfg || {};
     if (cfg.statii) return computeStations(cfg);
@@ -232,10 +239,7 @@
     var IT = num(cfg.IT);
     var bT = SnEfectiv > 0 ? IT / SnEfectiv : 0;
     var nouList = listNew(cfg);
-    var ignorati = cfg.ignorati || [];
-    var users = (cfg.utilizatori || []).filter(function (u) {
-      return ignorati.indexOf(u) < 0 || nouList.indexOf(u) >= 0 || u === cfg.primId;
-    });
+    var users = stationUsers(cfg, nouList);
     var puteri = cfg.puteri || {};
     var elementeComune = num(cfg.elementeComune);
     var payments = {};
@@ -282,6 +286,7 @@
         addPay(payments, u, prim, Pc * bT);
         if (Pc * bT > EPS) {
           explicatii.push({ de: u, catre: prim, suma: Pc * bT, tip: intarire ? 'intarire' : 'transformator',
+            stationId: cfg.stationId,
             sursa: 'transformator', putere: Pc, bT: bT, rule: intarire ? 'art15.3' : 'art13' });
         }
       }
@@ -292,12 +297,13 @@
     if (elementeComune > 0 && users.length > 0) {
       sequentialPayments(elementeComune, users, nouList).forEach(function (p) {
         addPay(payments, p.de, p.catre, p.suma);
-        explain(explicatii, p, { tip: 'echipamente', sursa: 'echipamente comune ale stației', rule: 'art12.1' });
+        explain(explicatii, p, { tip: 'echipamente', sursa: 'echipamente comune ale stației', stationId: cfg.stationId, rule: 'art12.1' });
       });
     }
 
     return {
       model: 'station',
+      stationId: cfg.stationId,
       Sn: Sn,
       SnRezerva: SnRezerva,
       SnEfectiv: SnEfectiv,
@@ -406,11 +412,11 @@
       // utilizatorilor care au contribuit (art. 6 alin. 1 lit. a pct. ii),
       // secvențial, pentru fiecare stație selectată.
       (cfg.statii || []).forEach(function (st) {
-        var ec = num(st.elementeComune);
+        var station = withNou(st), ec = num(station.elementeComune);
         if (ec <= 0) return;
-        sequentialPayments(ec, orderList(st.utilizatori), nouList).forEach(function (pp) {
+        sequentialPayments(ec, stationUsers(station, nouList), nouList).forEach(function (pp) {
           addPay(payments, pp.de, pp.catre, pp.suma);
-          explain(explicatii, pp, { tip: 'echipamente', sursa: 'echipamentele stației (altele decât transformatoarele)', rule: 'art12.1' });
+          explain(explicatii, pp, { tip: 'echipamente', sursa: 'echipamentele stației (altele decât transformatoarele)', stationId: st.stationId, rule: 'art12.1' });
         });
       });
     } else if (v === 3 || v === 4) {
@@ -433,8 +439,6 @@
       nouUtilizatori: nouList
     };
   }
-
-  function orderList(a) { return (a || []).slice(); }
 
   /* Art. 18 alin. 1 lit. a: investiția pentru care primul utilizator poate primi
    * compensații după metodologia nouă = componenta din tariful achitat, MINUS

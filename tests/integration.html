@@ -35,6 +35,8 @@
   <script src="../js/ui/views_basic.js"></script>
   <script src="../js/ui/views_install.js"></script>
   <script src="../js/ui/views_tree.js"></script>
+  <script src="../js/ui/views_station.js"></script>
+  <script src="../js/ui/views_models.js"></script>
   <script src="../js/ui/views_results.js"></script>
   <script src="../js/ui/app.js"></script>
   <script>
@@ -1381,6 +1383,427 @@
         l = store.state.linii[0];
         l.racordari = [{ userId: 'absent', distanta: 101 }];
         if (store.convertTree(l.id) !== false || l.mod !== 'distante') throw new Error('conversie invalidă salvată');
+      });
+
+      test('Detaliu tronsoane: separă etapele 2 → 3 și 3 → 4 de situația finală', function () {
+        var p = treeProject();
+        window.AppState.addUser(p, { id: 'nou2', rol: 'nou', nume: 'Nou 2' });
+        p.linii[0].racordari.push({ userId: 'nou2', branchId: 'b', distanta: 40 });
+        window.AppUI.setProject(p);
+        window.AppUI.setTab('rezultate');
+        var result = window.AppUI.calculate();
+        var details = document.querySelectorAll('.segment-details .det');
+        var root = details[0], stages = root.querySelectorAll('.segment-stage');
+        if (result.central.totalFaraTVA !== 1120 || !/4 utilizatori participanți \(situație finală\)/.test(root.textContent)) throw new Error('situație finală incorectă');
+        if (stages.length !== 2 || !/2 → 3 utilizatori/.test(stages[0].textContent) ||
+          !/3 → 4 utilizatori/.test(stages[1].textContent)) throw new Error('etape incorecte');
+        if (stages[0].querySelectorAll('li').length !== 2 || stages[1].querySelectorAll('li').length !== 3 ||
+          !/200,00 lei/.test(stages[0].textContent) || !/100,00 lei/.test(stages[1].textContent)) throw new Error('plăți grupate greșit');
+        if (!/niciun utilizator nou/.test(details[2].textContent) || !/niciun utilizator participant/.test(details[4].textContent) ||
+          !/1 utilizator participant \(situație finală\)/.test(details[4].textContent)) throw new Error('explicație lipsă sau plural incorect');
+      });
+
+      test('Detaliu tronsoane: etapele exclud participanții tranzitorii și explică un cost nul', function () {
+        var p = treeProject();
+        p.utilizatori[0].dataContract = '2015-01-01';
+        p.utilizatori[1].dataContract = '2015-02-01';
+        p.linii[0].compVeche = 2640;
+        window.AppUI.setProject(p);
+        window.AppUI.setTab('rezultate');
+        var result = window.AppUI.calculate();
+        var root = document.querySelector('.segment-details .det');
+        if (result.error || result.central.totalFaraTVA !== 0 || !/1 → 2 utilizatori/.test(root.textContent) ||
+          !/2 utilizatori participanți \(situație finală\)/.test(root.textContent) ||
+          !/cost repartizabil nul/.test(root.textContent)) throw new Error('etapă tranzitorie incorectă');
+      });
+
+      function stationProject() {
+        var p = emptyOk();
+        window.AppState.addUser(p, { id: 'prim', rol: 'prim', nume: 'Prim', putere: 100 });
+        window.AppState.addUser(p, { id: 'existent', rol: 'existent', nume: 'Existent', putere: 100 });
+        window.AppState.addUser(p, { id: 'nou', rol: 'nou', nume: 'Nou', putere: 80 });
+        p.meta.model = 'station';
+        p.statii = [{ id: 's1', nume: 'Stație', Sn: 500, SnRezerva: 100, IT: 200000,
+          elementeComune: 9000, intarire: false, utilizatori: ['prim', 'existent', 'nou'] }];
+        return p;
+      }
+
+      test('Stații: explicațiile identifică sursa exactă, chiar cu nume identice', function () {
+        var p = stationProject();
+        p.statii.push(Object.assign({}, p.statii[0], { id: 's2', IT: 100000, elementeComune: 0 }));
+        window.AppUI.setProject(p);
+        var result = window.AppCalc.runCalculation(window.AppUI.getState());
+        var first = result.explicatii.filter(function (e) { return e.stationId === 's1'; });
+        var second = result.explicatii.filter(function (e) { return e.stationId === 's2'; });
+        if (result.error || result.central.totalFaraTVA !== 63000 ||
+          first.length !== 3 || second.length !== 1 || first.reduce(function (sum, e) { return sum + e.suma; }, 0) !== 43000 ||
+          second[0].suma !== 20000 || result.statii[1].stationId !== 's2') throw new Error('surse confundate');
+      });
+
+      test('Stații: N−1, întărire și utilizatori noi succesivi păstrează formulele existente', function () {
+        var p = stationProject();
+        window.AppState.addUser(p, { id: 'nou2', rol: 'nou', putere: 80 });
+        p.statii[0].utilizatori.push('nou2'); p.statii[0].Sn = 400; p.statii[0].intarire = true;
+        window.AppUI.setProject(p);
+        var result = window.AppCalc.runCalculation(window.AppUI.getState()), sr = result.statii[0];
+        if (result.error || sr.SnEfectiv !== 300 || sr.suplimentara.initiala !== 100 ||
+          sr.suplimentara.folosit.nou !== 80 || sr.suplimentara.folosit.nou2 !== 20 ||
+          sr.suplimentara.ramasa !== 0 || result.central.perNou.nou.faraTVA !== 56333.33 ||
+          result.central.perNou.nou2.faraTVA !== 15583.33) throw new Error('limite sau plăți modificate');
+      });
+
+      test('Stații: clicul în schemă doar selectează, iar racordarea explicită are undo', function () {
+        window.AppUI.setProject(stationProject()); window.AppUI.setTab('instalatie');
+        var before = JSON.stringify(window.AppUI.getState());
+        var buttons = document.querySelectorAll('.station-card .scheme-mode button');
+        buttons[1].click();
+        window.AppUI.store.render();
+        var people = document.querySelectorAll('.station-person');
+        people[2].click();
+        window.AppUI.store.render();
+        if (JSON.stringify(window.AppUI.getState()) !== before || window.AppUI.store.results) throw new Error('selecția modifică datele');
+        var text = document.querySelector('.station-compensation').textContent;
+        if (!/43.000,00 lei/.test(text) || !/2 → 3 participanți/.test(text) ||
+          document.querySelectorAll('.station-paid').length !== 2) throw new Error('explicație greșită');
+        document.querySelector('.station-inspector .btn').click();
+        if (window.AppUI.getState().statii[0].utilizatori.indexOf('nou') >= 0 ||
+          !/nu este racordat/.test(document.querySelector('.station-compensation').textContent)) throw new Error('deconectare eșuată');
+        window.AppUI.undo();
+        if (window.AppUI.getState().statii[0].utilizatori.indexOf('nou') < 0 ||
+          !/43.000,00 lei/.test(document.querySelector('.station-compensation').textContent)) throw new Error('undo eșuat');
+      });
+
+      test('Stații: date invalide și condiții neîndeplinite nu afișează plăți aparente', function () {
+        var p = stationProject();
+        p.statii[0].SnRezerva = 500;
+        window.AppUI.setProject(p); window.AppUI.setTab('instalatie');
+        document.querySelectorAll('.station-card .scheme-mode button')[1].click();
+        window.AppUI.store.render();
+        document.querySelectorAll('.station-person')[2].click();
+        window.AppUI.store.render();
+        if (!document.querySelector('.station-validation') || document.querySelector('.station-compensation-total') ||
+          document.querySelector('.station-paid')) throw new Error('calcul invalid afișat');
+        p = stationProject(); p.conditii.solutieComuna = false;
+        window.AppUI.setProject(p); window.AppUI.setTab('instalatie');
+        var mode = document.querySelectorAll('.station-card .scheme-mode button')[1];
+        if (mode.getAttribute('aria-pressed') !== 'true') mode.click();
+        window.AppUI.store.render();
+        document.querySelectorAll('.station-person')[2].click();
+        window.AppUI.store.render();
+        if (!/Calcul blocat/.test(document.querySelector('.station-compensation').textContent) ||
+          document.querySelector('.station-compensation-total')) throw new Error('condiții ignorate');
+        window.AppUI.store.set('cond.calcInformativ', true);
+        if (!/INFORMATIV/.test(document.querySelector('.station-compensation').textContent) ||
+          !document.querySelector('.station-compensation-total')) throw new Error('informativ neetichetat');
+      });
+
+      test('Stații: regimul tranzitoriu reduce investiția și exclude participanții vechi numai din calcul', function () {
+        var p = stationProject(); p.utilizatori[0].dataContract = '2015-01-01';
+        p.utilizatori[1].dataContract = '2015-02-01'; p.statii[0].compVeche = 100000;
+        window.AppUI.setProject(p); window.AppUI.setTab('rezultate');
+        var result = window.AppUI.calculate();
+        if (result.error || result.central.totalFaraTVA !== 24500 ||
+          result.statii[0].bT !== 250 || !/Exclus prin regimul tranzitoriu/.test(document.querySelector('.station-report-table').textContent) ||
+          !/1 → 2 participanți/.test(document.querySelector('.station-report .station-compensation').textContent)) throw new Error('tranziție incorectă');
+      });
+
+      test('Stații: raportul păstrează numele complete, formulele și nu conține controale interactive', function () {
+        window.AppUI.setProject(stationProject()); window.AppUI.setTab('rezultate'); window.AppUI.calculate();
+        var report = document.querySelector('.station-report');
+        if (!report || report.querySelectorAll('button, input, [tabindex]').length ||
+          report.querySelectorAll('.station-report-table tbody tr').length !== 3 ||
+          !/80,00 kVA × 500,00 lei\/kVA/.test(report.textContent) ||
+          !/9.000,00 \/ 2 − 9.000,00 \/ 3/.test(report.textContent)) throw new Error('raport incomplet');
+        window.AppUI.store.set('stat.s1.SnRezerva', 500); window.AppUI.calculate();
+        if (document.querySelector('.print-station-schemes')) throw new Error('raport de calcul invalid');
+      });
+
+      function openModelScheme(p) {
+        window.AppUI.setProject(p); window.AppUI.setTab('instalatie');
+        document.querySelectorAll('.scheme-mode[aria-label="Mod de introducere model"] button')[1].click();
+        window.AppUI.store.render();
+      }
+      function complexProject(variant) {
+        var p = stationProject();
+        p.meta.model = 'complex'; p.utilizatori[2].putere = 100;
+        p.statii[0].IT = 100000; p.statii[0].elementeComune = 12000;
+        p.complexConfig = { varianta: variant, variantaConfirmata: true, liniiIds: ['l1'], liniiU2Ids: ['l2'], statiiIds: ['s1'] };
+        p.linii = [
+          { id: 'l1', nume: 'Linie', mod: 'tronsoane', IL: 30000, L: 100, bL: 300, tronsoane: [
+            { id: 't1', nume: 'Comun', lungime: 100, cost: 30000, costManual: true, utilizatori: ['prim', 'existent', 'nou'] }
+          ] },
+          { id: 'l2', nume: 'Linie', mod: 'tronsoane', IL: 18000, L: 60, bL: 300, tronsoane: [
+            { id: 't2', nume: 'Comun', lungime: 60, cost: 18000, costManual: true, utilizatori: ['prim', 'existent', 'nou'] }
+          ] }
+        ];
+        return p;
+      }
+      function developerProject() {
+        var p = emptyOk(); p.meta.model = 'developer';
+        p.dezvoltator = { Itotal: 150000, Ief: 90000, dezvoltatori: [
+          { id: 'd1', nume: 'A', putere: 100 }, { id: 'd2', nume: 'B', putere: 50 }, { id: 'd3', nume: 'C', putere: 50 }
+        ] };
+        return p;
+      }
+      function transitionalProject() {
+        var p = emptyOk(); p.meta.model = 'transitional';
+        p.tranzitoriu = { B: 50000, S: 100, S2: 30, l2: 90, L: 100 };
+        return p;
+      }
+      function analyzeComplex() {
+        var select = document.querySelector('[aria-label="Utilizator nou analizat"]');
+        select.value = 'nou'; select.dispatchEvent(new Event('change', { bubbles: true }));
+        window.AppUI.store.render();
+      }
+
+      test('Anexa 3: toate variantele păstrează formulele și componentele inactive', function () {
+        [10000, 14000, 39000, 45000].forEach(function (expected, index) {
+          openModelScheme(complexProject(index + 1)); analyzeComplex();
+          var result = window.AppCalc.runCalculation(window.AppUI.getState());
+          var before = JSON.stringify(window.AppUI.getState());
+          if (result.error || result.central.totalFaraTVA !== expected ||
+            document.querySelectorAll('.complex-map .model-node').length !== 3 ||
+            !document.querySelector('.complex-compensation .model-total').textContent.includes(window.AppKit.money(expected))) throw new Error('variante sau hartă incorecte: ' + (index + 1));
+          document.querySelector('.complex-map .model-node').click(); window.AppUI.store.render();
+          if (JSON.stringify(window.AppUI.getState()) !== before || window.AppUI.store.results ||
+            !/Pregătește linia pentru schemă/.test(document.querySelector('.complex-inspector').textContent)) throw new Error('conversie sau calcul implicit');
+          window.AppUI.setTab('rezultate'); window.AppUI.calculate();
+          var report = document.querySelector('.complex-report');
+          if (!report || report.querySelector('button, input, select, [tabindex]') ||
+            report.querySelectorAll('.line-report').length !== (index === 3 ? 2 : 1) ||
+            report.querySelectorAll('.station-report').length !== (index >= 2 ? 1 : 0)) throw new Error('raport componente incorect');
+          if (index === 1 && (!/transformatorul este exclus/.test(report.textContent) ||
+            report.querySelector('.station-transformer'))) throw new Error('transformator inclus în varianta 2');
+        });
+      });
+
+      test('Anexa 3: două stații cu nume identic au surse și inspectori separați în varianta 2', function () {
+        var p = complexProject(2);
+        p.statii.push(Object.assign({}, p.statii[0], { id: 's2', elementeComune: 6000 }));
+        p.complexConfig.statiiIds.push('s2');
+        openModelScheme(p); analyzeComplex();
+        var r = window.AppCalc.runCalculation(window.AppUI.getState());
+        var sources = ['s1', 's2'].map(function (id) {
+          return r.explicatii.filter(function (e) { return e.stationId === id; }).reduce(function (sum, e) { return sum + e.suma; }, 0);
+        });
+        if (r.central.totalFaraTVA !== 16000 || sources.join() !== '4000,2000' ||
+          document.querySelectorAll('.complex-map .model-node').length !== 4) throw new Error('surse confundate');
+        document.querySelector('.complex-part[data-component-id="station:s2"] .model-node').click(); window.AppUI.store.render();
+        if (!document.querySelector('input[data-bind="stat.s2.elementeComune"]') ||
+          document.querySelector('input[data-bind="stat.s2.IT"]') ||
+          !/numai echipamentele comune/.test(document.querySelector('.complex-inspector').textContent)) throw new Error('inspector varianta 2 incorect');
+        window.AppUI.store.setStationIncluded('s2', false);
+        if (window.AppCalc.runCalculation(window.AppUI.getState()).central.totalFaraTVA !== 14000) throw new Error('excludere eșuată');
+        window.AppUI.undo();
+        if (window.AppCalc.runCalculation(window.AppUI.getState()).central.totalFaraTVA !== 16000) throw new Error('undo excludere eșuat');
+      });
+
+      test('Anexa 3: schimbarea variantei și rolului se anulează fără pierderea componentelor', function () {
+        openModelScheme(complexProject(4));
+        var select = document.querySelector('select[data-bind="complex.varianta"]');
+        select.value = '1'; select.dispatchEvent(new Event('change', { bubbles: true }));
+        if (Number(window.AppUI.getState().complexConfig.varianta) !== 1 ||
+          window.AppCalc.runCalculation(window.AppUI.getState()).central.totalFaraTVA !== 10000) throw new Error('varianta nu s-a aplicat');
+        window.AppUI.undo();
+        if (Number(window.AppUI.getState().complexConfig.varianta) !== 4) throw new Error('undo varianta');
+        window.AppUI.store.setLineRole('l2', '');
+        if (window.AppCalc.runCalculation(window.AppUI.getState()).central.totalFaraTVA !== 39000) throw new Error('rol nerespectat');
+        window.AppUI.undo();
+        if (window.AppCalc.runCalculation(window.AppUI.getState()).central.totalFaraTVA !== 45000 ||
+          window.AppUI.getState().linii.length !== 2) throw new Error('undo rol sau date pierdute');
+      });
+
+      test('Anexa 3: liniile cu ramuri folosesc același editor și raport fizic', function () {
+        var p = treeProject(); p.meta.model = 'complex';
+        p.complexConfig = { varianta: 1, variantaConfirmata: true, liniiIds: ['retea'], liniiU2Ids: [], statiiIds: [] };
+        openModelScheme(p); analyzeComplex();
+        document.querySelector('.complex-map .model-node').click(); window.AppUI.store.render();
+        if (!document.querySelector('.tree-editor') || !/580,00/.test(document.querySelector('.complex-compensation').textContent)) throw new Error('ramuri lipsă');
+        window.AppUI.setTab('rezultate'); var r = window.AppUI.calculate();
+        if (r.error || !document.querySelector('.complex-report .tree-report')) throw new Error('raport ramuri lipsă');
+      });
+
+      test('Anexa 4: schemă, formule exacte și limite de lungime', function () {
+        openModelScheme(transitionalProject());
+        if (!/13.500,00 lei/.test(document.querySelector('.model-formula').textContent) ||
+          document.querySelector('.model-used').style.width !== '90%') throw new Error('formule sau proporție');
+        [0, 100].forEach(function (length) {
+          window.AppUI.store.set('tranz.l2', length);
+          var r = window.AppCalc.runCalculation(window.AppUI.getState());
+          if (r.C2 !== (length === 0 ? 0 : 15000) || document.querySelector('.model-used').style.width !== length + '%') throw new Error('limita ' + length);
+        });
+        window.AppUI.setTab('rezultate'); window.AppUI.calculate();
+        var report = document.querySelector('.transitional-report');
+        if (!report || report.querySelector('input, button, select, [tabindex]') || !/15.000,00 lei/.test(report.textContent)) throw new Error('raport incomplet');
+      });
+
+      test('Anexa 4: date invalide nu produc formulă, bară sau PDF aparent valide', function () {
+        ['S', 'L', 'l2'].forEach(function (key) {
+          var p = transitionalProject(); p.tranzitoriu[key] = key === 'l2' ? 101 : 0;
+          openModelScheme(p);
+          if (!document.querySelector('[role="alert"]') || document.querySelector('.model-formula, .model-used')) throw new Error('invalid ignorat: ' + key);
+          window.AppUI.setTab('rezultate'); window.AppUI.calculate();
+          if (document.querySelector('.print-model-schemes')) throw new Error('PDF invalid: ' + key);
+        });
+      });
+
+      test('Anexa 5: repartiții exacte, putere individuală zero și limitele eficienței', function () {
+        openModelScheme(developerProject());
+        var r = window.AppCalc.runCalculation(window.AppUI.getState());
+        if (r.error || r.rows.map(function (row) { return row.suma; }).join() !== '30000,15000,15000' ||
+          document.querySelectorAll('.developer-node').length !== 3) throw new Error('repartiții incorecte');
+        [0, 150000].forEach(function (investment) {
+          window.AppUI.store.set('dev.Ief', investment);
+          var out = window.AppCalc.runCalculation(window.AppUI.getState());
+          if (out.rows.reduce(function (sum, row) { return sum + row.suma; }, 0) !== 150000 - investment) throw new Error('limită Ief');
+        });
+        window.AppUI.store.set('devitem.d1.putere', 0);
+        if (window.AppCalc.runCalculation(window.AppUI.getState()).rows[0].suma !== 0 ||
+          !/0,00 kVA/.test(document.querySelector('.developer-node').textContent)) throw new Error('putere zero');
+      });
+
+      test('Anexa 5: validări, blocare și etichetare informativă în schemă/PDF', function () {
+        var invalid = [
+          { Itotal: 0 }, { Ief: 150001 }, { dezvoltatori: [] },
+          { dezvoltatori: [{ id: 'd1', nume: 'Zero', putere: 0 }] }
+        ];
+        invalid.forEach(function (changes) {
+          var p = developerProject(); Object.assign(p.dezvoltator, changes); openModelScheme(p);
+          if (!document.querySelector('[role="alert"]') || document.querySelector('.developer-formulas, .developer-ratio')) throw new Error('invalide ignorate');
+        });
+        var p = developerProject(); p.conditii.aniDeLaPF = 6; p.conditii.dataPIF = '';
+        openModelScheme(p);
+        if (!/Calcul blocat/.test(document.querySelector('.model-calculation-status').textContent) ||
+          document.querySelector('.developer-formulas')) throw new Error('termen ignorat');
+        window.AppUI.store.set('cond.calcInformativ', true);
+        if (!/INFORMATIV/.test(document.querySelector('.model-calculation-status').textContent) ||
+          !document.querySelector('.developer-formulas')) throw new Error('informativ nerespectat');
+        window.AppUI.setTab('rezultate'); window.AppUI.calculate();
+        if (!/INFORMATIV/.test(document.querySelector('.developer-report').textContent)) throw new Error('informativ lipsă PDF');
+      });
+
+      test('Anexa 5: adăugare/ștergere cu undo și PDF paginat fără controale', function () {
+        var p = developerProject();
+        for (var i = 3; i < 10; i++) p.dezvoltator.dezvoltatori.push({ id: 'd' + (i + 1), nume: 'Dezvoltator cu nume complet ' + (i + 1), putere: 10 });
+        openModelScheme(p);
+        window.AppUI.store.addDev();
+        var id = window.AppUI.getState().dezvoltator.dezvoltatori.slice(-1)[0].id;
+        window.AppUI.undo();
+        if (window.AppUI.getState().dezvoltator.dezvoltatori.length !== 10) throw new Error('undo adăugare');
+        window.AppUI.store.delDev('d1'); window.AppUI.undo();
+        if (window.AppUI.getState().dezvoltator.dezvoltatori[0].id !== 'd1' ||
+          window.AppUI.getState().dezvoltator.dezvoltatori.some(function (x) { return x.id === id; })) throw new Error('undo ștergere');
+        window.AppUI.setTab('rezultate'); window.AppUI.calculate();
+        var report = document.querySelector('.developer-report');
+        if (report.querySelectorAll('.developer-report-block').length !== 2 ||
+          report.querySelectorAll('.developer-node').length !== 10 ||
+          report.querySelectorAll('.developer-report-block')[1].querySelectorAll('.developer-node').length !== 4 ||
+          report.querySelector('input, button, select, [tabindex]') ||
+          !/Dezvoltator cu nume complet 10/.test(report.textContent)) throw new Error('PDF incomplet');
+      });
+
+      test('Anexa 3: validarea urmărește numai componentele active ale variantei', function () {
+        [1, 2, 3].forEach(function (variant) {
+          var p = complexProject(variant);
+          p.linii[1].L = -1;
+          if (variant < 3) { p.statii[0].SnRezerva = 999; p.statii[0].IT = -1; }
+          openModelScheme(p);
+          var r = window.AppCalc.runCalculation(window.AppUI.getState());
+          if (r.error || r.central.totalFaraTVA !== [10000, 14000, 39000][variant - 1]) throw new Error('inactiv blochează varianta ' + variant);
+          window.AppUI.store.set('complex.varianta', 4);
+          if (!window.AppCalc.runCalculation(window.AppUI.getState()).error) throw new Error('componenta activată nu este validată');
+        });
+        var p = complexProject(1); p.complexConfig.liniiIds = [];
+        openModelScheme(p);
+        if (!/componentă activă/.test(window.AppCalc.runCalculation(window.AppUI.getState()).error)) throw new Error('calcul aparent valid fără componente active');
+      });
+
+      test('Anexa 3: echipamentele variantei 2 păstrează validarea și avertizarea racordărilor active', function () {
+        var p = complexProject(2); p.statii[0].elementeComune = -1;
+        openModelScheme(p);
+        if (!window.AppCalc.runCalculation(window.AppUI.getState()).error) throw new Error('cost negativ nevalidat');
+        p = complexProject(2);
+        p.linii[0].tronsoane[0].utilizatori = ['prim', 'existent'];
+        p.statii[0].utilizatori = ['prim', 'existent'];
+        openModelScheme(p);
+        var r = window.AppCalc.runCalculation(window.AppUI.getState());
+        if (r.error || r.central.totalFaraTVA !== 0 ||
+          !r.warnings.some(function (w) { return /nicio componentă activă/.test(w.text); })) throw new Error('racordare doar pe l_U2 inactivă neraportată');
+        window.AppUI.store.set('complex.varianta', 4);
+        if (window.AppCalc.runCalculation(window.AppUI.getState()).central.totalFaraTVA !== 6000 ||
+          window.AppCalc.runCalculation(window.AppUI.getState()).warnings.some(function (w) { return /nicio componentă activă/.test(w.text); })) throw new Error('l_U2 activă ignorată');
+      });
+
+      test('Anexa 3: regimul tranzitoriu al echipamentelor este identic în variantele 2 și 3, inclusiv în PDF', function () {
+        [2, 3].forEach(function (variant) {
+          var p = complexProject(variant); p.statii[0].IT = 0;
+          p.utilizatori[0].dataContract = '2015-01-01'; p.utilizatori[1].dataContract = '2015-02-01';
+          p.linii[1].compVeche = 1000; p.statii[0].compVeche = 0;
+          openModelScheme(p); analyzeComplex();
+          var r = window.AppCalc.runCalculation(window.AppUI.getState());
+          var equipment = r.explicatii.filter(function (e) { return e.stationId === 's1'; });
+          if (r.error || r.central.totalFaraTVA !== 21000 || equipment.length !== 1 ||
+            equipment[0].catre !== 'prim' || equipment[0].suma !== 6000) throw new Error('participanți sau sume diferite');
+          window.AppUI.setTab('rezultate'); window.AppUI.calculate();
+          var transition = byText('details', 'Prevederi tranzitorii aplicate');
+          if (!transition || /18.000,00/.test(transition.textContent)) throw new Error('cost l_U2 inactiv afișat ca aplicat');
+          var report = document.querySelector('.complex-report');
+          if (!/Exclus prin regimul tranzitoriu/.test(report.textContent) ||
+            !/6.000,00 lei/.test(report.textContent)) throw new Error('participanți PDF incorecți');
+        });
+      });
+
+      test('Stații: avertismentele de putere zero și întărire nu anulează contribuția echipamentelor', function () {
+        var p = stationProject();
+        p.utilizatori[2].putere = 0;
+        p.statii.push(Object.assign({}, p.statii[0], { id: 's2' }));
+        window.AppUI.setProject(p);
+        var r = window.AppCalc.runCalculation(window.AppUI.getState());
+        if (r.error || r.central.totalFaraTVA !== 6000 || r.warnings.filter(function (w) {
+          return /compensația pentru transformator va fi 0/.test(w.text) && /Echipamentele comune/.test(w.text);
+        }).length !== 2) throw new Error('avertisment ambiguu sau a doua stație nevalidată');
+        p = stationProject(); p.statii[0].Sn = 300; p.statii[0].intarire = true;
+        window.AppUI.setProject(p); r = window.AppCalc.runCalculation(window.AppUI.getState());
+        if (r.error || r.central.totalFaraTVA !== 3000 || !r.warnings.some(function (w) {
+          return /capacitate suplimentară/.test(w.text) && /pentru transformator va fi 0/.test(w.text);
+        })) throw new Error('întărire fără capacitate confundată cu total zero');
+      });
+
+      test('Anexa 3: ghidul și toate intrările grafice ale variantei 2 exclud transformatorul', function () {
+        var p = complexProject(2);
+        p.statii[0].Sn = 0; p.statii[0].SnRezerva = 0; p.statii[0].IT = 0;
+        openModelScheme(p);
+        var steps = window.AppGuide.steps(window.AppUI.getState(), {});
+        if (steps.some(function (step) { return /^stat-(Sn|IT):/.test(step.id); }) ||
+          !steps.some(function (step) { return step.target === 'stat.s1.elementeComune'; })) throw new Error('ghidul cere transformatorul variantei 2');
+        document.querySelectorAll('.scheme-mode[aria-label="Mod de introducere model"] button')[0].click();
+        window.AppUI.store.render();
+        document.querySelectorAll('.station-card .scheme-mode button')[1].click(); window.AppUI.store.render();
+        if (document.querySelector('.station-card .station-transformer') ||
+          !document.querySelector('.station-card input[data-bind="stat.s1.elementeComune"]')) throw new Error('intrare alternativă inconsistentă');
+        var variant = document.querySelector('[data-bind="complex.varianta"]');
+        if (!variant.labels.length) throw new Error('eticheta variantei nu este asociată controlului');
+      });
+
+      test('Navigare la câmp: deschide inspectorii Anexelor 3–5 fără mutații, conversii sau undo', function () {
+        [
+          { project: complexProject(4), targets: ['stat.s1.elementeComune', 'stat.s1.compVeche', 'tronson.l1.t1.lungime'] },
+          { project: complexProject(2), targets: ['stat.s1.elementeComune', 'cell:s1:nou'] },
+          { project: transitionalProject(), targets: ['tranz.l2', 'tranz.S2', 'tranz.B'] },
+          { project: developerProject(), targets: ['devitem.d2.putere', 'dev.Ief', 'devitem.d1.nume'] }
+        ].forEach(function (entry) {
+          openModelScheme(entry.project);
+          var state = JSON.stringify(window.AppUI.getState()), depth = window.AppUI.undoDepth();
+          entry.targets.forEach(function (key) {
+            if (!window.AppUI.store.focusTarget(key)) throw new Error('câmp negăsit: ' + key);
+            var el = window.AppUI.store.findTarget(key);
+            if (!el || document.activeElement !== el || !el.getClientRects().length) throw new Error('câmp neafișat sau nefocalizat: ' + key);
+            for (var parent = el.parentElement; parent; parent = parent.parentElement) {
+              if (parent.tagName === 'DETAILS' && !parent.open) throw new Error('secțiune închisă');
+            }
+          });
+          if (JSON.stringify(window.AppUI.getState()) !== state || window.AppUI.undoDepth() !== depth || window.AppUI.store.results) throw new Error('navigare cu efecte asupra datelor');
+        });
       });
 
       var s = document.createElement('div');

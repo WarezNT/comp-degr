@@ -122,11 +122,15 @@ Formularul rămâne modul inițial. În „Schemă”:
 
 Schema este orientativă; calculul folosește distanțele numerice și aceleași date ca
 formularul. Poziția în desen nu stabilește rolurile sau ordinea racordării.
-Stațiile și celelalte anexe păstrează editorii existenți.
+Stațiile au propriul mod grafic descris mai jos; celelalte anexe păstrează editorii existenți.
 Datele se salvează local și se exportă în același format JSON. Alegerea modului și
 selecția vizuală nu sunt salvate în proiect.
 
 ### Ramuri și subramuri — Anexa 1
+
+În **Rezultate → Detaliu pe tronsoane**, numărul participanților este etichetat ca
+situație finală. Fiecare utilizator nou are o etapă separată cu numărul de participanți
+înainte și după racordare, plățile sale și motivul lipsei compensațiilor, dacă este cazul.
 
 - În **Instalație**, apasă **→ Rețea cu ramuri** pentru o linie validă pe distanțe.
   Conversia este explicită: linia existentă devine ramura principală, păstrând
@@ -188,6 +192,88 @@ Datele se păstrează în salvarea locală și în JSON. Limitele duplicate, neg
 
 Indicatorii de pe pași arată starea: ✓ completat, număr = pași rămași, ✕ = probleme de corectat.
 Exemplele U4/U6 (meniul „Proiect”) se deschid fără ghid, cu un banner „Exemplu”.
+
+### Introducere grafică — Anexa 2
+
+În **Instalație**, fiecare stație/PT are selectorul **Formular / tabel → Schemă**,
+cu aceleași culori E.ON și aceleași date ca formularul. Nu este necesară conversia
+proiectului; alegerea modului și selecția nu schimbă datele sau rezultatul salvat.
+
+- Selectează **transformatorul** pentru capacitatea nominală, rezerva N−1,
+  investiție, întărire și compensațiile vechi. Rezerva este desenată separat,
+  cu linie întreruptă, și exclusă din capacitatea efectivă.
+- Selectează **echipamentele comune** pentru costul lor, separat de transformator.
+  Acestea se repartizează în cote egale, succesiv, între participanții eligibili.
+- Selectează un **utilizator** din paletă sau din schemă (click/Enter/Spațiu)
+  pentru nume, cod PA și putere aprobată. Puterea este comună tuturor stațiilor
+  și liniilor; rolul și avizele se editează în pasul Utilizatori.
+  **Racordează la stație / Deconectează de la stație** sunt acțiuni explicite.
+- Câmpurile inspectorului se confirmă la Tab/Enter/pierderea focusului, acceptă
+  virgulă zecimală și au **Anulează**; Escape abandonează textul neconfirmat.
+  Textul tastat nu este pierdut la o salvare asincronă.
+- Pentru un utilizator nou, componentele care generează plăți sunt marcate
+  roșu și însoțite de **Comp.**. Panoul explică beneficiarii, formulele,
+  totalul pe stație și totalul proiectului, folosind numai motorul existent.
+  Click pe contribuție deschide inspectorul componentei.
+- La **întărire**, panoul arată capacitatea suplimentară inițială și puterea
+  compensată pentru fiecare nou utilizator, în ordinea din proiect. Partea
+  acoperită de noul transformator nu generează compensație pentru cel existent.
+  Regimul tranzitoriu folosește investiția netă și exclude participanții vechi
+  conform regulilor existente; utilizatorii fizic racordați rămân în desen.
+- Datele invalide sau condițiile cumulative neîndeplinite blochează și explicația
+  vizuală. Calculul informativ este etichetat explicit.
+- **Rezultate → Printează / PDF** include schemele stațiilor, rezerva,
+  capacitățile, lista completă a utilizatorilor și formulele compensațiilor.
+  Schemele se împart în blocuri de maximum șase utilizatori; simbolurile
+  repetate pe continuări nu reprezintă investiții suplimentare.
+
+Exemple: [stație cu N−1](exemple/teste-prezentare/anexa-2-statie.json) și
+[întărire în două etape](exemple/teste-prezentare/anexa-2-intarire.json).
+
+### Introducere grafică — Anexele 3–5
+
+În **Instalație → Schemă**, selectează componentele pentru a le deschide inspectorul.
+Formularele rămân disponibile; schema folosește aceleași date, fără migrare sau
+conversie automată. Explicațiile sunt calculate de motorul existent; datele invalide
+și condițiile neîndeplinite nu produc sume aparent valide.
+
+- **Anexa 3:** alege varianta și utilizatorul nou analizat. Harta arată separat
+  toate liniile și stațiile, inclusiv componentele inactive. Selecția sau clickul pe
+  o contribuție deschide editorul componentei, fără a schimba racordările.
+  Rolul liniei (`l_U1`, `l_U2`, neinclusă), includerea stației și varianta se pot anula.
+  În **varianta 2**, inspectorul stației editează numai echipamentele comune și
+  racordările; transformatorul nu intră în calcul sau în raportul de cost.
+  Validarea urmărește componentele active: datele păstrate în l_U2 (variantele
+  1–3) sau în transformator (variantele 1–2) nu blochează calculul curent.
+  La activarea lor într-o altă variantă, valorile sunt din nou validate.
+  În regimul tranzitoriu, și echipamentele variantei 2 exclud participanții vechi,
+  după aceleași reguli ca în celelalte variante; racordările fizice se păstrează.
+  Liniile cu ramuri folosesc același editor ca Anexa 1; liniile manuale cer în
+  continuare conversie explicită înainte de plasarea grafică a utilizatorilor.
+- **Anexa 4 pct. A:** selectează investiția/capacitatea, utilizatorul sau lungimile.
+  Bara arată proporția `l₂ / L`, nu o poziție topografică. Inspectorul păstrează
+  formula `C₂ = S₂ × (B / S) × (l₂ / L)`; lungimea zero este permisă, dar `S = 0`,
+  `L = 0` sau `l₂ > L` blochează calculul.
+- **Anexa 5:** bara separă investiția eficientă de cea ineficientă; fiecare
+  dezvoltator are puterea, ponderea și cota în lei. Selectează investiția pentru
+  `I_total`/`I_ef`, sau un dezvoltator pentru denumire/putere. Adăugarea și
+  ștergerea au undo; ștergerea cere confirmare. `I_ef` rămâne rezultatul introdus
+  al analizei economice, nu o estimare automată făcută de desen.
+
+În inspectorii noi, **Tab/Enter confirmă** valorile și **Escape anulează draftul**.
+Tastarea nu salvează și nu recalculează la fiecare caracter. Datele confirmate se
+salvează local și în JSON. Schemele nu schimbă ordinea etapelor sau formulele.
+**Mergi la câmp** din ghid sau din lista problemelor deschide inspectorul necesar
+și secțiunile închise. Pentru tronsoanele manuale se deschide formularul, fără
+conversie. Navigarea nu adaugă modificări în istoricul de anulare.
+
+**Rezultate → Printează / PDF** include schemele și explicațiile pentru modelul
+ales: componentele active ale Anexei 3, formula Anexei 4 sau repartițiile Anexei 5.
+La Anexa 3, componentele inactive sunt identificate în hartă, fără rapoarte de cost;
+la Anexa 5 sunt maximum șase dezvoltatori într-un bloc grafic. Rapoartele nu includ
+controale de editare; calculele informative rămân etichetate explicit.
+
+Pentru verificare manuală, folosește [scenariile și pașii de prezentare](exemple/teste-prezentare/README.md).
 
 ## Modele de calcul (anexe)
 

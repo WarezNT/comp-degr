@@ -129,20 +129,27 @@
       });
     }
 
-    function stationSteps(s) {
+    function stationSteps(s, equipmentOnly) {
       var id = s.id;
       var nmS = s.nume || 'stația';
-      add('stat-Sn:' + id, 'instalatie', 'stat.' + id + '.Sn', 'Completează capacitatea nominală a „' + nmS + '” (S_n, kVA)',
-        'Puterea transformatorului.', num(s.Sn) > 0, { rule: 'anexa2' });
-      add('stat-IT:' + id, 'instalatie', 'stat.' + id + '.IT', 'Completează costul lucrărilor „' + nmS + '” (I_T, lei)',
-        'Valoarea achitată de primul utilizator.', num(s.IT) > 0, { rule: 'anexa2' });
+      if (equipmentOnly) {
+        add('stat-ec:' + id, 'instalatie', 'stat.' + id + '.elementeComune', 'Completează costul echipamentelor comune „' + nmS + '” (lei)',
+          'Varianta 2 nu include transformatorul. Costul echipamentelor poate fi 0; poți sări.', num(s.elementeComune) > 0, { optional: true, rule: 'art12.1' });
+      } else {
+        add('stat-Sn:' + id, 'instalatie', 'stat.' + id + '.Sn', 'Completează capacitatea nominală a „' + nmS + '” (S_n, kVA)',
+          'Puterea transformatorului.', num(s.Sn) > 0, { rule: 'anexa2' });
+        add('stat-IT:' + id, 'instalatie', 'stat.' + id + '.IT', 'Completează costul lucrărilor „' + nmS + '” (I_T, lei)',
+          'Valoarea achitată de primul utilizator.', num(s.IT) > 0, { rule: 'anexa2' });
+      }
       if (primId) {
         add('stat-prim:' + id, 'instalatie', 'cell:' + id + ':' + primId, 'Bifează primul utilizator în „' + nmS + '”',
-          'El primește compensația pentru stație/post.', (s.utilizatori || []).indexOf(primId) >= 0, { rule: 'art6.1b' });
+          equipmentOnly ? 'Participă la repartizarea echipamentelor comune dacă le folosește.' : 'El primește compensația pentru stație/post.',
+          (s.utilizatori || []).indexOf(primId) >= 0, { rule: 'art6.1b' });
       }
       noiIds.forEach(function (nid) {
         add('stat-nou:' + id + ':' + nid, 'instalatie', 'cell:' + id + ':' + nid, 'Bifează ' + nm(S.findUser(p, nid)) + ' în „' + nmS + '”',
-          'Plătește compensația proporțional cu puterea aprobată.', (s.utilizatori || []).indexOf(nid) >= 0, { rule: 'art13' });
+          equipmentOnly ? 'Echipamentele se repartizează în cote egale, nu după putere.' : 'Plătește compensația proporțional cu puterea aprobată.',
+          (s.utilizatori || []).indexOf(nid) >= 0, { rule: equipmentOnly ? 'art12.1' : 'art13' });
       });
     }
 
@@ -151,7 +158,7 @@
       p.linii.forEach(function (l) { lineSteps(l); });
     } else if (model === 'station') {
       add('stat-add', 'instalatie', 'btn:add-stat', 'Adaugă stația / postul de transformare', 'Elementul realizat de primul utilizator.', p.statii.length >= 1, { rule: 'anexa2' });
-      p.statii.forEach(stationSteps);
+      p.statii.forEach(function (s) { stationSteps(s, false); });
     } else if (model === 'complex') {
       var sel = p.complexConfig;
       var v = Number(sel.varianta) || 3;
@@ -164,7 +171,7 @@
       l1.forEach(function (l) { lineSteps(l); });
       if (v >= 2) {
         add('cx-st', 'instalatie', 'btn:add-stat', 'Adaugă stația / postul din instalația complexă', 'Variantele 2–4 folosesc stația.', st.length >= 1, { rule: 'anexa3' });
-        st.forEach(stationSteps);
+        st.forEach(function (s) { stationSteps(s, v === 2); });
       }
       if (v === 4) {
         add('cx-l2', 'instalatie', 'btn:add-line-u2', 'Adaugă linia l_U2 (în aval de stație)', 'Varianta 4 folosește și a doua linie.', l2.length >= 1, { rule: 'art14' });

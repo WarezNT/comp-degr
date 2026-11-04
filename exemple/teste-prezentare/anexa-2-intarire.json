@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "operator": "Operator demonstrativ — întărire post în două etape",
+    "dataCalcul": "2025-01-01",
+    "tva": 21,
+    "withTva": true,
+    "model": "station",
+    "modelConfirmat": true,
+    "exemplu": true
+  },
+  "utilizatori": [
+    { "id": "u1", "codPA": "PT-201", "nume": "U1 — finanțator", "putere": 100, "rol": "prim", "dataContract": "2022-02-01", "dataATR": "2022-01-01", "dataTR": "2022-02-01" },
+    { "id": "u2", "codPA": "PT-202", "nume": "U2 — existent", "putere": 100, "rol": "existent", "dataContract": "2023-02-01", "dataATR": "2023-01-01", "dataTR": "2023-02-01" },
+    { "id": "u3", "codPA": "PT-203", "nume": "U3 — nou, etapa 1", "putere": 80, "rol": "nou", "dataContract": "2024-02-01", "dataATR": "2024-01-01", "dataTR": "2024-02-01" },
+    { "id": "u4", "codPA": "PT-204", "nume": "U4 — nou, etapa 2", "putere": 80, "rol": "nou", "dataContract": "2024-08-01", "dataATR": "2024-07-01", "dataTR": "2024-08-01" }
+  ],
+  "statii": [{
+    "id": "pt-intarire",
+    "nume": "PT DEMO — întărire și capacitate suplimentară",
+    "Sn": 400,
+    "SnRezerva": 100,
+    "IT": 200000,
+    "elementeComune": 9000,
+    "intarire": true,
+    "compVeche": 0,
+    "utilizatori": ["u1", "u2", "u3", "u4"]
+  }],
+  "conditii": {
+    "primCapacitateMaiMare": true,
+    "capacitateDisponibila": true,
+    "dataPIF": "2023-01-01",
+    "solutieComuna": true,
+    "verificate": true,
+    "tarifAchitatIntegral": true,
+    "fonduriPublice": false,
+    "calcInformativ": false
+  }
+}

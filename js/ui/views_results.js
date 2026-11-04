@@ -61,7 +61,8 @@
       : 'Niciun alt utilizator cu contract anterior intrării în vigoare nu a fost exclus din repartizare.');
     if (t.faraData.length) items.push(html`<span class="warn">Fără „Data contractului” (considerați cu contract ulterior): ${t.faraData.map(nameOf).join(', ')}.</span>`);
     (p.linii || []).forEach(function (l) {
-      if (p.meta.model === 'complex' && p.complexConfig.liniiIds.indexOf(l.id) < 0 && p.complexConfig.liniiU2Ids.indexOf(l.id) < 0) return;
+      if (p.meta.model === 'complex' && p.complexConfig.liniiIds.indexOf(l.id) < 0 &&
+        !(Number(p.complexConfig.varianta) === 4 && p.complexConfig.liniiU2Ids.indexOf(l.id) >= 0)) return;
       if (!(Number(l.IL) > 0)) return;
       var f = C.lineFactor(p, l);
       var sup = null;
@@ -72,6 +73,7 @@
       items.push(html`Linia „${l.nume}”: I_L ${money(l.IL)} − compensații vechi ${money(l.compVeche)} = <strong>${money((Number(l.IL) || 0) * f)} lei</strong> <${K.RefChip} id="art18.1a" />${sup}.`);
     });
     (p.statii || []).forEach(function (s) {
+      if (p.meta.model === 'complex' && (Number(p.complexConfig.varianta) < 3 || p.complexConfig.statiiIds.indexOf(s.id) < 0)) return;
       if (Number(s.compVeche) > 0) {
         items.push(html`Stația „${s.nume}”: I_T ${money(s.IT)} − ${money(s.compVeche)} = <strong>${money(C.stationIT(p, s))} lei</strong>; compensația se plătește doar primului utilizator. <${K.RefChip} id="art18.3b" />`);
       }
@@ -119,9 +121,29 @@
     var res = props.res;
     var p = store.state;
     if (res.model === 'line') {
-      return html`<details class="card"><summary>Detaliu pe tronsoane</summary>${res.tronsoaneDetalii.map(function (t) {
-        return html`<div class="det"><strong>${t.nume || t.id}</strong>${t.tip === 'stalpi' ? html` <${K.RefChip} id="art15.1" />` : null} — cost ${money(t.cost)} lei, ${t.nrUtilizatori} utilizatori
-          <ul>${t.plati.length ? t.plati.map(function (x) { return html`<li>${nameOf(x.deLa)} → ${nameOf(x.catre)}: <strong>${money(x.suma)}</strong></li>`; }) : html`<li class="muted">fără compensații</li>`}</ul></div>`;
+      var newUsers = res.nouUtilizatori || S.newIds(p);
+      return html`<details class="card segment-details"><summary>Detaliu pe tronsoane</summary>
+        <p class="hint">Numărul final include toți utilizatorii participanți la repartizare după racordări.
+          Plățile se calculează succesiv, în ordinea utilizatorilor noi din proiect, nu după poziția pe schemă.
+          Utilizatorii excluși prin regulile tranzitorii nu sunt numărați.</p>
+        ${res.tronsoaneDetalii.map(function (t) {
+        var stages = newUsers.filter(function (id) { return t.utilizatori.indexOf(id) >= 0; });
+        var previous = t.nrUtilizatori - stages.length;
+        return html`<div class="det"><strong>${t.nume || t.id}</strong>${t.tip === 'stalpi' ? html` <${K.RefChip} id="art15.1" />` : null}
+          — cost ${money(t.cost)} lei, ${t.nrUtilizatori} ${t.nrUtilizatori === 1 ? 'utilizator participant' : 'utilizatori participanți'} (situație finală)
+          ${stages.length ? stages.map(function (id, index) {
+            var before = previous + index, after = before + 1;
+            var payments = t.plati.filter(function (x) { return x.deLa === id; });
+            return html`<section class="segment-stage">
+              <h4>La racordarea ${nameOf(id)}: ${before} → ${after} ${after === 1 ? 'utilizator' : 'utilizatori'}</h4>
+              <ul>${payments.length ? payments.map(function (x) {
+                return html`<li>${nameOf(x.deLa)} → ${nameOf(x.catre)}: <strong>${money(x.suma)} lei</strong></li>`;
+              }) : html`<li class="muted">${before === 0
+                ? 'Fără compensații: niciun utilizator participant nu folosea tronsonul înaintea acestei racordări.'
+                : 'Fără compensații de plată în această etapă (cost repartizabil nul).'}</li>`}</ul>
+            </section>`;
+          }) : html`<p class="muted">Fără compensații: niciun utilizator nou nu se racordează pe acest tronson.</p>`}
+        </div>`;
       })}</details>`;
     }
     if (res.model === 'station') {
@@ -314,6 +336,13 @@
       ${ok && store.state.meta.model === 'line' ? html`<div class="print-line-schemes">
         <h2>Schemele liniilor — Anexa 1</h2>
         ${store.state.linii.map(function (l) { return html`<${Views.LineReport} l=${l} key=${l.id} />`; })}
+      </div>` : null}
+      ${ok && store.state.meta.model === 'station' ? html`<div class="print-station-schemes">
+        <h2>Schemele stațiilor / PT — Anexa 2</h2>
+        ${store.state.statii.map(function (s) { return html`<${Views.StationReport} s=${s} result=${res} key=${s.id} />`; })}
+      </div>` : null}
+      ${ok && ['complex', 'transitional', 'developer'].indexOf(store.state.meta.model) >= 0 ? html`<div class="print-model-schemes">
+        <${Views.ModelReport} result=${res} />
       </div>` : null}
       <${ConditionsCard} />
     <//>`;

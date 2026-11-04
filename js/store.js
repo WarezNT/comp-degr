@@ -175,7 +175,7 @@
     recompute();
     saveNow();
     store.render();
-    guideAfterCommit();
+    guideAfterCommit(opts);
   }
   store.mutate = mutate;
 
@@ -204,7 +204,7 @@
       if (p.meta.model === 'complex') {
         (rol === 'u2' ? p.complexConfig.liniiU2Ids : p.complexConfig.liniiIds).push(l.id);
       }
-    });
+    }, { undo: true });
   };
   store.delLine = function (id) {
     mutate(function (p) {
@@ -220,7 +220,7 @@
       c.liniiU2Ids = c.liniiU2Ids.filter(function (x) { return x !== id; });
       if (rol === 'u1') c.liniiIds.push(id);
       else if (rol === 'u2') c.liniiU2Ids.push(id);
-    });
+    }, { undo: true });
   };
   store.addTronson = function (lineId) {
     mutate(function (p) {
@@ -284,7 +284,7 @@
       if (!s) return;
       var i = s.utilizatori.indexOf(userId);
       if (i >= 0) s.utilizatori.splice(i, 1); else s.utilizatori.push(userId);
-    });
+    }, { undo: true });
   };
 
   /* --- linie pe distanțe (puncte de racordare) --- */
@@ -453,7 +453,7 @@
       var s = { id: S.uid('st'), nume: 'Stație ' + (p.statii.length + 1), Sn: 0, SnRezerva: 0, IT: 0, elementeComune: 0, intarire: false, compVeche: 0, utilizatori: [] };
       p.statii.push(s);
       if (p.meta.model === 'complex') p.complexConfig.statiiIds.push(s.id);
-    });
+    }, { undo: true });
   };
   store.delStation = function (id) {
     mutate(function (p) {
@@ -467,7 +467,7 @@
       var i = ids.indexOf(id);
       if (on && i < 0) ids.push(id);
       if (!on && i >= 0) ids.splice(i, 1);
-    });
+    }, { undo: true });
   };
 
   // Ghidul de alegere: aplică recomandarea (modelul de calcul + varianta Anexei 3).
@@ -479,7 +479,7 @@
   };
 
   /* --- dezvoltatori (Anexa 5) --- */
-  store.addDev = function () { mutate(function (p) { p.dezvoltator.dezvoltatori.push({ id: S.uid('dev'), nume: 'Dezvoltator', putere: 0 }); }); };
+  store.addDev = function () { mutate(function (p) { p.dezvoltator.dezvoltatori.push({ id: S.uid('dev'), nume: 'Dezvoltator', putere: 0 }); }, { undo: true }); };
   store.delDev = function (id) {
     mutate(function (p) { p.dezvoltator.dezvoltatori = p.dezvoltator.dezvoltatori.filter(function (d) { return d.id !== id; }); }, { undo: true });
   };
@@ -699,7 +699,16 @@
   store.findTarget = findTarget;
   store.focusTarget = function (key) {
     var el = findTarget(key);
+    // O componentă complexă poate avea încă un inspector imbricat de deschis.
+    for (var i = 0; key && !el && i < 2; i++) {
+      global.dispatchEvent(new global.CustomEvent('app:reveal-target', { detail: key }));
+      store.render();
+      el = findTarget(key);
+    }
     if (!el) return false;
+    for (var parent = el.parentElement; parent; parent = parent.parentElement) {
+      if (parent.tagName === 'DETAILS') parent.open = true;
+    }
     try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { /* ignorat */ }
     if (typeof el.focus === 'function') el.focus({ preventScroll: true });
     el.setAttribute('data-guide-pulse', '1');

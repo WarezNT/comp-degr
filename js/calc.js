@@ -204,6 +204,7 @@
 
   function stationCfg(p, s, puteri, primId, nouCfg) {
     return mergeCfg({
+      stationId: s.id,
       Sn: s.Sn, SnRezerva: s.SnRezerva || 0, IT: stationIT(p, s), elementeComune: s.elementeComune,
       intarire: !!s.intarire, ignorati: S.tranzitoriu(p).ignorati,
       utilizatori: (s.utilizatori || []).slice(), puteri: puteri, primId: primId

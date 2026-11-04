@@ -192,6 +192,38 @@
       eq(assert, res.payments['U3']['U2'], 2000, 'U3 -> U2');
     });
 
+    test('Anexa 3 — varianta 2: aceiași participanți tranzitorii ca la stație, inclusiv etape succesive', function (assert) {
+      function calculate(variant) {
+        return E.computeComplex({
+          varianta: variant, liniiU1: [],
+          statii: [{ stationId: 's1', Sn: 400, IT: 0, elementeComune: 12000,
+            utilizatori: ['U1', 'U2', 'U3', 'U4'], primId: 'U1' }],
+          ignorati: ['U1', 'U2', 'U3'], primId: 'U1', nouUtilizatori: ['U3', 'U4']
+        });
+      }
+      var res = calculate(2), station = calculate(3);
+      eq(assert, res.payments.U3.U1, 6000, 'U3 -> U1, primul utilizator este păstrat');
+      eq(assert, res.payments.U4.U1, 2000, 'U4 -> U1, a doua etapă');
+      eq(assert, res.payments.U4.U3, 2000, 'U4 -> U3, utilizator nou păstrat');
+      if (res.payments.U3.U2 || res.payments.U4.U2) assert('utilizator vechi exclus plătit');
+      if (JSON.stringify(res.payments) !== JSON.stringify(station.payments)) assert('variantele au participanți diferiți');
+      if (!res.explicatii.every(function (e) { return e.stationId === 's1' && e.tip === 'echipamente'; })) assert('sursa explicației pierdută');
+    });
+
+    test('Anexa 3 — varianta 2: selecția tranzitorie proprie stației prevalează față de configurația comună', function (assert) {
+      var cfg = {
+        varianta: 2, liniiU1: [], primId: 'U1', nouUtilizatori: ['U3'], ignorati: ['U2'],
+        statii: [
+          { stationId: 's1', elementeComune: 12000, utilizatori: ['U1', 'U2', 'U3'] },
+          { stationId: 's2', elementeComune: 12000, utilizatori: ['U1', 'U2', 'U3'], ignorati: [] }
+        ]
+      };
+      var before = JSON.stringify(cfg), res = E.computeComplex(cfg);
+      eq(assert, res.payments.U3.U1, 8000, 'U3 -> U1 cumulat');
+      eq(assert, res.payments.U3.U2, 2000, 'U3 -> U2 numai din s2');
+      if (JSON.stringify(cfg) !== before) assert('motorul a modificat configurația');
+    });
+
     test('Anexa 3 — varianta 3: linie U1 + stație + echipamente comune (cote egale)', function (assert) {
       var res = E.computeComplex({
         varianta: 3,

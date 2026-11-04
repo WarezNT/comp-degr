@@ -924,6 +924,425 @@ const focusedKey = (page) => page.evaluate(() => {
   check('fără erori JS în editorul ramificat', page.errors.length === 0, page.errors.join('; '));
   await page.close();
 
+  console.log('Anexa 2 — editor grafic, rezervă, întărire și PDF');
+  page = await newPage(browser, 1440, 1000);
+  await page.click('.start-actions [data-action="demo-u4"]');
+  await page.setInputFiles('input[data-action="import-json"]',
+    path.join(__dirname, '..', 'exemple', 'teste-prezentare', 'anexa-2-statie.json'));
+  await page.waitForFunction(() => window.AppUI.getState().meta.model === 'station');
+  await page.click('#tab-instalatie');
+  const stationBase = await page.evaluate(() => JSON.parse(JSON.stringify(window.AppUI.getState())));
+  await page.getByRole('button', { name: 'Schemă', exact: true }).click();
+  const stationCanvas = page.locator('.station-scheme');
+  await stationCanvas.locator('.station-user').last().press('Enter');
+  check('selectarea în schemă nu modifică proiectul și nu salvează un calcul', await page.evaluate((p) =>
+    JSON.stringify(window.AppUI.getState()) === JSON.stringify(p) && window.AppUI.store.results === null, stationBase), '');
+  check('Anexa 2: 40.000 lei transformator + 3.000 lei echipamente = 43.000 lei',
+    /43\.000,00 lei/.test(await stationCanvas.locator('.station-compensation-total').innerText()) &&
+    await stationCanvas.locator('.station-contributions li').count() === 3 &&
+    await stationCanvas.locator('.station-paid').count() === 2 &&
+    /2 → 3 participanți/.test(await stationCanvas.locator('.station-compensation').innerText()), '');
+  check('rezerva N−1 este marcată separat și exclusă din capacitatea efectivă',
+    /400,00 kVA/.test(await stationCanvas.locator('.station-metrics').innerText()) &&
+    /100,00 kVA/.test(await stationCanvas.locator('.station-reserve').textContent()), '');
+  const stationPower = stationCanvas.getByLabel('Putere aprobată (kVA)', { exact: true });
+  const stationDepth = await page.evaluate(() => window.AppUI.undoDepth());
+  await stationPower.focus(); await stationPower.press('Tab');
+  await stationPower.fill('42'); await stationPower.press('Escape');
+  check('focusul fără editare și Escape nu modifică starea sau istoricul undo', await page.evaluate((depth) =>
+    window.AppUI.undoDepth() === depth && window.AppUI.getState().utilizatori[2].putere === 80, stationDepth), '');
+  await stationPower.fill('90,5');
+  await page.evaluate(() => window.AppUI.store.render());
+  check('inspectorul păstrează puterea neconfirmată și nu modifică proiectul la fiecare tastă',
+    await stationPower.inputValue() === '90,5' && await page.evaluate(() =>
+      Number(window.AppUI.getState().utilizatori.find((u) => u.id === 'u3').putere) === 80), '');
+  await stationPower.press('Tab');
+  check('puterea zecimală confirmată regenerează compensația exactă',
+    /48\.250,00 lei/.test(await stationCanvas.locator('.station-compensation-total').innerText()), '');
+  await stationPower.fill('-1'); await stationPower.press('Tab');
+  check('puterea negativă este refuzată fără salvare', await page.evaluate(() =>
+    Number(window.AppUI.getState().utilizatori.find((u) => u.id === 'u3').putere) === 90.5), '');
+  await page.evaluate(() => window.AppUI.undo());
+  check('undo restaurează puterea și compensația', /43\.000,00 lei/.test(
+    await stationCanvas.locator('.station-compensation-total').innerText()), '');
+  await stationCanvas.locator('.station-contributions').getByRole('button', { name: 'Echipamente comune', exact: true }).first().click();
+  check('clickul pe contribuție deschide inspectorul componentei fără a pierde utilizatorul',
+    await stationCanvas.getByLabel('Cost echipamente comune (lei)', { exact: true }).count() === 1 &&
+    /43\.000,00 lei/.test(await stationCanvas.locator('.station-compensation-total').innerText()), '');
+  await stationCanvas.getByLabel('Cost echipamente comune (lei)', { exact: true }).fill('12000');
+  await stationCanvas.getByLabel('Cost echipamente comune (lei)', { exact: true }).press('Tab');
+  check('editarea echipamentelor actualizează plata secvențială', /44\.000,00 lei/.test(
+    await stationCanvas.locator('.station-compensation-total').innerText()), '');
+  await page.evaluate(() => window.AppUI.undo());
+  await stationCanvas.locator('.station-palette').getByRole('button', { name: 'Transformator', exact: true }).click();
+  await stationCanvas.getByLabel('Transformator de rezervă N-1 (kVA)', { exact: true }).fill('500');
+  await stationCanvas.getByLabel('Transformator de rezervă N-1 (kVA)', { exact: true }).press('Tab');
+  check('N−1 invalid este semnalat și nu produce sume sau evidențieri false',
+    await stationCanvas.locator('.station-validation').count() === 1 &&
+    await stationCanvas.locator('.station-compensation-total, .station-paid').count() === 0, '');
+  await page.evaluate(() => window.AppUI.undo());
+  await stationCanvas.locator('.station-person').last().click();
+  await stationCanvas.getByRole('button', { name: 'Deconectează de la stație', exact: true }).click();
+  check('deconectarea explicită păstrează utilizatorul și explică absența plăților',
+    /0,00 lei/.test(await stationCanvas.locator('.station-compensation-total').innerText()) &&
+    /nu este racordat/.test(await stationCanvas.locator('.station-compensation').innerText()) &&
+    await page.evaluate(() => window.AppUI.getState().utilizatori.length === 3), '');
+  await page.evaluate(() => window.AppUI.undo());
+  await page.getByRole('button', { name: 'Formular / tabel', exact: true }).click();
+  check('formularul existent vede aceleași valori și racordări', await page.evaluate(() => {
+    const p = window.AppUI.getState();
+    return p.statii[0].utilizatori.length === 3 && p.utilizatori[2].putere === 80 &&
+      document.querySelectorAll('.station-card .list-chk input:checked').length === 3;
+  }), '');
+  await page.getByRole('button', { name: 'Schemă', exact: true }).click();
+  await stationCanvas.locator('.station-person').last().click();
+  await page.evaluate(() => window.AppUI.store.set('cond.solutieComuna', false));
+  check('condițiile neîndeplinite blochează și explicația vizuală', /Calcul blocat/.test(
+    await stationCanvas.locator('.station-compensation').innerText()) &&
+    await stationCanvas.locator('.station-compensation-total').count() === 0, '');
+  await page.evaluate(() => window.AppUI.store.set('cond.calcInformativ', true));
+  check('calculul informativ este etichetat explicit', /INFORMATIV/.test(
+    await stationCanvas.locator('.station-compensation').innerText()), '');
+  await page.evaluate((p) => {
+    window.AppUI.setProject(p);
+    window.AppUI.setTab('instalatie');
+  }, stationBase);
+  if (!await page.locator('.station-scheme').count()) await page.getByRole('button', { name: 'Schemă', exact: true }).click();
+  await page.locator('.station-person').last().click();
+  await page.setViewportSize({ width: 390, height: 900 });
+  check('editorul de stație nu produce scroll orizontal pe întreaga pagină pe mobil', await page.evaluate(() =>
+    document.documentElement.scrollWidth <= 391), '');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.click('#tab-rezultate');
+  await page.getByRole('button', { name: 'Calculează compensațiile', exact: true }).click();
+  check('raportul de stație este ascuns pe ecran', !await page.locator('.print-station-schemes').isVisible(), '');
+  await page.emulateMedia({ media: 'print' });
+  check('PDF stație: toate racordările, rezerva, formulele și niciun control interactiv',
+    await page.locator('.station-report .station-user').count() === 3 &&
+    await page.locator('.station-report .station-report-table tbody tr').count() === 3 &&
+    await page.locator('.station-report button, .station-report input, .station-report [tabindex]').count() === 0 &&
+    /80,00 kVA × 500,00 lei\/kVA/.test(await page.locator('.station-report').innerText()), '');
+  const stationPdf = await page.pdf({ format: 'A4', margin: { top: '12mm', bottom: '12mm', left: '12mm', right: '12mm' } });
+  check('Chrome generează un PDF A4 real pentru Anexa 2', stationPdf.subarray(0, 5).toString() === '%PDF-' && stationPdf.length > 5000, '');
+  await page.emulateMedia({ media: 'screen' });
+  await page.evaluate((p) => {
+    p.statii.push(Object.assign({}, p.statii[0], { id: 's2', IT: 100000, elementeComune: 0 }));
+    window.AppUI.setProject(p); window.AppUI.setTab('instalatie');
+  }, stationBase);
+  const stationCards = page.locator('.station-card');
+  for (let i = 0; i < 2; i++) {
+    const card = stationCards.nth(i);
+    if (!await card.locator('.station-scheme').count()) await card.getByRole('button', { name: 'Schemă', exact: true }).click();
+    await card.locator('.station-person').last().click();
+  }
+  check('stațiile cu nume identice au contribuții separate și total de proiect comun',
+    /43\.000,00 lei/.test(await stationCards.nth(0).locator('.station-compensation-total').innerText()) &&
+    /20\.000,00 lei/.test(await stationCards.nth(1).locator('.station-compensation-total').innerText()) &&
+    /63\.000,00 lei/.test(await stationCards.nth(0).locator('.station-compensation .hint').innerText()), '');
+  await stationCards.nth(0).getByLabel('Putere aprobată (kVA)', { exact: true }).fill('60');
+  await stationCards.nth(0).getByLabel('Putere aprobată (kVA)', { exact: true }).press('Tab');
+  check('aceeași putere aprobată se sincronizează între inspectorii stațiilor',
+    await stationCards.nth(1).getByLabel('Putere aprobată (kVA)', { exact: true }).inputValue() === '60' &&
+    /15\.000,00 lei/.test(await stationCards.nth(1).locator('.station-compensation-total').innerText()), '');
+  await page.setInputFiles('input[data-action="import-json"]',
+    path.join(__dirname, '..', 'exemple', 'teste-prezentare', 'anexa-2-intarire.json'));
+  await page.waitForFunction(() => window.AppUI.getState().statii[0].id === 'pt-intarire');
+  await page.click('#tab-instalatie');
+  if (!await page.locator('.station-scheme').count()) await page.getByRole('button', { name: 'Schemă', exact: true }).click();
+  await page.locator('.station-person').last().click();
+  check('întărirea consumă succesiv rezerva de capacitate: U4 compensează doar 20 din 80 kVA',
+    /20,00 din 80,00 kVA/.test(await page.locator('.station-spare').innerText()) &&
+    /15\.583,33 lei/.test(await page.locator('.station-compensation-total').innerText()) &&
+    await page.evaluate(() => window.AppCalc.runCalculation(window.AppUI.getState()).central.totalFaraTVA === 71916.66), '');
+  await page.evaluate((p) => {
+    p.utilizatori[0].dataContract = '2015-01-01'; p.utilizatori[1].dataContract = '2015-02-01';
+    p.statii[0].compVeche = 100000;
+    window.AppUI.setProject(p); window.AppUI.setTab('instalatie');
+  }, stationBase);
+  if (!await page.locator('.station-scheme').count()) await page.getByRole('button', { name: 'Schemă', exact: true }).click();
+  await page.locator('.station-person').last().click();
+  check('tranzitoriu: b_T net și participanți eligibili, nu investiția brută',
+    /250,00 lei\/kVA/.test(await page.locator('.station-metrics').innerText()) &&
+    /24\.500,00 lei/.test(await page.locator('.station-compensation-total').innerText()) &&
+    /1 → 2 participanți/.test(await page.locator('.station-compensation').innerText()), '');
+  await page.evaluate((p) => {
+    for (let i = 0; i < 7; i++) {
+      const u = window.AppState.addUser(p, { id: 'extra' + i, nume: 'Suplimentar ' + i, rol: 'existent', putere: 1, dataTR: '2024-02-01' });
+      p.statii[0].utilizatori.push(u.id);
+    }
+    window.AppUI.setProject(p); window.AppUI.setTab('rezultate'); window.AppUI.calculate();
+  }, stationBase);
+  await page.emulateMedia({ media: 'print' });
+  check('PDF cu 10 utilizatori: două blocuri de maximum 6, fără omisiuni sau tăiere', await page.evaluate(() => {
+    const blocks = Array.from(document.querySelectorAll('.station-report-block'));
+    return blocks.length === 2 && document.querySelectorAll('.station-report .station-user').length === 10 &&
+      blocks.every((b) => b.querySelectorAll('.station-user').length <= 6 &&
+        b.querySelector('svg').getBoundingClientRect().width <= b.clientWidth + 1);
+  }), '');
+  await page.emulateMedia({ media: 'screen' });
+  await page.evaluate(() => window.AppUI.flushSave()); await page.reload(); await page.waitForSelector('.tabs');
+  check('editarea și racordările stației persistă la reîncărcare', await page.evaluate(() => {
+    const p = window.AppUI.getState();
+    return p.meta.model === 'station' && p.statii[0].utilizatori.length === 10 &&
+      p.statii[0].SnRezerva === 100 && !window.AppCalc.runCalculation(p).error;
+  }), '');
+  check('fără erori JS în fluxul grafic Anexa 2', page.errors.length === 0, page.errors.join('; '));
+  await page.close();
+
+  console.log('Anexele 3–5 — scheme, inspectori, persistență și PDF');
+  page = await newPage(browser, 1440, 1000);
+  const example = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'exemple', 'teste-prezentare', name), 'utf8'));
+  async function loadModel(p) {
+    await page.evaluate((project) => {
+      window.AppUI.setProject(project); window.AppUI.setTab('instalatie');
+    }, p);
+    await page.locator('.scheme-mode[aria-label="Mod de introducere model"]')
+      .getByRole('button', { name: 'Schemă', exact: true }).click();
+  }
+  async function mobileModel(name) {
+    await page.setViewportSize({ width: 390, height: 900 });
+    check(name + ': fără scroll orizontal pe întreaga pagină', await page.evaluate(() =>
+      document.documentElement.scrollWidth <= 391), '');
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
+  const complexBase = example('anexa-3-varianta-4.json');
+  await loadModel(complexBase);
+  const beforeComplex = await page.evaluate(() => JSON.stringify(window.AppUI.getState()));
+  await page.getByLabel('Utilizator nou analizat', { exact: true }).selectOption('u3');
+  await page.locator('.complex-map .model-node').first().press('Enter');
+  check('Anexa 3: 45.000 lei, selecție nemutantă și linie manuală neconvertită',
+    /45\.000,00 lei/.test(await page.locator('.complex-compensation .model-total').innerText()) &&
+    await page.locator('.complex-part').evaluateAll((parts) =>
+      parts.map((part) => part.dataset.componentId).join() === 'line:l1,station:s1,line:l2') &&
+    /Pregătește linia pentru schemă/.test(await page.locator('.complex-inspector').innerText()) &&
+    await page.evaluate((before) => JSON.stringify(window.AppUI.getState()) === before &&
+      window.AppUI.store.results === null, beforeComplex), '');
+  await page.getByLabel('Rol în instalația complexă', { exact: true }).selectOption('');
+  check('excluderea l_U1 păstrează linia, dar scade contribuția la 35.000 lei',
+    /35\.000,00 lei/.test(await page.locator('.complex-compensation .model-total').innerText()) &&
+    await page.evaluate(() => window.AppUI.getState().linii.length === 2), '');
+  await page.evaluate(() => window.AppUI.undo());
+  await page.getByLabel('Varianta punctului de racordare', { exact: true }).selectOption('2');
+  check('varianta 2: 10.000 linie + 4.000 echipamente, fără transformator sau l_U2',
+    /14\.000,00 lei/.test(await page.locator('.complex-compensation .model-total').innerText()) &&
+    await page.locator('.complex-map .complex-part-inactive').count() === 1, '');
+  await page.locator('.complex-part[data-component-id="station:s1"] .model-node').click();
+  check('inspectorul variantei 2 editează numai echipamentele și racordările',
+    await page.locator('.complex-inspector input[data-bind="stat.s1.elementeComune"]').count() === 1 &&
+    await page.locator('.complex-inspector input[data-bind="stat.s1.IT"], .complex-inspector .station-transformer').count() === 0, '');
+  const equipment = page.locator('.complex-inspector').getByLabel('Cost echipamente comune (lei)', { exact: true });
+  await equipment.fill('15000'); await equipment.press('Enter');
+  check('echipamente editate: recalculare la 15.000 lei', /15\.000,00 lei/.test(
+    await page.locator('.complex-compensation .model-total').innerText()), '');
+  await page.evaluate(() => window.AppUI.undo());
+  await page.getByLabel('Stație inclusă în instalația complexă', { exact: true }).uncheck();
+  check('stația neinclusă rămâne vizibilă și nu generează plăți', /10\.000,00 lei/.test(
+    await page.locator('.complex-compensation .model-total').innerText()), '');
+  await page.evaluate(() => window.AppUI.undo());
+  await mobileModel('Anexa 3');
+  for (let variant = 1; variant <= 4; variant++) {
+    await loadModel(example('anexa-3-varianta-' + variant + '.json'));
+    await page.getByLabel('Utilizator nou analizat', { exact: true }).selectOption('u3');
+    check('Anexa 3 varianta ' + variant + ': totalul scenariului existent',
+      new RegExp(['10\\.000', '14\\.000', '39\\.000', '45\\.000'][variant - 1] + ',00 lei').test(
+        await page.locator('.complex-compensation .model-total').innerText()), '');
+    await page.click('#tab-rezultate');
+    await page.getByRole('button', { name: 'Calculează compensațiile', exact: true }).click();
+    check('raportul complex este ascuns pe ecran', !await page.locator('.print-model-schemes').isVisible(), '');
+    await page.emulateMedia({ media: 'print' });
+    const report = page.locator('.complex-report');
+    const pdf = await page.pdf({ format: 'A4', margin: { top: '12mm', bottom: '12mm', left: '12mm', right: '12mm' } });
+    check('PDF varianta ' + variant + ': componente active, formule, fără controale și fișier real',
+      await report.locator('.line-report').count() === (variant === 4 ? 2 : 1) &&
+      await report.locator('.station-report').count() === (variant >= 3 ? 1 : 0) &&
+      await report.locator('input, button, select, [tabindex]').count() === 0 &&
+      pdf.subarray(0, 5).toString() === '%PDF-' && pdf.length > 5000, '');
+    await page.emulateMedia({ media: 'screen' });
+  }
+  await loadModel(complexBase);
+  await page.getByLabel('Utilizator nou analizat', { exact: true }).selectOption('u3');
+  await page.evaluate(() => window.AppUI.store.set('cond.solutieComuna', false));
+  check('Anexa 3: condițiile invalide ascund compensațiile și marcajele de plată',
+    /Calcul blocat/.test(await page.locator('.model-calculation-status').innerText()) &&
+    await page.locator('.complex-compensation, .model-node-paid').count() === 0, '');
+  await page.evaluate(() => window.AppUI.store.set('cond.calcInformativ', true));
+  check('Anexa 3: explicația informativă este etichetată', /INFORMATIV/.test(
+    await page.locator('.model-calculation-status').innerText()) &&
+    /45\.000,00 lei/.test(await page.locator('.complex-compensation .model-total').innerText()), '');
+
+  await loadModel(example('anexa-4-tranzitoriu.json'));
+  check('Anexa 4: b=500 și C₂=13.500 lei, proporție de 90%', /13\.500,00 lei/.test(
+    await page.locator('.model-formula').innerText()) &&
+    await page.locator('.model-used').evaluate((el) => el.style.width) === '90%', '');
+  await page.locator('.transitional-diagram .model-node').last().press('Enter');
+  const usedLength = page.getByLabel('Lungimea folosită l₂ (m)', { exact: true });
+  const modelDepth = await page.evaluate(() => window.AppUI.undoDepth());
+  await usedLength.focus(); await usedLength.press('Tab');
+  await usedLength.fill('80,5'); await page.evaluate(() => window.AppUI.store.render());
+  check('inspector Anexa 4: draft păstrat, fără mutație la tastare', await usedLength.inputValue() === '80,5' &&
+    await page.evaluate((depth) => Number(window.AppUI.getState().tranzitoriu.l2) === 90 &&
+      window.AppUI.undoDepth() === depth, modelDepth), '');
+  await usedLength.press('Escape');
+  check('Escape anulează numai draftul', await page.evaluate((depth) =>
+    window.AppUI.undoDepth() === depth && Number(window.AppUI.getState().tranzitoriu.l2) === 90, modelDepth), '');
+  await usedLength.fill('80,5'); await usedLength.press('Enter');
+  check('confirmarea zecimalelor produce C₂=12.075 lei', /12\.075,00 lei/.test(
+    await page.locator('.model-formula').innerText()), '');
+  await usedLength.fill('101'); await usedLength.press('Tab');
+  check('l₂>L este eroare explicită, fără formulă sau proporție aparent validă',
+    await page.locator('.model-calculation-status[role="alert"]').count() === 1 &&
+    await page.locator('.model-formula, .model-used').count() === 0, '');
+  await page.evaluate(() => window.AppUI.undo());
+  await mobileModel('Anexa 4');
+  await page.evaluate(() => window.AppUI.flushSave()); await page.reload(); await page.waitForSelector('.tabs');
+  check('Anexa 4: lungimea confirmată și calculul persistă la reîncărcare', await page.evaluate(() =>
+    Number(window.AppUI.getState().tranzitoriu.l2) === 80.5 &&
+    window.AppCalc.runCalculation(window.AppUI.getState()).C2 === 12075), '');
+  await page.click('#tab-rezultate');
+  await page.getByRole('button', { name: 'Calculează compensațiile', exact: true }).click();
+  await page.emulateMedia({ media: 'print' });
+  const transitionalPdf = await page.pdf({ format: 'A4' });
+  check('Anexa 4: PDF real cu formula exactă, fără controale',
+    /12\.075,00 lei/.test(await page.locator('.transitional-report').innerText()) &&
+    await page.locator('.transitional-report input, .transitional-report button, .transitional-report [tabindex]').count() === 0 &&
+    transitionalPdf.subarray(0, 5).toString() === '%PDF-' && transitionalPdf.length > 5000, '');
+  await page.emulateMedia({ media: 'screen' });
+
+  const developerBase = example('anexa-5-dezvoltator.json');
+  await loadModel(developerBase);
+  check('Anexa 5: 60% eficient, 40% ineficient; cote de 30.000/15.000/15.000 lei',
+    /60,00%/.test(await page.locator('.developer-diagram').innerText()) &&
+    /30\.000,00 lei/.test(await page.locator('.developer-nodes').innerText()) &&
+    (await page.locator('.developer-nodes').innerText()).match(/15\.000,00 lei/g).length === 2, '');
+  await page.locator('.developer-node .model-node').first().press('Enter');
+  const developerName = page.getByLabel('Denumire dezvoltator', { exact: true });
+  await developerName.fill('Dezvoltator cu nume complet modificat');
+  await page.evaluate(() => window.AppUI.store.render());
+  check('Anexa 5: denumirea neconfirmată rezistă re-randării și nu schimbă proiectul',
+    await developerName.inputValue() === 'Dezvoltator cu nume complet modificat' &&
+    await page.evaluate(() => window.AppUI.getState().dezvoltator.dezvoltatori[0].nume === 'Dezvoltator A'), '');
+  await developerName.press('Tab');
+  const developerPower = page.getByLabel('Putere aprobată dezvoltator (kVA)', { exact: true });
+  await developerPower.fill('150'); await developerPower.press('Enter');
+  check('Anexa 5: puterea modificată repartizează 36.000/12.000/12.000 lei',
+    /36\.000,00 lei/.test(await page.locator('.developer-nodes').innerText()) &&
+    (await page.locator('.developer-nodes').innerText()).match(/12\.000,00 lei/g).length === 2, '');
+  await page.getByRole('button', { name: '+ Adaugă dezvoltator', exact: true }).click();
+  check('adăugarea selectează un dezvoltator de putere zero și păstrează cotele',
+    await page.locator('.developer-node').count() === 4 &&
+    /0,00 kVA · Cotă: 0,00 lei/.test(await page.locator('.developer-node .model-node[aria-pressed="true"]').innerText()) &&
+    await page.evaluate(() => window.AppUI.getState().dezvoltator.dezvoltatori.slice(-1)[0].putere === 0) &&
+    /36\.000,00 lei/.test(await page.locator('.developer-nodes').innerText()), '');
+  await page.getByRole('button', { name: 'Șterge dezvoltatorul', exact: true }).click();
+  await page.waitForFunction(() => window.AppUI.getState().dezvoltator.dezvoltatori.length === 3);
+  await page.evaluate(() => window.AppUI.undo());
+  check('ștergerea confirmată este anulabilă', await page.locator('.developer-node').count() === 4, '');
+  await page.evaluate(() => window.AppUI.undo());
+  await mobileModel('Anexa 5');
+  await page.evaluate(() => window.AppUI.flushSave()); await page.reload(); await page.waitForSelector('.tabs');
+  check('Anexa 5: denumirea, puterea și cotele persistă la reîncărcare', await page.evaluate(() => {
+    const p = window.AppUI.getState();
+    return p.dezvoltator.dezvoltatori[0].nume === 'Dezvoltator cu nume complet modificat' &&
+      Number(p.dezvoltator.dezvoltatori[0].putere) === 150 && window.AppCalc.runCalculation(p).rows[0].suma === 36000;
+  }), '');
+  const longDevelopers = example('anexa-5-dezvoltator.json');
+  for (let i = 3; i < 10; i++) longDevelopers.dezvoltator.dezvoltatori.push({
+    id: 'dev-extra-' + i, nume: 'Dezvoltator suplimentar cu denumire completă și foarte lungă ' + i, putere: 10
+  });
+  await loadModel(longDevelopers);
+  await mobileModel('Anexa 5 cu 10 dezvoltatori');
+  await page.click('#tab-rezultate');
+  await page.getByRole('button', { name: 'Calculează compensațiile', exact: true }).click();
+  await page.emulateMedia({ media: 'print' });
+  const developerPdf = await page.pdf({ format: 'A4', margin: { top: '12mm', bottom: '12mm', left: '12mm', right: '12mm' } });
+  check('Anexa 5: PDF real cu 10 dezvoltatori în blocuri de maximum 6, nume complete și fără controale',
+    await page.locator('.developer-report .developer-report-block').count() === 2 &&
+    await page.locator('.developer-report .developer-node').count() === 10 &&
+    await page.locator('.developer-report button, .developer-report input, .developer-report [tabindex]').count() === 0 &&
+    await page.locator('.developer-report-block').evaluateAll((blocks) =>
+      blocks.every((b) => b.querySelectorAll('.developer-node').length <= 6 &&
+        Array.from(b.querySelectorAll('.model-node')).every((n) => n.scrollWidth <= n.clientWidth + 1))) &&
+    developerPdf.subarray(0, 5).toString() === '%PDF-' && developerPdf.length > 5000, '');
+  check('fără erori JS în fluxurile grafice Anexele 3–5', page.errors.length === 0, page.errors.join('; '));
+  await page.emulateMedia({ media: 'screen' });
+  console.log('Rafinare cap-coadă — componente active, regim tranzitoriu și navigare la câmp');
+  const inactiveComplex = example('anexa-3-varianta-4.json');
+  inactiveComplex.complexConfig.varianta = 2;
+  inactiveComplex.statii[0].SnRezerva = 500;
+  inactiveComplex.linii[1].L = -1;
+  await loadModel(inactiveComplex);
+  await page.getByLabel('Utilizator nou analizat', { exact: true }).selectOption('u3');
+  check('datele păstrate în componente inactive nu blochează varianta 2',
+    await page.locator('.model-calculation-status[role="alert"]').count() === 0 &&
+    /14\.000,00 lei/.test(await page.locator('.complex-compensation .model-total').innerText()), '');
+  await page.getByLabel('Varianta punctului de racordare', { exact: true }).selectOption('4');
+  check('activarea componentelor invalide blochează imediat calculul și evidențierile',
+    await page.locator('.model-calculation-status[role="alert"]').count() === 1 &&
+    await page.locator('.complex-compensation, .model-node-paid').count() === 0, '');
+  await page.evaluate(() => window.AppUI.undo());
+  const inactiveSnapshot = await page.evaluate(() => JSON.stringify(window.AppUI.getState()));
+  await page.evaluate(() => window.AppUI.store.goToStep({ tab: 'instalatie', target: 'stat.s1.elementeComune' }));
+  check('Mergi la câmp deschide inspectorul componentei corecte și îi dă focus fără modificarea datelor',
+    await page.locator('.complex-inspector input[data-bind="stat.s1.elementeComune"]').evaluate((el) => el === document.activeElement) &&
+    await page.evaluate((snapshot) => JSON.stringify(window.AppUI.getState()) === snapshot, inactiveSnapshot), '');
+  await page.getByRole('group', { name: 'Mod de introducere model', exact: true })
+    .getByRole('button', { name: 'Formular / tabel', exact: true }).click();
+  await page.locator('.station-card .scheme-mode').getByRole('button', { name: 'Schemă', exact: true }).click();
+  check('varianta 2 are același inspector doar pentru echipamente și din formularul stației',
+    await page.locator('.station-card .station-transformer, .station-card input[data-bind="stat.s1.IT"]').count() === 0 &&
+    await page.locator('.station-card input[data-bind="stat.s1.elementeComune"]').count() === 1, '');
+
+  const transitionalComplex = example('anexa-3-varianta-4.json');
+  transitionalComplex.complexConfig.varianta = 2;
+  transitionalComplex.utilizatori[0].dataContract = '2015-01-01';
+  transitionalComplex.utilizatori[1].dataContract = '2015-02-01';
+  await loadModel(transitionalComplex);
+  await page.getByLabel('Utilizator nou analizat', { exact: true }).selectOption('u3');
+  check('varianta 2 tranzitorie: 15.000 lei linie + 6.000 lei echipamente, numai către U1',
+    /21\.000,00 lei/.test(await page.locator('.complex-compensation .model-total').innerText()) &&
+    await page.evaluate(() => {
+      const r = window.AppCalc.runCalculation(window.AppUI.getState());
+      return r.central.rows.every((row) => row.id !== 'u2') &&
+        r.explicatii.filter((e) => e.stationId === 's1').every((e) => e.catre === 'u1' && e.suma === 6000);
+    }), '');
+  await page.click('#tab-rezultate');
+  await page.getByRole('button', { name: 'Calculează compensațiile', exact: true }).click();
+  await page.emulateMedia({ media: 'print' });
+  check('PDF varianta 2: racordările fizice rămân, iar utilizatorul vechi este marcat exclus',
+    /U2 — existent — Exclus prin regimul tranzitoriu/.test(await page.locator('.complex-equipment-report').innerText()) &&
+    /21\.000,00 lei/.test(await page.locator('.complex-report').innerText()), '');
+  await page.emulateMedia({ media: 'screen' });
+
+  for (const entry of [
+    { file: 'anexa-3-varianta-4.json', target: 'stat.s1.elementeComune' },
+    { file: 'anexa-3-varianta-4.json', target: 'stat.s1.compVeche' },
+    { file: 'anexa-3-varianta-4.json', target: 'tronson.l1.t1.lungime' },
+    { file: 'anexa-4-tranzitoriu.json', target: 'tranz.l2' },
+    { file: 'anexa-5-dezvoltator.json', target: 'devitem.d2.putere' }
+  ]) {
+    await loadModel(example(entry.file));
+    const snapshot = await page.evaluate(() => JSON.stringify(window.AppUI.getState()));
+    await page.evaluate((target) => window.AppUI.store.goToStep({ tab: 'instalatie', target }), entry.target);
+    const input = page.locator('[data-bind="' + entry.target + '"]');
+    check('navigare la ' + entry.target + ': inspector vizibil, câmp focalizat și stare nemodificată',
+      await input.isVisible() && await input.evaluate((el) => el === document.activeElement) &&
+      await page.evaluate((before) => JSON.stringify(window.AppUI.getState()) === before, snapshot), '');
+    await page.setViewportSize({ width: 320, height: 900 });
+    check(entry.target + ': inspector utilizabil la 320 px fără scroll pe întreaga pagină',
+      await page.evaluate(() => document.documentElement.scrollWidth <= 321), '');
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
+  await page.evaluate(() => window.AppUI.store.goToStep({ tab: 'instalatie', target: 'devitem.d1.putere' }));
+  await page.getByLabel('Putere aprobată dezvoltator (kVA)', { exact: true }).fill('125');
+  await page.getByLabel('Putere aprobată dezvoltator (kVA)', { exact: true }).press('Tab');
+  check('editarea după navigarea la câmp funcționează, iar undo restaurează valoarea',
+    await page.evaluate(() => Number(window.AppUI.getState().dezvoltator.dezvoltatori[0].putere) === 125), '');
+  await page.evaluate(() => window.AppUI.undo());
+  check('undo după editare asistată restaurează calculul de 30.000 lei pentru A', await page.evaluate(() =>
+    window.AppCalc.runCalculation(window.AppUI.getState()).rows[0].suma === 30000), '');
+  check('fără erori JS în scenariile rafinate', page.errors.length === 0, page.errors.join('; '));
+  await page.close();
+
   await browser.close();
   console.log(failures ? '\n' + failures + ' verificări e2e eșuate.' : '\nToate verificările e2e au trecut.');
   process.exit(failures ? 1 : 0);

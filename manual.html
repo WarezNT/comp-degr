@@ -340,6 +340,16 @@
         <li>Adaugi stația: S_n, S_n efectiv (minus rezervă), I_T, echipamente comune; o incluzi în instalația complexă.</li>
         <li>Bifezi <strong>primul utilizator și noul utilizator</strong> în lista stației.</li>
       </ol>
+      <p>În <strong>Instalație → Schemă</strong>, selectezi utilizatorul nou analizat și
+        componentele pentru a le deschide inspectorii. Harta arată separat toate liniile
+        și stațiile; componentele inactive se păstrează, dar nu intră în calcul și nu îl
+        blochează cu date care nu sunt folosite în varianta curentă. Activarea lor readuce
+        validarea acelor date. În varianta 2 se editează și se compensează numai
+        <strong>echipamentele comune</strong>, nu transformatorul.</p>
+      <p><strong>Mergi la câmp</strong> deschide inspectorul sau secțiunea necesară, fără să
+        schimbe datele. Pentru tronsoanele manuale deschide formularul fără conversie.
+        În inspectorii noi, Tab/Enter confirmă, Escape renunță la draft, iar modificările
+        confirmate se pot anula. PDF include detaliile componentelor active.</p>
       <div class="m-card">
         <p><strong>Exemplu (varianta 3):</strong> l_U1 cost 6.000 lei, folosită de prim + nou → fiecare 3.000;
           noul plătește primului <strong>3.000 lei</strong> pe linie. Stație: S_n 400 kVA, I_T 100.000 →
@@ -361,6 +371,10 @@
       <p>În Anexele 1–3, regimul tranzitoriu se activează automat dacă datele contractului primului utilizator
         sunt anterioare datei de 07.01.2016; completezi „compensațiile vechi” primite sub vechea metodologie,
         care se scad din costul instalației.</p>
+      <p>În <strong>Instalație → Schemă</strong>, selectezi investiția, utilizatorul sau
+        lungimile pentru a edita valorile. Bara reprezintă proporția <code>l₂/L</code>,
+        nu o poziție topografică. Lungimea folosită poate fi zero; S și L trebuie să fie
+        pozitive, iar l₂ nu poate depăși L. Formula și schema se includ în PDF.</p>
 
       <h2 id="anexa5">8. Anexa 5 — rețea finanțată de un dezvoltator</h2>
       <p>Pentru o rețea publică finanțată de un prim dezvoltator, cota de ineficiență se împarte proporțional cu puterile:</p>
@@ -373,6 +387,12 @@
         <code>C_D</code> = suma pe care o plătește D (lei).</p>
       <div class="m-card"><p><strong>Exemplu:</strong> I_total = 150.000, I_ef = 131.250 → X_ef = 87,5%;
         D1 = 300 kVA, D2 = 100 kVA → X_D1 = 9,375% (14.062,5 lei), X_D2 = 3,125% (4.687,5 lei).</p></div>
+      <p>În <strong>Instalație → Schemă</strong>, bara separă investiția eficientă de cea
+        ineficientă; selectezi investiția sau un dezvoltator pentru inspector. Puterea
+        individuală poate fi zero, dar suma puterilor trebuie să fie pozitivă.
+        Adăugarea și ștergerea se pot anula; ștergerea cere confirmare.
+        <strong>I_ef se introduce din analiza economică</strong>, nu este determinat automat
+        de schemă. PDF include numele complete, puterile, cotele și formulele.</p>
 
       <h2 id="conditii">9. Condiții legale</h2>
       <p>Compensația se calculează și se plătește <strong>numai dacă sunt îndeplinite cumulativ</strong> (art. 8):</p>

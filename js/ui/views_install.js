@@ -541,7 +541,7 @@
     var u = S.findUser(store.state, selectedId);
     var selectedTronson = (l.tronsoane || []).filter(function (t) { return t.id === selectedTronsonId; })[0];
     var selectedZone = (l.zoneTehnice || []).filter(function (z) { return z.id === selectedZoneId; })[0];
-    var compensation = u && S.newIds(store.state).indexOf(u.id) >= 0 && store.state.meta.model === 'line'
+    var compensation = u && S.newIds(store.state).indexOf(u.id) >= 0 && ['line', 'complex'].indexOf(store.state.meta.model) >= 0
       ? C.runCalculation(store.state) : null;
     var contributions = Object.create(null);
     if (compensation && !compensation.error) {
@@ -944,8 +944,12 @@
     var id = l.id;
     var bL = C.lineBl(l);
     var complex = p.meta.model === 'complex';
-    var mode = useState(false);
-    var scheme = !complex && p.meta.model === 'line' && mode[0];
+    var mode = useState(!!props.initialScheme);
+    var scheme = (p.meta.model === 'line' || complex) && mode[0];
+    K.useRevealTarget(function (key) {
+      if (['dist:' + id + ':', 'tronson.' + id + '.', 'cell:' + id + ':'].some(function (prefix) { return key.indexOf(prefix) === 0; }) ||
+        key === 'btn:add-tronson:' + id) mode[1](false);
+    });
     var role = p.complexConfig.liniiIds.indexOf(id) >= 0 ? 'u1' : (p.complexConfig.liniiU2Ids.indexOf(id) >= 0 ? 'u2' : '');
     return html`<div class="card line-card" key=${id}>
       <div class="card-head">
@@ -972,12 +976,12 @@
         <span data-line-status=${id}>${lineStatus(l)}</span></p>
       <${TranzDetails} kind="line" x=${l} />
       <${LineTechnicalEditor} l=${l} />
-      ${p.meta.model === 'line' && l.mod === 'distante' ? html`<div class="toolbar">
+      ${(p.meta.model === 'line' || complex) && l.mod === 'distante' ? html`<div class="toolbar">
         <button type="button" class="btn tiny" onClick=${function () {
           if (global.confirm('Transformi linia într-o rețea cu ramuri și subramuri, fără bucle? Racordările și limitele existente se păstrează pe linia principală. Poți reveni cu „Anulează”.')) store.convertTree(id);
         }}>→ Rețea cu ramuri</button>
       </div>` : null}
-      ${p.meta.model === 'line' && l.mod !== 'ramuri' ? html`<div class="toolbar scheme-mode" role="group" aria-label="Mod de introducere">
+      ${(p.meta.model === 'line' || complex) && l.mod !== 'ramuri' ? html`<div class="toolbar scheme-mode" role="group" aria-label="Mod de introducere">
         <button type="button" class="btn tiny" aria-pressed=${!scheme} onClick=${function () { mode[1](false); }}>Formular / tabel</button>
         <button type="button" class="btn tiny" aria-pressed=${scheme} onClick=${function () { mode[1](true); }}>Schemă</button>
       </div>` : null}
@@ -1069,12 +1073,21 @@
     var included = p.complexConfig.statiiIds.indexOf(id) >= 0;
     var k = 'stat.' + id + '.';
     var noi = S.newIds(p);
+    var mode = useState(!!props.initialScheme), scheme = (p.meta.model === 'station' || complex) && mode[0];
     return html`<div class="card station-card" key=${id}>
       <div class="card-head">
         <${K.TextInput} path=${k + 'nume'} label="Denumire stație / PT" ph="Denumire stație / PT" />
         ${complex ? html`<label class="chk"><input type="checkbox" checked=${included} onChange=${function (e) { store.setStationIncluded(id, e.target.checked); }} /> Inclusă în instalația complexă</label>` : null}
         <button type="button" class="btn tiny danger" onClick=${function () { store.delStation(id); }}>Șterge</button>
       </div>
+      ${(p.meta.model === 'station' || complex) ? html`<div class="toolbar scheme-mode" role="group" aria-label="Mod de introducere stație">
+        <button type="button" class="btn tiny" aria-pressed=${!scheme} onClick=${function () { mode[1](false); }}>Formular / tabel</button>
+        <button type="button" class="btn tiny" aria-pressed=${scheme} onClick=${function () { mode[1](true); }}>Schemă</button>
+      </div>` : null}
+      ${complex && Number(p.complexConfig.varianta) === 2 ? html`<p class="hint">Varianta 2 include numai echipamentele comune;
+        datele transformatorului se păstrează pentru celelalte variante, dar nu intră în calcul.</p>` : null}
+      ${scheme ? (complex && Number(p.complexConfig.varianta) === 2
+        ? html`<${V.EquipmentInspector} s=${s} embedded=${true} />` : html`<${V.StationScheme} s=${s} />`) : html`<div>
       <div class="row3">
         <${K.Field} label="Capacitate nominală S_n (kVA)" path=${k + 'Sn'} info="stat.Sn"><${K.NumInput} path=${k + 'Sn'} /><//>
         <${K.Field} label="Transformator de rezervă N-1 (kVA)" path=${k + 'SnRezerva'} info="stat.SnRezerva"><${K.NumInput} path=${k + 'SnRezerva'} /><//>
@@ -1096,6 +1109,7 @@
         }) : html`<span class="muted">Adaugă mai întâi utilizatori.</span>`}
       </div>
       <p class="hint" data-st-hint=${id}>${stationHint(s)}</p>
+      </div>`}
     </div>`;
   }
 
@@ -1146,9 +1160,10 @@
   // Selectarea variantei din butoane: același efect ca selectorul existent, dar fără să
   // mute pasul ghidului (utilizatorul rămâne în „Instalație”, pe schemă).
   function cxPick(n) {
-    store.set('complex.varianta', String(n));
-    store.set('complex.variantaConfirmata', true);
-    store.commit({ noFocus: true });
+    store.mutate(function (p) {
+      p.complexConfig.varianta = String(n);
+      p.complexConfig.variantaConfirmata = true;
+    }, { undo: true, noFocus: true });
   }
 
   function cxMarker(o, active, baseY) {
@@ -1251,12 +1266,17 @@
     var p = store.state;
     var c = p.complexConfig;
     var v = Number(c.varianta) || 3;
+    var mode = useState(false);
     return html`<${V.Panel} k="instalatie-complex" title="Anexa 3 — instalație de racordare complexă" help=${HELP.STEPS.instalatie.complex}>
       <${K.Field} label="Varianta punctului de racordare" path="complex.varianta" info="complex.varianta">
-        <${K.SelectInput} path="complex.varianta" options=${[['1', 'Varianta 1'], ['2', 'Varianta 2'], ['3', 'Varianta 3'], ['4', 'Varianta 4']]}
-          onPicked=${function () { store.set('complex.variantaConfirmata', true); }} />
+        <select id="f-complex_varianta" data-bind="complex.varianta" aria-label="Varianta punctului de racordare" value=${String(v)}
+          onChange=${function (e) { cxPick(Number(e.target.value)); }}>
+          ${[1, 2, 3, 4].map(function (n) { return html`<option value=${String(n)} key=${n}>Varianta ${n}</option>`; })}
+        </select>
       <//>
       <p class="hint">${VARIANT_TEXT[v]} <${K.RefChip} id="anexa3" /></p>
+      <${V.ModelMode} value=${mode[0]} onChange=${mode[1]} />
+      ${mode[0] ? html`<${V.ComplexWorkspace} />` : html`<div>
       <${ComplexScheme} />
       <h3>Linii (Anexa 1)</h3>
       <div class="toolbar">
@@ -1268,13 +1288,17 @@
       ${v >= 2 ? html`<h3>Stație / post de transformare</h3>
         <div class="toolbar"><button type="button" class="btn" data-guide="btn:add-stat" onClick=${store.addStation}>+ Adaugă stație / PT</button></div>
         <${StationsEditor} />` : null}
+      </div>`}
     <//>`;
   }
 
   /* ----------------------- Anexa 4 pct. A și Anexa 5 ----------------------- */
 
   function TransitionalView() {
+    var mode = useState(false);
     return html`<${V.Panel} k="instalatie-tranz" title="Anexa 4 pct. A — compensație după vechea metodologie (Ord. 28/2003)" help=${HELP.STEPS.instalatie.transitional}>
+      <${V.ModelMode} value=${mode[0]} onChange=${mode[1]} />
+      ${mode[0] ? html`<${V.TransitionalScheme} />` : html`<div>
       <div class="row3">
         <${K.Field} label="Componenta B din tariful de racordare (lei)" path="tranz.B" info="tranz.B"><${K.NumInput} path="tranz.B" /><//>
         <${K.Field} label="Capacitatea instalației S (kVA)" path="tranz.S" info="tranz.S"><${K.NumInput} path="tranz.S" /><//>
@@ -1283,12 +1307,16 @@
         <${K.Field} label="Lungimea totală L (m)" path="tranz.L" info="tranz.L"><${K.NumInput} path="tranz.L" /><//>
       </div>
       <p class="hint">b = B / S ; C₂ = S₂ · b · (l₂ / L). <${K.RefChip} id="anexa4" /></p>
+      </div>`}
     <//>`;
   }
 
   function DeveloperView() {
     var d = store.state.dezvoltator;
+    var mode = useState(false);
     return html`<${V.Panel} k="instalatie-dev" title="Anexa 5 — rețea publică finanțată de un prim dezvoltator" help=${HELP.STEPS.instalatie.developer}>
+      <${V.ModelMode} value=${mode[0]} onChange=${mode[1]} />
+      ${mode[0] ? html`<${V.DeveloperScheme} />` : html`<div>
       <div class="row2">
         <${K.Field} label="Valoarea totală a investiției I_total (lei)" path="dev.Itotal" info="dev.Itotal"><${K.NumInput} path="dev.Itotal" /><//>
         <${K.Field} label="Cota de eficiență I_ef (lei)" path="dev.Ief" info="dev.Ief"><${K.NumInput} path="dev.Ief" /><//>
@@ -1306,6 +1334,7 @@
           </tr>`;
         }) : html`<tr><td colspan="3" class="empty">Niciun dezvoltator.</td></tr>`}</tbody></table></div>
       <p class="hint">X_ef = I_ef / I_total ; X_inef = 1 − X_ef ; X_D = X_inef · P_D / P_total. <${K.RefChip} id="anexa5" /></p>
+      </div>`}
     <//>`;
   }
 
@@ -1340,6 +1369,8 @@
   V.LineCompensation = LineCompensation;
   V.LineLegend = LineLegend;
   V.PRSymbol = PRSymbol;
+  V.LineCard = LineCard;
+  V.StationCard = StationCard;
   V.SpecialCircuits = function (props) {
     var l = Object.assign({}, props.l, { tronsoane: (props.l.tronsoane || []).filter(function (t) { return t.tip === 'stalpi'; }) });
     return html`<details class="advanced"><summary>Circuite pe stâlpi existenți (art. 15 alin. 1)</summary>

@@ -145,9 +145,19 @@
       return stations.some(function (s) { return (s.utilizatori || []).indexOf(id) >= 0; });
     }
 
-    function checkStation(s) {
+    function checkStation(s, equipmentOnly) {
       var nm = s.nume || s.id;
       var key = 'stat.' + s.id + '.';
+      nonNeg('Echipamentele comune ale stației „' + nm + '”', s.elementeComune, 'instalatie', key + 'elementeComune');
+      var seen = {};
+      var sumP = 0;
+      (s.utilizatori || []).forEach(function (u) {
+        if (seen[u]) err('art12.1', 'Utilizatorul „' + nameOf(u) + '” apare de două ori în stația „' + nm + '”.', 'instalatie');
+        seen[u] = true;
+        var uu = S.findUser(p, u);
+        if (uu) sumP += n(uu.putere);
+      });
+      if (equipmentOnly) return;
       nonNeg('Capacitatea S_n a stației „' + nm + '”', s.Sn, 'instalatie', key + 'Sn');
       nonNeg('Transformatorul de rezervă al stației „' + nm + '”', s.SnRezerva, 'instalatie', key + 'SnRezerva');
       nonNeg('Costul lucrărilor I_T al stației „' + nm + '”', s.IT, 'instalatie', key + 'IT');
@@ -155,21 +165,12 @@
       if (n(s.compVeche) > n(s.IT) && n(s.IT) > 0) {
         err('art18.1a', 'Stația „' + nm + '”: compensațiile primite sub vechea metodologie depășesc I_T.', 'instalatie', key + 'compVeche');
       }
-      nonNeg('Echipamentele comune ale stației „' + nm + '”', s.elementeComune, 'instalatie', key + 'elementeComune');
       var efectiv = n(s.Sn) - n(s.SnRezerva);
       if (n(s.SnRezerva) > 0 && efectiv <= 0) {
         err('art15.4', 'Stația „' + nm + '”: transformatorul de rezervă (' + n(s.SnRezerva) + ' kVA) trebuie să fie mai mic decât S_n (' + n(s.Sn) + ' kVA).', 'instalatie', key + 'SnRezerva');
       } else if (n(s.IT) > 0 && efectiv <= 0) {
         err('anexa2', 'Stația „' + nm + '”: S_n efectiv trebuie să fie mai mare decât 0 pentru a calcula costul specific b_T.', 'instalatie', key + 'Sn');
       }
-      var seen = {};
-      var sumP = 0;
-      (s.utilizatori || []).forEach(function (u) {
-        if (seen[u]) err('art13', 'Utilizatorul „' + nameOf(u) + '” apare de două ori în stația „' + nm + '”.', 'instalatie');
-        seen[u] = true;
-        var uu = S.findUser(p, u);
-        if (uu) sumP += n(uu.putere);
-      });
       if (s.intarire) {
         // La întărire, puterile noilor utilizatori pot depăși capacitatea existentă.
         var occ = 0;
@@ -177,7 +178,7 @@
           if (newIds.indexOf(u) < 0) { var uu2 = S.findUser(p, u); if (uu2) occ += n(uu2.putere); }
         });
         if (efectiv > 0 && occ >= efectiv) {
-          warn('art15.3', 'Stația „' + nm + '” (întărire): nu mai există capacitate suplimentară în transformatorul existent; compensația va fi 0.', 'instalatie', key + 'Sn');
+          warn('art15.3', 'Stația „' + nm + '” (întărire): nu mai există capacitate suplimentară în transformatorul existent; compensația pentru transformator va fi 0. Echipamentele comune se repartizează separat.', 'instalatie', key + 'Sn');
         }
       } else if (efectiv > 0 && sumP > efectiv) {
         warn('anexa2', 'Stația „' + nm + '”: suma puterilor aprobate (' + sumP + ' kVA) depășește S_n efectiv (' + efectiv + ' kVA); modelul presupune puteri în limita capacității transformatorului.', 'instalatie', key + 'Sn');
@@ -187,7 +188,7 @@
       }
       users.forEach(function (u) {
         if ((s.utilizatori || []).indexOf(u.id) >= 0 && n(u.putere) <= 0 && newIds.indexOf(u.id) >= 0) {
-          warn('art13', 'Utilizatorul nou „' + nameOf(u.id) + '” are puterea aprobată 0 kVA; compensația la stație va fi 0.', 'utilizatori', 'user.' + u.id + '.putere');
+          warn('art13', 'Utilizatorul nou „' + nameOf(u.id) + '” are puterea aprobată 0 kVA; compensația pentru transformator va fi 0. Echipamentele comune se repartizează separat.', 'utilizatori', 'user.' + u.id + '.putere');
         }
       });
     }
@@ -206,7 +207,7 @@
       });
     } else if (model === 'station') {
       if (!p.statii.length) err('anexa2', 'Adaugă o stație / un post de transformare în pasul „Instalație”.', 'instalatie', 'btn:add-stat');
-      p.statii.forEach(checkStation);
+      p.statii.forEach(function (s) { checkStation(s, false); });
       newIds.forEach(function (id) {
         if (!assignedToStations(p.statii, id)) {
           warn('art13', 'Utilizatorul nou „' + nameOf(id) + '” nu este bifat în nicio stație; nu va plăti nicio compensație.', 'instalatie');
@@ -216,13 +217,18 @@
       var sel = p.complexConfig;
       var v = Number(sel.varianta) || 1;
       var l1 = p.linii.filter(function (l) { return sel.liniiIds.indexOf(l.id) >= 0; });
-      var l2 = p.linii.filter(function (l) { return sel.liniiU2Ids.indexOf(l.id) >= 0; });
-      var st = p.statii.filter(function (s) { return sel.statiiIds.indexOf(s.id) >= 0; });
-      if (!l1.length && !st.length) err('anexa3', 'Adaugă cel puțin o linie (l_U1) sau o stație în instalația complexă.', 'instalatie');
+      var l2 = v === 4 ? p.linii.filter(function (l) { return sel.liniiU2Ids.indexOf(l.id) >= 0; }) : [];
+      var st = v >= 2 ? p.statii.filter(function (s) { return sel.statiiIds.indexOf(s.id) >= 0; }) : [];
+      if (!l1.length && !l2.length && !st.length) err('anexa3', 'Adaugă sau include cel puțin o componentă activă în varianta ' + v + ' a instalației complexe.', 'instalatie');
       if ((v === 2 || v === 3 || v === 4) && !st.length) warn('anexa3', 'Varianta ' + v + ' folosește o stație, dar nu a fost inclusă niciuna.', 'instalatie');
       if (v === 4 && !l2.length) warn('art14', 'Varianta 4 folosește linia l_U2, dar nu a fost inclusă nicio linie în această poziție.', 'instalatie');
       l1.concat(l2).forEach(checkLine);
-      st.forEach(checkStation);
+      st.forEach(function (s) { checkStation(s, v === 2); });
+      newIds.forEach(function (id) {
+        if (!assignedToLines(l1.concat(l2), id) && !assignedToStations(st, id)) {
+          warn('anexa3', 'Utilizatorul nou „' + nameOf(id) + '” nu este racordat la nicio componentă activă în varianta ' + v + '; nu va plăti nicio compensație.', 'instalatie');
+        }
+      });
     } else if (model === 'transitional') {
       var t = p.tranzitoriu;
       ['B', 'S', 'S2', 'l2', 'L'].forEach(function (k) { nonNeg('Câmpul „' + k + '” (Anexa 4)', t[k], 'instalatie', 'tranz.' + k); });

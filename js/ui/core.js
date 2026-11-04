@@ -51,6 +51,14 @@
 
   function safeKey(path) { return String(path).replace(/[^A-Za-z0-9_-]/g, '_'); }
 
+  function useRevealTarget(reveal) {
+    global.preactHooks.useLayoutEffect(function () {
+      function onReveal(e) { reveal(e.detail); }
+      global.addEventListener('app:reveal-target', onReveal);
+      return function () { global.removeEventListener('app:reveal-target', onReveal); };
+    });
+  }
+
   /* ----------------------- referințe legale ----------------------- */
 
   // Chip „art. 8 alin. (1) lit. c”; la click se deschide textul normei.
@@ -233,6 +241,6 @@
     RefChip: RefChip, Info: Info, Abbr: Abbr, Field: Field,
     TextInput: TextInput, DateInput: DateInput, NumInput: NumInput, SelectInput: SelectInput, CheckInput: CheckInput,
     Card: Card, NormaModal: NormaModal, Toast: Toast, IssueList: IssueList,
-    blurCommit: blurCommit
+    blurCommit: blurCommit, useRevealTarget: useRevealTarget
   };
 })(typeof window !== 'undefined' ? window : this);
