@@ -190,6 +190,7 @@
       p.utilizatori = p.utilizatori.filter(function (x) { return x.id !== id; });
       p.linii.forEach(function (l) {
         l.racordari = (l.racordari || []).filter(function (r) { return r.userId !== id; });
+        (l.ramuri || []).forEach(function (b) { if (b.finantatorId === id) b.finantatorId = ''; });
         l.tronsoane.forEach(function (t) { t.utilizatori = t.utilizatori.filter(function (x) { return x !== id; }); });
       });
       p.statii.forEach(function (s) { s.utilizatori = s.utilizatori.filter(function (x) { return x !== id; }); });
@@ -376,7 +377,7 @@
     return true;
   };
 
-  store.editTree = function (lineId, change) {
+  store.editTree = function (lineId, change, opts) {
     var line = byId(store.state.linii, lineId);
     if (!line || line.mod !== 'ramuri') { store.toast('Rețeaua ramificată nu este disponibilă.', 'error'); return false; }
     var next = JSON.parse(JSON.stringify(line));
@@ -392,7 +393,7 @@
     if (introduced.length) { store.toast(introduced.join(' '), 'error'); return false; }
     mutate(function (p) {
       p.linii[p.linii.indexOf(line)] = next;
-    }, { undo: true });
+    }, { undo: true, noFocus: !!(opts && opts.noFocus) });
     return true;
   };
 
@@ -406,8 +407,9 @@
     return ok ? id : null;
   };
 
-  store.delBranch = function (lineId, branchId) {
+  store.delBranch = function (lineId, branchId, keepCosts) {
     return store.editTree(lineId, function (l) {
+      if (keepCosts) global.AppPlan.explicitCosts(l);
       var removed = [branchId], count;
       do {
         count = removed.length;
@@ -418,7 +420,9 @@
       l.ramuri = l.ramuri.filter(function (b) { return removed.indexOf(b.id) < 0; });
       l.racordari = l.racordari.filter(function (r) { return removed.indexOf(r.branchId) < 0; });
       l.zoneTehnice = l.zoneTehnice.filter(function (z) { return removed.indexOf(z.branchId) < 0; });
-    });
+      l.noduriPlan = (l.noduriPlan || []).filter(function (n) { return removed.indexOf(n.branchId) < 0; });
+      if (keepCosts) global.AppPlan.budget(l);
+    }, keepCosts ? { noFocus: true } : undefined);
   };
 
   // Trecerea unei linii „clasice" (tronsoane bifate manual) la modul pe distanțe.

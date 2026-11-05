@@ -63,6 +63,13 @@
       zoneSeen[key] = true;
       if (z.sectiune !== '' && z.sectiune !== undefined && (!number(z.sectiune) || Number(z.sectiune) < 0)) error('Secțiune invalidă într-o zonă tehnică.');
     });
+    var planSeen = Object.create(null);
+    (line.noduriPlan || []).forEach(function (n) {
+      var b = byId[n.branchId], key = n.branchId + ':' + Number(n.distanta);
+      if (!b || !number(n.distanta) || Number(n.distanta) < 0 || Number(n.distanta) > Number(b.L)) error('Nod de planșă în afara porțiunii.');
+      if (planSeen[key]) error('Noduri de planșă duplicate în același punct.');
+      planSeen[key] = true;
+    });
     var result = { errors: errors, length: length, rate: rate, byId: byId, roots: roots, routes: [], segments: [] };
     if (errors.length) return result;
     records.forEach(function (r) {

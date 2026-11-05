@@ -485,7 +485,13 @@
           out.L = str(b.L);
           out.IL = str(b.IL);
           out.costManual = !!b.costManual;
+          out.finantatorId = str(b.finantatorId);
           return out;
+        });
+        l.noduriPlan = arr(l.noduriPlan).filter(isObj).map(function (n) {
+          return { branchId: str(n.branchId), distanta: str(n.distanta),
+            x: Math.max(40, Math.min(5000, Number(n.x) || 90)),
+            y: Math.max(50, Math.min(5000, Number(n.y) || 100)) };
         });
       }
       l.tronsoane = arr(l.tronsoane).filter(isObj);
@@ -512,7 +518,12 @@
         return mapped && branchIds.indexOf(mapped) >= 0 ? mapped : 'ramura-inexistenta';
       }
       if (l.mod === 'ramuri') {
-        l.ramuri.forEach(function (b) { if (b.parentId) b.parentId = branchRef(b.parentId); });
+        l.ramuri.forEach(function (b) {
+          if (b.parentId) b.parentId = branchRef(b.parentId);
+          var financier = ref(b.finantatorId);
+          b.finantatorId = financier && userMap[financier] ? financier : '';
+        });
+        (l.noduriPlan || []).forEach(function (n) { n.branchId = branchRef(n.branchId); });
         l.zoneTehnice.forEach(function (z) { z.branchId = branchRef(z.branchId); });
       }
       l.tronsoane.forEach(function (t) { t.utilizatori = userRefs(t.utilizatori); });
@@ -567,6 +578,10 @@
       // sanitize() normalizează și proiectele vechi fără date descriptive.
       if (!Array.isArray(l.zoneTehnice)) l.zoneTehnice = [];
       if (l.mod === 'ramuri' && !Array.isArray(l.ramuri)) l.ramuri = [];
+      if (l.mod === 'ramuri') {
+        if (!Array.isArray(l.noduriPlan)) l.noduriPlan = [];
+        l.ramuri.forEach(function (b) { if (b.finantatorId === undefined) b.finantatorId = ''; });
+      }
       (l.tronsoane || []).forEach(function (t) {
         if (t.costManual === undefined) t.costManual = false;
       });

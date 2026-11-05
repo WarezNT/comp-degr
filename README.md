@@ -90,7 +90,8 @@ Formularul rămâne modul inițial. În „Schemă”:
 - Originea este marcată cu simbolul tipului de PR și etichetată cu denumirea/codul și
   tensiunea. Inspectorul tronsonului arată intervalul de la PR, lungimea, costul,
   caracteristicile și utilizatorii; aceleași tronsoane pot fi selectate din tabel.
-- Legenda diferențiază **LEA prin linie întreruptă** și **LES prin linie continuă**;
+- Legenda diferențiază **LEA prin linie continuă** și **LES prin linie punctată**,
+  inclusiv pe ramuri și în PDF; culorile folosesc tokenii locali E.ON Storybook;
   zonele cu limite tehnice sunt marcate separat. Tipul nespecificat sau „Altul” are
   un stil distinct și rămâne identificat textual în legendă.
 - Alege **Editează limite** pentru a adăuga o delimitare prin click pe linie sau pentru
@@ -127,6 +128,45 @@ Datele se salvează local și se exportă în același format JSON. Alegerea mod
 selecția vizuală nu sunt salvate în proiect.
 
 ### Ramuri și subramuri — Anexa 1
+
+#### Planșă cu noduri
+
+În **Instalație → Planșă cu noduri**, instrumentele și proprietățile sunt în
+stânga, desenul SVG în dreapta. **Extinde planșa** oferă mai mult spațiu în aceeași
+pagină; butonul de revenire sau Escape închide modul extins. Totul funcționează
+offline, fără biblioteci sau servicii noi.
+
+- Pe o linie goală introduci prima porțiune: denumire, LEA/LES, lungime și cost.
+  PR și nodul de capăt apar automat; selectezi capătul pentru **Atașează utilizator**
+  sau **Continuă / ramifică de aici**. Un consumator este atașat unui nod electric,
+  nu este el însuși o ramură.
+- Exemplu: porțiune inițială LES **400 m / 40.000 lei**, U1 în nodul de la 400 m;
+  continuare **500 m / 50.000 lei**, U2 în nodul de la 900 m. Total: **900 m și
+  90.000 lei**. Cu U1 prim utilizator și U2 nou, fără reduceri/excluderi,
+  motorul existent calculează **20.000 lei fără TVA** pe porțiunea comună.
+- Pentru U3 pe extindere, selectează porțiunea și **Adaugă nod pe porțiune** la
+  distanța locală, de exemplu **300 m**: nodul este la **700 m de la PR**.
+  Atașează U3 acolo. Nodul singur nu schimbă lungimea, costul sau calculul.
+- Costul introdus este **costul porțiunii**, fără bifă separată de activare.
+  La adăugare sau modificare de lungime/cost, costurile automate existente se
+  fixează la valorile curente, apoi se actualizează investiția totală.
+  Ștergerea unei porțiuni elimină și continuările/racordările dependente și
+  deduce costurile eliminate; utilizatorii rămân în proiect. Operațiile au undo.
+- **Finanțator documentat** este o referință opțională, salvată în JSON.
+  **Nu modifică beneficiarii sau formula de compensare.** Investițiile succesive
+  U1 → U2 → U3 nu sunt un registru financiar automat; verifică separat
+  drepturile și documentele. Proiectele vechi nu primesc finanțatori presupuşi.
+- Trage nodurile sau folosește **Shift + săgeți** pentru aranjare; Enter/Spațiu
+  selectează. Zoomul și derularea ajută navigarea. Pozițiile se salvează, dar nu
+  stabilesc metri, costuri sau racordări. Selectoarele din stânga oferă o
+  alternativă la clickurile pe desen. **Resetează planșa** elimină aranjarea și
+  nodurile libere, fără a elimina porțiuni, utilizatori sau limite tehnice.
+- Formularele păstrează drafturile fără salvare la fiecare tastă; confirmarea
+  se face cu butonul formularului/Enter, iar Escape anulează draftul.
+  **Formular avansat** păstrează limitele tehnice, alocările speciale și toate
+  controalele existente. Conversia datelor vechi în rețea radială este explicită.
+
+#### Formularul avansat existent
 
 În **Rezultate → Detaliu pe tronsoane**, numărul participanților este etichetat ca
 situație finală. Fiecare utilizator nou are o etapă separată cu numărul de participanți

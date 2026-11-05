@@ -668,8 +668,8 @@
 
   function LineLegend() {
     return html`<ul class="dl-legend" aria-label="Legendă tip linie">
-      <li><span class="dl-legend-line lea"></span>LEA — linie aeriană</li>
-      <li><span class="dl-legend-line les"></span>LES — linie subterană</li>
+      <li><span class="dl-legend-line lea"></span>LEA — aeriană, linie continuă</li>
+      <li><span class="dl-legend-line les"></span>LES — subterană, linie punctată</li>
       <li><span class="dl-legend-line unknown"></span>Tip nespecificat / altul</li>
       <li><span class="dl-zone-key">◆</span>Limită tehnică</li>
     </ul>`;
@@ -945,8 +945,12 @@
     var bL = C.lineBl(l);
     var complex = p.meta.model === 'complex';
     var mode = useState(!!props.initialScheme);
+    var plan = useState(false);
     var scheme = (p.meta.model === 'line' || complex) && mode[0];
     K.useRevealTarget(function (key) {
+      if (['line.' + id + '.', 'pr.' + id + '.', 'zona.' + id + '.', 'dist:' + id + ':',
+        'tronson.' + id + '.', 'cell:' + id + ':'].some(function (prefix) { return key.indexOf(prefix) === 0; }) ||
+        key === 'tree:' + id || key === 'btn:add-tronson:' + id) plan[1](false);
       if (['dist:' + id + ':', 'tronson.' + id + '.', 'cell:' + id + ':'].some(function (prefix) { return key.indexOf(prefix) === 0; }) ||
         key === 'btn:add-tronson:' + id) mode[1](false);
     });
@@ -962,6 +966,11 @@
         </select>` : null}
         <button type="button" class="btn tiny danger" onClick=${function () { store.delLine(id); }}>Șterge linia</button>
       </div>
+      ${p.meta.model === 'line' ? html`<div class="toolbar plan-mode" role="group" aria-label="Editor de rețea">
+        <button type="button" class="btn tiny" aria-pressed=${plan[0]} onClick=${function () { plan[1](true); }}>Planșă cu noduri</button>
+        <button type="button" class="btn tiny" aria-pressed=${!plan[0]} onClick=${function () { plan[1](false); }}>Formular avansat</button>
+      </div>` : null}
+      ${plan[0] && p.meta.model === 'line' ? html`<${V.PlanEditor} l=${l} />` : html`<${global.preact.Fragment}>
       <div class="row3">
         <${K.Field} label="① Cost lucrări I_L (lei)" path=${'line.' + id + '.IL'} info="line.IL"><${K.NumInput} path=${'line.' + id + '.IL'} /><//>
         <${K.Field} label="② Lungime totală L (m)" path=${'line.' + id + '.L'} info="line.L">${l.mod === 'ramuri'
@@ -1003,6 +1012,7 @@
         <${AllocMatrix} l=${l} />
       </div>`}
       </div>`}
+      <//>`}
     </div>`;
   }
 

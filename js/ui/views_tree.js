@@ -84,9 +84,9 @@
           ${(l.tronsoane || []).filter(function (t) { return t.branchId === b.id; }).map(function (t) {
             var paid = props.contributions && props.contributions[t.id];
             var route = props.userId && t.utilizatori.indexOf(props.userId) >= 0;
-            var cls = 'tree-segment' + (route ? ' tree-route' : '') + (paid ? ' tree-payment' : '') + (props.segmentId === t.id ? ' tree-selected' : '');
+            var cls = 'tree-segment tip-' + (t.tipLinie || 'nespecificat') + (route ? ' tree-route' : '') + (paid ? ' tree-payment' : '') + (props.segmentId === t.id ? ' tree-selected' : '');
             return html`<g key=${t.id}>
-              <line class=${cls} stroke-dasharray=${t.tipLinie === 'LEA' ? '10 5' : t.tipLinie === 'LES' ? '' : '2 5'}
+              <line class=${cls} stroke-dasharray=${t.tipLinie === 'LEA' || t.tipLinie === 'LES' ? undefined : '2 5'}
                 x1=${x(b, t.deLa)} x2=${x(b, t.panaLa)} y1=${by} y2=${by} />
               <line class="tree-hit" role=${props.onPick ? 'button' : undefined} tabindex=${props.onPick ? '0' : undefined}
                 aria-label=${t.nume + (paid ? ' · Comp. ' + K.money(paid.total) + ' lei' : '')}

@@ -25,6 +25,7 @@
   <script src="../js/select.js"></script>
   <script src="../js/state.js"></script>
   <script src="../js/tree.js"></script>
+  <script src="../js/plan.js"></script>
   <script src="../js/validate.js"></script>
   <script src="../js/engine.js"></script>
   <script src="../js/calc.js"></script>
@@ -37,6 +38,7 @@
   <script src="../js/ui/views_install.js"></script>
   <script src="../js/ui/views_tree.js"></script>
   <script src="../js/ui/views_station.js"></script>
+  <script src="../js/ui/views_plan.js"></script>
   <script src="../js/ui/views_models.js"></script>
   <script src="../js/ui/views_assist.js"></script>
   <script src="../js/ui/views_results.js"></script>
@@ -1974,6 +1976,123 @@
         result = window.AppCalc.runCalculation(window.AppUI.getState());
         if (result.error || result.central.totalFaraTVA !== 3000 ||
           !result.conditions.some(function (c) { return !c.ok; })) throw new Error('calculul informativ ascunde condițiile');
+      });
+
+      test('Planșă: nodurile unesc desprinderile și racordările la 0, fără dublarea PR', function () {
+        var p = treeProject(), l = p.linii[0];
+        l.racordari[2].distanta = 0;
+        var g = window.AppPlan.graph(l), start = g.byKey['a:0'], rootEnd = g.byKey['root:100'];
+        if (g.errors.length || start !== rootEnd || g.byKey['b:0'] !== rootEnd ||
+          g.byKey['sub:0'] !== g.byKey['a:30'] || g.byKey['a:30'].users.indexOf('nou') < 0 ||
+          g.nodes.filter(function (n) { return n.origin; }).length !== 1) throw new Error('joncțiuni duplicate');
+        if (g.edges.reduce(function (s, e) { return s + e.length; }, 0) !== 220 ||
+          g.edges.reduce(function (s, e) { return s + e.cost; }, 0) !== 2640) throw new Error('cantități dublate');
+      });
+
+      test('Planșă: pozițiile, nodurile libere și finanțatorul nu schimbă tronsoanele și rezultatul', function () {
+        var p = treeProject(), l = p.linii[0], before = JSON.stringify(window.AppCalc.runCalculation(p).central);
+        var segments = JSON.stringify(l.tronsoane);
+        l.noduriPlan = [{ branchId: 'root', distanta: 25, x: 700, y: 450 }];
+        l.ramuri[0].finantatorId = 'nou';
+        window.AppCalc.deriveAll(p);
+        var g = window.AppPlan.graph(l);
+        if (JSON.stringify(l.tronsoane) !== segments || JSON.stringify(window.AppCalc.runCalculation(p).central) !== before ||
+          g.byKey['root:25'].x !== 700 || g.byKey['root:25'].y !== 450 ||
+          g.edges.reduce(function (s, e) { return s + e.cost; }, 0) !== 2640) throw new Error('date descriptive cu efect financiar');
+      });
+
+      test('Planșă: fixarea costurilor automate păstrează investiția și repartizarea', function () {
+        var p = treeProject(), l = p.linii[0];
+        l.ramuri[2].costManual = true; l.ramuri[2].IL = 840;
+        window.AppCalc.deriveAll(p);
+        var before = JSON.stringify(l.tronsoane), total = window.AppCalc.runCalculation(p).central.totalFaraTVA;
+        window.AppPlan.explicitCosts(l); window.AppPlan.budget(l); window.AppCalc.deriveAll(p);
+        if (window.AppTree.analyze(l).errors.length || l.IL !== 2640 ||
+          l.ramuri.some(function (b) { return !b.costManual; }) || JSON.stringify(l.tronsoane) !== before ||
+          window.AppCalc.runCalculation(p).central.totalFaraTVA !== total) throw new Error('repartizare schimbată');
+      });
+
+      test('Planșă: migrare și JSON păstrează finanțatorul și poziția fără a ghici investițiile vechi', function () {
+        var p = treeProject(), l = p.linii[0];
+        l.ramuri[0].id = 'r spațiu'; l.ramuri[1].parentId = 'r spațiu'; l.ramuri[2].parentId = 'r spațiu';
+        l.ramuri[0].finantatorId = 'nou';
+        l.noduriPlan = [{ branchId: 'r spațiu', distanta: 20, x: 530, y: 210 }];
+        var copy = window.AppState.migrate(JSON.parse(JSON.stringify(p))), line = copy.linii[0];
+        if (line.ramuri[0].finantatorId !== 'nou' || line.ramuri[1].finantatorId !== '' ||
+          line.noduriPlan[0].branchId !== line.ramuri[0].id || line.noduriPlan[0].x !== 530 ||
+          window.AppTree.analyze(line).errors.length) throw new Error('metadate pierdute');
+        line.ramuri[0].finantatorId = 'absent';
+        copy = window.AppState.migrate(JSON.parse(JSON.stringify(copy)));
+        if (copy.linii[0].ramuri[0].finantatorId !== '') throw new Error('referință invalidă');
+      });
+
+      test('Planșă: nodurile cu distanțe invalide nu sunt transformate în PR la import', function () {
+        ['abc', '', -1, 101].forEach(function (distance) {
+          var p = treeProject(); p.linii[0].noduriPlan = [{ branchId: 'root', distanta: distance, x: 100, y: 100 }];
+          var copy = window.AppState.migrate(JSON.parse(JSON.stringify(p)));
+          if (!window.AppTree.analyze(copy.linii[0]).errors.length) throw new Error('distanță acceptată: ' + distance);
+        });
+        var p = treeProject(); p.linii[0].noduriPlan = [
+          { branchId: 'root', distanta: 20 }, { branchId: 'root', distanta: 20 }
+        ];
+        if (!window.AppTree.analyze(p.linii[0]).errors.length) throw new Error('nod duplicat acceptat');
+      });
+
+      test('Planșă: ștergerea finanțatorului și a subarborelui curăță referințele; undo le restaurează', function () {
+        var p = treeProject(); p.linii[0].ramuri[0].finantatorId = 'nou';
+        p.linii[0].noduriPlan = [{ branchId: 'sub', distanta: 5, x: 100, y: 100 }];
+        window.AppUI.setProject(p);
+        var oldConfirm = window.confirm; window.confirm = function () { return true; };
+        try { window.AppUI.store.delUser('nou'); } finally { window.confirm = oldConfirm; }
+        if (window.AppUI.getState().linii[0].ramuri[0].finantatorId !== '') throw new Error('finanțator șters rămas');
+        window.AppUI.store.undo();
+        if (window.AppUI.getState().linii[0].ramuri[0].finantatorId !== 'nou') throw new Error('undo finanțator');
+        window.AppUI.store.delBranch('retea', 'a');
+        if (window.AppUI.getState().linii[0].noduriPlan.length) throw new Error('nod orfan');
+        window.AppUI.store.undo();
+        if (window.AppUI.getState().linii[0].noduriPlan.length !== 1) throw new Error('undo nod');
+      });
+
+      test('Planșă: deschiderea, selecția și modul extins nu modifică proiectul', function () {
+        window.AppUI.setProject(treeProject()); window.AppUI.setTab('instalatie');
+        var before = JSON.stringify(window.AppUI.getState()), undo = window.AppUI.store.undoStack.length;
+        byText('button', 'Planșă cu noduri').click(); window.AppUI.store.render();
+        if (!document.querySelector('.plan-sidebar') || !document.querySelector('.plan-svg')) throw new Error('planșă absentă');
+        document.querySelector('.plan-node').dispatchEvent(new MouseEvent('click', { bubbles: true })); window.AppUI.store.render();
+        byText('button', 'Extinde planșa').click(); window.AppUI.store.render();
+        if (!document.querySelector('.plan-expanded')) throw new Error('mod extins absent');
+        byText('button', 'Revino în pagină').click(); window.AppUI.store.render();
+        if (JSON.stringify(window.AppUI.getState()) !== before || window.AppUI.store.undoStack.length !== undo ||
+          !/nu schimbă formula/.test(document.querySelector('.plan-financing').textContent)) throw new Error('navigare cu efecte');
+      });
+
+      test('Planșă: ștergerea deduce numai costul subarborelui și undo restaurează repartizarea automată', function () {
+        var p = treeProject(); p.linii[0].ramuri[2].costManual = true; p.linii[0].ramuri[2].IL = 840;
+        p.linii[0].noduriPlan = [{ branchId: 'sub', distanta: 5, x: 100, y: 200 }];
+        window.AppUI.setProject(p);
+        window.AppUI.store.delBranch('retea', 'a', true);
+        var l = window.AppUI.getState().linii[0];
+        if (l.IL !== 1840 || l.L !== 140 || l.noduriPlan.length || window.AppTree.analyze(l).errors.length ||
+          Number(l.ramuri[0].IL) !== 1000 || Number(l.ramuri[1].IL) !== 840 ||
+          l.racordari.length !== 1 || window.AppUI.getState().utilizatori.length !== 3) throw new Error('ștergere financiară incorectă');
+        window.AppUI.store.undo();
+        l = window.AppUI.getState().linii[0];
+        if (l.IL !== 2640 || l.ramuri.length !== 4 || l.ramuri[0].costManual ||
+          l.noduriPlan.length !== 1 || window.AppTree.analyze(l).rate !== 10) throw new Error('undo repartizare');
+      });
+
+      test('Planșă: resetarea repară nodurile libere invalide fără să modifice rețeaua fizică', function () {
+        var p = treeProject();
+        p.linii[0].noduriPlan = [{ branchId: 'absent', distanta: 25, x: 200, y: 200 }];
+        window.AppUI.setProject(p); window.AppUI.setTab('instalatie');
+        var physical = JSON.stringify(window.AppUI.getState().linii[0].ramuri);
+        byText('button', 'Planșă cu noduri').click(); window.AppUI.store.render();
+        var oldConfirm = window.confirm; window.confirm = function () { return true; };
+        try { byText('button', 'Resetează planșa').click(); } finally { window.confirm = oldConfirm; }
+        var l = window.AppUI.getState().linii[0];
+        if (l.noduriPlan.length || JSON.stringify(l.ramuri) !== physical ||
+          l.IL !== 2640 || l.L !== 220 || window.AppTree.analyze(l).errors.length ||
+          window.AppCalc.runCalculation(window.AppUI.getState()).central.totalFaraTVA !== 580) throw new Error('resetare cu efecte fizice');
       });
 
       var s = document.createElement('div');
