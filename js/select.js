@@ -85,6 +85,10 @@
         explicatie: 'Prevederile metodologiei nu se aplică dacă instalația de racordare a primului utilizator a fost finanțată din fonduri publice nerambursabile.'
       };
     }
+    if (a.scop === 'vechi') {
+      return { model: 'transitional', obiect: 'vechi', titlu: MODEL_LABEL.transitional, rules: ['anexa4'],
+        explicatie: 'Reconstituirea calculului după Ord. 28/2003 folosește B, S, S₂, l₂ și L. Pentru o racordare actuală, contractul finanțatorului anterior lui 2016 activează pct. B în Anexele 1–3, nu schimbă automat modelul în Anexa 4 pct. A.' };
+    }
     switch (a.obiect) {
       case 'linie':
         return { model: 'line', obiect: 'linie', titlu: MODEL_LABEL.line, rules: ['art6.1', 'art12.1', 'anexa1'],

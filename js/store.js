@@ -474,7 +474,7 @@
   store.applyModel = function (rec) {
     if (!rec || !rec.model) return;
     var S2 = global.AppSelect;
-    mutate(function (p) { S2.applyTo(p, rec); });
+    mutate(function (p) { S2.applyTo(p, rec); }, { undo: true });
     store.toast('Model de calcul aplicat: ' + (S2.MODEL_LABEL[rec.model] || rec.model) + '.', 'info');
   };
 

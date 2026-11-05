@@ -28,6 +28,7 @@
   <script src="../js/validate.js"></script>
   <script src="../js/engine.js"></script>
   <script src="../js/calc.js"></script>
+  <script src="../js/assist.js"></script>
   <script src="../js/guide.js"></script>
   <script src="../js/store.js"></script>
   <script src="../js/ui/core.js"></script>
@@ -37,6 +38,7 @@
   <script src="../js/ui/views_tree.js"></script>
   <script src="../js/ui/views_station.js"></script>
   <script src="../js/ui/views_models.js"></script>
+  <script src="../js/ui/views_assist.js"></script>
   <script src="../js/ui/views_results.js"></script>
   <script src="../js/ui/app.js"></script>
   <script>
@@ -985,7 +987,7 @@
         for (var i = 0; i < radios.length; i++) if (radios[i].value === 'complex') rComplex = radios[i];
         if (!rComplex) throw new Error('opțiunea „complex" lipsește');
         rComplex.checked = true; rComplex.dispatchEvent(new Event('change', { bubbles: true }));
-        var selVar = document.querySelector('details.select-guide select');
+        var selVar = document.querySelector('details.select-guide #sel-var');
         if (!selVar) throw new Error('selectorul de variantă lipsește la complex');
         selVar.value = '4'; selVar.dispatchEvent(new Event('change', { bubbles: true }));
         var apply = byText('details.select-guide button', 'Aplică recomandarea');
@@ -1804,6 +1806,174 @@
           });
           if (JSON.stringify(window.AppUI.getState()) !== state || window.AppUI.undoDepth() !== depth || window.AppUI.store.results) throw new Error('navigare cu efecte asupra datelor');
         });
+      });
+
+      test('Asistență: recomandările acoperă Anexele 1–5 fără schimbarea proiectului', function () {
+        var A = window.AppSelect, p = complexProject(4), before = JSON.stringify(p);
+        [['linie', 'line'], ['stalpi', 'line'], ['statie', 'station'], ['echipamente', 'station'], ['dezvoltator', 'developer']].forEach(function (item) {
+          if (A.recommend({ obiect: item[0] }).model !== item[1]) throw new Error('încadrare ' + item[0]);
+        });
+        [1, 2, 3, 4].forEach(function (v) {
+          if (A.recommend({ obiect: 'complex', varianta: v }).varianta !== v) throw new Error('variantă');
+        });
+        if (A.recommend({ scop: 'vechi' }).model !== 'transitional' ||
+          !A.recommend({ scop: 'vechi', fonduriPublice: true }).stop ||
+          JSON.stringify(p) !== before) throw new Error('metodologie veche, finanțare sau mutație');
+      });
+
+      test('Asistență: varianta este explicită, recomandarea se poate aplica în același model și anula', function () {
+        window.AppUI.setProject(complexProject(4)); window.AppUI.setTab('date');
+        var K = window.AppUI.store, before = JSON.stringify(K.state), depth = window.AppUI.undoDepth();
+        document.querySelector('.select-guide input[value="complex"]').click(); K.render();
+        if (byText('.select-guide button', 'Aplică recomandarea') ||
+          document.getElementById('sel-contract').value !== '') throw new Error('variantă sau contract presupus');
+        var select = document.getElementById('sel-var');
+        select.value = '2'; select.dispatchEvent(new Event('change', { bubbles: true })); K.render();
+        if (JSON.stringify(K.state) !== before || K.results) throw new Error('răspunsurile modifică proiectul');
+        byText('.select-guide button', 'Aplică recomandarea').click(); K.render();
+        if (Number(K.state.complexConfig.varianta) !== 2 || window.AppUI.undoDepth() !== depth + 1 ||
+          K.state.conditii.verificate) throw new Error('aplicare variantă / confirmare implicită');
+        window.AppUI.undo();
+        if (JSON.stringify(K.state) !== before) throw new Error('undo nu restaurează modelul');
+        window.AppUI.setProject(window.AppState.emptyProject()); window.AppUI.setTab('date');
+        if (document.querySelector('.select-guide input[type="radio"]:checked')) throw new Error('răspunsuri din alt proiect');
+        select = document.getElementById('sel-scop'); select.value = 'vechi'; select.dispatchEvent(new Event('change', { bubbles: true }));
+        K.render(); byText('.select-guide button', 'Aplică recomandarea').click();
+        if (K.state.meta.model !== 'transitional') throw new Error('vechea metodologie neaplicată');
+      });
+
+      test('Asistență: câmpuri relevante, documente și unități fără cerințe de putere în variantele 1/2', function () {
+        var A = window.AppAssist;
+        [1, 2].forEach(function (variant) {
+          window.AppUI.setProject(complexProject(variant));
+          var p = window.AppUI.getState(), r = A.review(p);
+          if (r.entries.some(function (e) { return /\.putere$/.test(e.path) || /^stat\..*\.(Sn|IT)$/.test(e.path); }) ||
+            window.AppGuide.steps(p).some(function (s) { return s.id.indexOf('user-putere:') === 0; }) ||
+            A.field('user.nou.putere', p).kind !== 'optional') throw new Error('cerință inactivă: ' + variant);
+        });
+        var q = complexProject(4);
+        if (A.field('user.nou.putere', q).kind !== 'calcul' ||
+          !/kVA/.test(A.field('user.nou.putere', q).source) ||
+          !/kW/.test(A.field('user.nou.putere', q).impact) ||
+          !/metri/.test(A.field('line.l1.L', q).impact) ||
+          A.field('tronson.l1.t1.lungime', q).kind !== 'calcul' ||
+          A.field('cond.fonduriPublice', q).kind !== 'conditii') throw new Error('clasificare / unități');
+        q.complexConfig.varianta = 1;
+        if (A.field('line.l2.IL', q).kind !== 'optional' ||
+          A.field('stat.s1.elementeComune', q).kind !== 'optional') throw new Error('componentă inactivă prezentată ca necesară');
+      });
+
+      test('Asistență: zero valid nu este lipsă, dar necunoscutul rămâne necompletat', function () {
+        var p = transitionalProject(); p.tranzitoriu.B = 0; p.tranzitoriu.S2 = 0; p.tranzitoriu.l2 = 0;
+        window.AppUI.setProject(p);
+        var r = window.AppAssist.review(window.AppUI.getState());
+        if (r.missing.some(function (e) { return /^tranz\./.test(e.path); }) || r.errors.length ||
+          !r.notes.some(function (n) { return /valori numerice zero/.test(n); }) ||
+          window.AppGuide.steps(window.AppUI.getState()).some(function (s) { return /^tranz-/.test(s.id) && !s.done; })) throw new Error('zero invalidat');
+        window.AppUI.store.set('tranz.B', '');
+        if (!window.AppAssist.review(window.AppUI.getState()).missing.some(function (e) { return e.path === 'tranz.B'; })) throw new Error('gol tratat ca zero');
+        p = developerProject(); p.dezvoltator.Ief = 0; p.dezvoltator.dezvoltatori[1].putere = 0;
+        window.AppUI.setProject(p);
+        if (window.AppGuide.steps(window.AppUI.getState()).some(function (s) { return /^dev-(Ief|putere:)/.test(s.id) && !s.done; })) throw new Error('zero dezvoltator nepermis');
+      });
+
+      test('Asistență: revizia include tronsoane, ramuri, condiții și riscul dublei numărări', function () {
+        [complexProject(4), treeProject()].forEach(function (project) {
+          window.AppUI.setProject(project); window.AppUI.setTab('rezultate');
+          var p = window.AppUI.getState(), snapshot = JSON.stringify(p), depth = window.AppUI.undoDepth();
+          var r = window.AppAssist.review(p);
+          document.querySelector('.assist-data').open = true;
+          if (r.entries.every(function (e) { return !/^(tronson|ramura)\./.test(e.path); }) ||
+            !r.entries.some(function (e) { return e.path === 'cond.dataPIF'; }) ||
+            !r.entries.some(function (e) { return /\.dataTR$/.test(e.path); }) ||
+            !document.querySelector('.assist-route') ||
+            JSON.stringify(p) !== snapshot || window.AppUI.undoDepth() !== depth || window.AppUI.store.results) throw new Error('revizie incompletă / cu mutații');
+          if (p.meta.model === 'complex' && !r.notes.some(function (n) { return /deja incluse în I_T/.test(n); })) throw new Error('risc cost duplicat ascuns');
+          if (p.linii[0].mod === 'ramuri' && !/→/.test(document.querySelector('.assist-route').textContent)) throw new Error('traseu pe ramuri lipsă');
+        });
+      });
+
+      test('Asistență: confirmarea este temporară și se invalidează la schimbare, inclusiv după undo', function () {
+        window.AppUI.setProject(transitionalProject()); window.AppUI.setTab('rezultate');
+        var K = window.AppUI.store, before = JSON.stringify(K.state), depth = window.AppUI.undoDepth();
+        document.querySelector('.assist-confirm input').click(); K.render();
+        if (!document.querySelector('.assist-confirm input').checked || JSON.stringify(K.state) !== before ||
+          window.AppUI.undoDepth() !== depth || K.results || K.state.conditii.verificate) throw new Error('confirmare cu efecte asupra proiectului');
+        K.mutate(function (p) { p.tranzitoriu.l2 = 80; }, { undo: true });
+        if (document.querySelector('.assist-confirm input').checked) throw new Error('confirmare rămasă după editare');
+        window.AppUI.undo();
+        if (document.querySelector('.assist-confirm input').checked) throw new Error('confirmare reînviată prin undo');
+        document.querySelector('.assist-confirm input').click(); K.render();
+        window.AppUI.setProject(transitionalProject()); window.AppUI.setTab('rezultate');
+        if (document.querySelector('.assist-confirm input').checked) throw new Error('confirmare preluată în alt proiect');
+      });
+
+      test('Asistență: corectarea din revizie deschide inspectorul exact, fără calcule sau undo', function () {
+        openModelScheme(complexProject(4)); window.AppUI.setTab('rezultate');
+        var before = JSON.stringify(window.AppUI.getState()), depth = window.AppUI.undoDepth();
+        var row = byText('.assist-data tbody tr', 'Echipamente comune (lei)');
+        if (!row) throw new Error('câmp în revizie lipsă');
+        row.querySelector('button').click(); window.AppUI.store.render();
+        var el = window.AppUI.store.findTarget('stat.s1.elementeComune');
+        if (!el || el !== document.activeElement || !el.getClientRects().length ||
+          JSON.stringify(window.AppUI.getState()) !== before || window.AppUI.undoDepth() !== depth ||
+          window.AppUI.store.results) throw new Error('navigare / efecte laterale');
+      });
+
+      test('Asistență: diagnosticul Anexelor 4/5 identifică exact factorii zero și erorile', function () {
+        var p = transitionalProject(); p.tranzitoriu.B = 0; p.tranzitoriu.l2 = 0;
+        window.AppUI.setProject(p);
+        var q = window.AppUI.getState(), result = window.AppCalc.runCalculation(q), d = window.AppAssist.diagnosis(q, result);
+        if (result.C2 !== 0 || d.length !== 2 || d.map(function (x) { return x.target; }).join() !== 'tranz.B,tranz.l2') throw new Error('factori zero');
+        p = developerProject(); p.dezvoltator.Ief = p.dezvoltator.Itotal; p.dezvoltator.dezvoltatori[1].putere = 0;
+        window.AppUI.setProject(p); q = window.AppUI.getState(); result = window.AppCalc.runCalculation(q); d = window.AppAssist.diagnosis(q, result);
+        if (d.length !== 2 || !d.some(function (x) { return x.target === 'devitem.d2.putere'; }) ||
+          result.rows.some(function (x) { return x.suma !== 0; })) throw new Error('diagnostic dezvoltatori');
+        window.AppUI.store.set('dev.Ief', 200000); q = window.AppUI.getState();
+        d = window.AppAssist.diagnosis(q, window.AppCalc.runCalculation(q));
+        if (d.length !== 1 || d[0].target !== 'assist-review') throw new Error('eroare prezentată ca sumă');
+      });
+
+      test('Asistență: echipamentele rămân separate de transformator și excluderile sunt explicate', function () {
+        var p = stationProject(); p.utilizatori[2].putere = 0;
+        window.AppUI.setProject(p);
+        var q = window.AppUI.getState(), result = window.AppCalc.runCalculation(q), d = window.AppAssist.diagnosis(q, result);
+        if (result.central.totalFaraTVA !== 3000 || !d.some(function (x) {
+          return /Puterea aprobată este zero/.test(x.text) && /separat/.test(x.text);
+        })) throw new Error('transformator confundat cu totalul');
+        p = complexProject(2); p.utilizatori[0].dataContract = '2015-01-01'; p.utilizatori[1].dataContract = '2015-02-01';
+        window.AppUI.setProject(p); q = window.AppUI.getState(); result = window.AppCalc.runCalculation(q); d = window.AppAssist.diagnosis(q, result);
+        if (result.central.totalFaraTVA !== 21000 ||
+          !d.some(function (x) { return /exclude din repartizare/.test(x.text); }) ||
+          d.some(function (x) { return /Transformator —/.test(x.title); })) throw new Error('excludere sau transformator inactiv');
+      });
+
+      test('Asistență: componenta inactivă și costul nul au explicații distincte', function () {
+        var p = complexProject(1);
+        p.linii[0].tronsoane[0].utilizatori = ['prim', 'existent'];
+        window.AppUI.setProject(p);
+        var q = window.AppUI.getState(), r = window.AppCalc.runCalculation(q), d = window.AppAssist.diagnosis(q, r);
+        if (r.central.totalFaraTVA !== 0 || !d.some(function (x) { return /nicio componentă activă/.test(x.text); })) throw new Error('componente inactive');
+        p = complexProject(1); p.linii[0].IL = 0; p.linii[0].tronsoane[0].cost = 0;
+        window.AppUI.setProject(p); q = window.AppUI.getState(); r = window.AppCalc.runCalculation(q); d = window.AppAssist.diagnosis(q, r);
+        if (r.central.totalFaraTVA !== 0 || !d.some(function (x) { return /Costul repartizabil/.test(x.text); })) throw new Error('cost zero');
+      });
+
+      test('Asistență: echipamentele fără transformator nu cer putere și nu ascund condițiile neîndeplinite', function () {
+        var p = stationProject(); p.statii[0].Sn = 0; p.statii[0].SnRezerva = 0; p.statii[0].IT = 0;
+        window.AppUI.setProject(p);
+        var q = window.AppUI.getState(), steps = window.AppGuide.steps(q), review = window.AppAssist.review(q);
+        if (steps.some(function (s) { return /^user-putere:|^stat-(Sn|IT):/.test(s.id); }) ||
+          review.entries.some(function (e) { return /\.putere$/.test(e.path); }) ||
+          !review.notes.some(function (n) { return /numai echipamente/.test(n); })) throw new Error('putere cerută pentru cote egale');
+        window.AppUI.store.set('cond.solutieComuna', false);
+        q = window.AppUI.getState(); var result = window.AppCalc.runCalculation(q);
+        var diagnosis = window.AppAssist.diagnosis(q, result);
+        if (!result.blocked || diagnosis[0].target !== 'cond-card') throw new Error('blocare neexplicată');
+        window.AppUI.store.set('cond.calcInformativ', true);
+        result = window.AppCalc.runCalculation(window.AppUI.getState());
+        if (result.error || result.central.totalFaraTVA !== 3000 ||
+          !result.conditions.some(function (c) { return !c.ok; })) throw new Error('calculul informativ ascunde condițiile');
       });
 
       var s = document.createElement('div');

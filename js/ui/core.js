@@ -97,14 +97,23 @@
       <div class="control" role="group" aria-describedby=${f ? id + '-help' : null}>${props.children}</div>
       <${Info} k=${props.info} />
       ${f ? html`<span id=${id + '-help'} class="sr-only">${f.text}</span>` : null}
+      ${props.path || props.info ? html`<${InputNote} path=${props.path || props.info} />` : null}
       ${props.hint ? html`<div class="hint">${props.hint}</div>` : null}
     </div>`;
+  }
+
+  function InputNote(props) {
+    var info = global.AppAssist.field(props.path, store.state);
+    if (!info || info.kind === 'optional' && info.category === 'Opțional / descriptiv') return null;
+    return html`<details class="input-note"><summary>${info.category} · sursă și atenționări</summary>
+      <p><strong>De unde preiau:</strong> ${info.source}</p><p><strong>Ce influențează:</strong> ${info.impact}</p>
+    </details>`;
   }
 
   // Pe blur, ghidul poate muta focusul — dar nu dacă utilizatorul și-a ales deja alt câmp.
   function blurCommit(e) {
     var rt = e && e.relatedTarget;
-    store.commit({ noFocus: !!(rt && /^(INPUT|SELECT|TEXTAREA)$/.test(rt.tagName)) });
+    store.commit({ noFocus: !!(rt && /^(INPUT|SELECT|TEXTAREA|BUTTON|SUMMARY|A)$/.test(rt.tagName)) });
   }
 
   function TextInput(props) {
@@ -241,6 +250,6 @@
     RefChip: RefChip, Info: Info, Abbr: Abbr, Field: Field,
     TextInput: TextInput, DateInput: DateInput, NumInput: NumInput, SelectInput: SelectInput, CheckInput: CheckInput,
     Card: Card, NormaModal: NormaModal, Toast: Toast, IssueList: IssueList,
-    blurCommit: blurCommit, useRevealTarget: useRevealTarget
+    blurCommit: blurCommit, useRevealTarget: useRevealTarget, InputNote: InputNote
   };
 })(typeof window !== 'undefined' ? window : this);

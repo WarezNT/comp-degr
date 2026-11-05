@@ -210,6 +210,7 @@
           ${rec ? html`<label>Distanță locală (m)<${Draft} key=${uid + rec.branchId} label="Distanță locală utilizator (m)" value=${rec.distanta} numeric=${true}
             onCommit=${function (v) { return connect(rec.branchId, v); }} /></label>` : null}
         </div>
+        <${K.InputNote} path="distanta" />
         ${rec ? html`<p>Lungime traseu de la PR: ${(tree.routes.filter(function (r) { return r.userId === uid; })[0] || {}).distance} m</p>
           <button type="button" class="btn tiny danger" onClick=${function () { connect('', 0); }}>Deconectează utilizatorul</button>` : null}
       </fieldset>` : null}
@@ -240,6 +241,8 @@
           ${b.costManual ? html`<label>Cost propriu ramură (lei)<${Draft} label="Cost propriu ramură (lei)" value=${b.IL} numeric=${true}
             onCommit=${function (v) { return setBranch('IL', v); }} /></label>` : html`<p>Cost automat: ${K.money(Number(b.L) * tree.rate)} lei</p>`}
         </div>
+        <${K.InputNote} path=${'ramura.' + l.id + '.' + b.id + '.L'} />
+        ${b.costManual ? html`<${K.InputNote} path=${'ramura.' + l.id + '.' + b.id + '.IL'} />` : null}
         <${Technical} value=${b} set=${setBranch} />
         <details class="advanced"><summary>Limite tehnice pe această ramură</summary>
           <p class="hint">Caracteristicile ramurii se aplică până la prima limită. Fiecare zonă continuă până la limita următoare sau la capăt.</p>

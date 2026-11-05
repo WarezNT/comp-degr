@@ -275,6 +275,37 @@ controale de editare; calculele informative rămân etichetate explicit.
 
 Pentru verificare manuală, folosește [scenariile și pașii de prezentare](exemple/teste-prezentare/README.md).
 
+### Introducere asistată — de la situația reală la rezultat
+
+1. În **Date generale → Pornește de la situația reală — Ghid de alegere**,
+   identifică instalația finanțată și poziția PR. Varianta Anexei 3 se alege
+   explicit. Recomandarea nu schimbă proiectul până la **Aplică recomandarea**,
+   inclusiv când schimbi numai varianta; aplicarea se poate anula.
+   Reconstituirea după Ord. 28/2003 este distinctă de regimul tranzitoriu pentru
+   o racordare actuală. Răspunsurile sunt temporare, nu confirmări legale.
+2. În **Utilizatori** și **Instalație**, deschide lista documentelor necesare.
+   Îndrumările câmpurilor importante explică sursa, unitatea și efectul:
+   metri, nu kilometri; kVA, nu kW sau consum; costuri comune fără dublă numărare.
+   Datele neutilizate de modelul curent sunt semnalate; nu se șterg.
+3. În **Rezultate → Revizie înainte de calcul**, verifică finanțatorul,
+   utilizatorii noi, traseele, componentele active, valorile lipsă și riscurile.
+   **Datele relevante** oferă valoarea, documentul-sursă și **Verifică / corectează**
+   către formularul sau inspectorul necesar. Problemele existente rămân într-o
+   singură listă, cu legături de corectare.
+4. Confirmarea reviziei este numai un reper temporar pentru datele curente.
+   Nu se salvează în JSON, se pierde la schimbare/părăsirea vederii și nu confirmă
+   condițiile sau documentele în locul utilizatorului. Calculul rămâne disponibil
+   cu validările și blocările existente.
+5. După calcul, **Înțelege rezultatul** explică factorii zero, lipsa unui traseu
+   activ, participanții excluși sau lipsa unei plăți. Transformatorul și
+   echipamentele sunt explicate separat. Modifică numai date justificate, nu
+   valori alese pentru a obține o sumă-țintă.
+
+**Zero nu înseamnă necunoscut.** Poate fi valid, dar trebuie verificat în documente;
+valorile implicite și condițiile bifate nu sunt dovezi. Ghidul acceptă zerourile
+permise de model, iar revizia le semnalează pentru verificare. Îndrumările și
+revizia interactivă nu apar în PDF. Formulele și schema JSON nu se schimbă.
+
 ## Modele de calcul (anexe)
 
 | Model | Anexă | Principiu |

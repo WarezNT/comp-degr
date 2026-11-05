@@ -830,6 +830,28 @@ button.model-node { cursor: pointer; font: inherit; }
 .developer-power { height: 10px; margin-top: 8px; background: var(--eon-grey100); border: 1px solid var(--line); }
 .developer-power span { display: block; height: 100%; background: var(--eon-system-highlight); }
 .print-model-schemes { display: none; }
+.input-note { margin-top: 6px; font-size: 12px; color: var(--eon-grey900); overflow-wrap: anywhere; }
+.input-note summary { cursor: pointer; color: var(--eon-system-highlight-dark); }
+.input-note p { margin: 6px 0; }
+.assist-guide { margin: 12px 0 20px; padding: 12px 16px; border: 1px solid var(--info); border-radius: 8px; background: var(--info-soft); overflow-wrap: anywhere; }
+.assist-guide summary, .assist-review summary, .assist-diagnosis summary { cursor: pointer; }
+.assist-review, .assist-diagnosis { overflow-wrap: anywhere; }
+.assist-route { border-left: 3px solid var(--info); padding-left: 12px; }
+.assist-user-route { margin: 12px 0; }
+.assist-review li, .assist-diagnosis li { margin-bottom: 10px; }
+.assist-review .linkish, .assist-diagnosis .linkish { margin-inline: 4px; }
+.assist-data { margin: 16px 0; }
+.assist-review table { table-layout: fixed; width: 100%; }
+.assist-review th, .assist-review td { white-space: normal; overflow-wrap: anywhere; }
+.assist-confirm { margin-top: 18px; }
+@media (max-width: 640px) {
+  .assist-review .table-wrap { overflow-x: auto; }
+  .assist-review table { min-width: 600px; }
+}
+@media print {
+  .assist-guide, .assist-review, .input-note { display: none; }
+  .assist-diagnosis button { display: none; }
+}
 @media (max-width: 640px) {
   .model-arrow { display: none; }
   .transitional-diagram .model-nodes { flex-direction: column; }

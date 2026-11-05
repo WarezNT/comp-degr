@@ -229,9 +229,9 @@
     var res = props.res;
     return html`<div class="card"><h3>Anexa 5 — cote de participare <${K.RefChip} id="anexa5" /></h3>
       <p>X_ef = ${(res.Xef * 100).toFixed(2)}% · X_inef = ${(res.Xinef * 100).toFixed(2)}%</p>
-      <table class="grid"><caption class="sr-only">Cote de participare pe dezvoltator</caption><thead><tr><th scope="col">Dezvoltator</th><th scope="col">Putere (kVA)</th><th scope="col">Cotă ineficiență</th><th scope="col">Sumă (lei)</th></tr></thead><tbody>
+      <div class="table-wrap"><table class="grid"><caption class="sr-only">Cote de participare pe dezvoltator</caption><thead><tr><th scope="col">Dezvoltator</th><th scope="col">Putere (kVA)</th><th scope="col">Cotă ineficiență</th><th scope="col">Sumă (lei)</th></tr></thead><tbody>
       ${res.rows.map(function (r) { return html`<tr><td>${r.nume}</td><td class="num">${money(r.putere)}</td><td class="num">${(r.Xinef * 100).toFixed(3)}%</td><td class="num">${money(r.suma)}</td></tr>`; })}
-      </tbody></table></div>`;
+      </tbody></table></div></div>`;
   }
 
   /* ----------------------- condiții (art. 8 / art. 7) ----------------------- */
@@ -324,6 +324,7 @@
     }
     var canExport = ok && !!res.central;
     return html`<${Views.Panel} k="rezultate" title="Rezultate" help=${HELP.STEPS.rezultate}>
+      <${Views.InputReview} />
       <div class="toolbar results-actions">
         <button type="button" class="btn primary" data-guide="btn:calc" onClick=${store.calculate}>Calculează compensațiile</button>
         <button type="button" class="btn ghost" disabled=${!canExport} onClick=${store.exportCsv}>Export CSV</button>
@@ -331,8 +332,9 @@
         <button type="button" class="btn ghost" disabled=${!ok} onClick=${function () { global.print(); }}>Printează / PDF</button>
       </div>
       ${res ? html`<p class="hint">Rezultatul se actualizează automat când modifici datele.</p>` : null}
-      <${StatusBlock} />
+      <div data-guide="results-status" tabindex="-1"><${StatusBlock} /></div>
       <div id="results-region" aria-live="polite">${body}</div>
+      ${res ? html`<${Views.UnexpectedResult} result=${res} />` : null}
       ${ok && store.state.meta.model === 'line' ? html`<div class="print-line-schemes">
         <h2>Schemele liniilor — Anexa 1</h2>
         ${store.state.linii.map(function (l) { return html`<${Views.LineReport} l=${l} key=${l.id} />`; })}

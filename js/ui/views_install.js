@@ -646,16 +646,16 @@
           onClose=${function () { selectTronson(''); }} />` : html`<div>
         <h3>Proprietăți utilizator</h3>
         ${u ? html`<div key=${u.id}>
-          <${K.Field} label="Nume / denumire" id=${fieldPrefix + 'nume'}><${K.TextInput} path=${path + 'nume'} id=${fieldPrefix + 'nume'} /><//>
-          <${K.Field} label="Cod PA" id=${fieldPrefix + 'codPA'}><${K.TextInput} path=${path + 'codPA'} id=${fieldPrefix + 'codPA'} /><//>
-          <${K.Field} label="Rol" id=${fieldPrefix + 'rol'}><${K.SelectInput} path=${path + 'rol'} id=${fieldPrefix + 'rol'}
+          <${K.Field} label="Nume / denumire" path=${path + 'nume'} id=${fieldPrefix + 'nume'}><${K.TextInput} path=${path + 'nume'} id=${fieldPrefix + 'nume'} /><//>
+          <${K.Field} label="Cod PA" path=${path + 'codPA'} id=${fieldPrefix + 'codPA'}><${K.TextInput} path=${path + 'codPA'} id=${fieldPrefix + 'codPA'} /><//>
+          <${K.Field} label="Rol" path=${path + 'rol'} id=${fieldPrefix + 'rol'}><${K.SelectInput} path=${path + 'rol'} id=${fieldPrefix + 'rol'}
             options=${Object.keys(V.ROL_LABEL).map(function (role) { return [role, V.ROL_LABEL[role]]; })} /><//>
-          <${K.Field} label="Putere aprobată (kVA)" id=${fieldPrefix + 'putere'}><${K.NumInput} path=${path + 'putere'} id=${fieldPrefix + 'putere'} /><//>
-          <${K.Field} label="Distanță de la PR (m)" id=${fieldPrefix + 'distanta'}>
+          <${K.Field} label="Putere aprobată (kVA)" path=${path + 'putere'} id=${fieldPrefix + 'putere'}><${K.NumInput} path=${path + 'putere'} id=${fieldPrefix + 'putere'} /><//>
+          <${K.Field} label="Distanță de la PR (m)" path=${'dist:' + l.id + ':' + u.id} id=${fieldPrefix + 'distanta'}>
             <${RacordareInput} l=${l} userId=${u.id} id=${fieldPrefix + 'distanta'} />
           <//>
-          <${K.Field} label="Data ATR" id=${fieldPrefix + 'dataATR'}><${K.DateInput} path=${path + 'dataATR'} id=${fieldPrefix + 'dataATR'} /><//>
-          <${K.Field} label="Data achitare TR" id=${fieldPrefix + 'dataTR'}><${K.DateInput} path=${path + 'dataTR'} id=${fieldPrefix + 'dataTR'} /><//>
+          <${K.Field} label="Data ATR" path=${path + 'dataATR'} id=${fieldPrefix + 'dataATR'}><${K.DateInput} path=${path + 'dataATR'} id=${fieldPrefix + 'dataATR'} /><//>
+          <${K.Field} label="Data achitare TR" path=${path + 'dataTR'} id=${fieldPrefix + 'dataTR'}><${K.DateInput} path=${path + 'dataTR'} id=${fieldPrefix + 'dataTR'} /><//>
           <p class="hint">Datele utilizatorului sunt comune tuturor liniilor. Contractul și celelalte avize se completează în pasul „Utilizatori”.</p>
           <button type="button" class="btn tiny danger" disabled=${rec[u.id] == null} onClick=${function () {
             store.pushUndo(); store.setRacordare(l.id, u.id, '');

@@ -835,7 +835,7 @@ const focusedKey = (page) => page.evaluate(() => {
   check('bucla A → A1 → A este refuzată', await page.evaluate(() =>
     window.AppUI.getState().linii[0].ramuri.find((b) => b.id === 'a').parentId === 'root') &&
     await page.getByLabel('Ramură părinte', { exact: true }).inputValue() === 'root', '');
-  await page.locator('.tree-branch summary').click();
+  await page.locator('.tree-branch').getByText('Limite tehnice pe această ramură', { exact: true }).click();
   await page.getByRole('button', { name: '+ Limită tehnică la 0 m', exact: true }).click();
   await page.getByLabel('Început zonă local (m)', { exact: true }).fill('15');
   await page.getByLabel('Început zonă local (m)', { exact: true }).press('Tab');
@@ -1341,6 +1341,94 @@ const focusedKey = (page) => page.evaluate(() => {
   check('undo după editare asistată restaurează calculul de 30.000 lei pentru A', await page.evaluate(() =>
     window.AppCalc.runCalculation(window.AppUI.getState()).rows[0].suma === 30000), '');
   check('fără erori JS în scenariile rafinate', page.errors.length === 0, page.errors.join('; '));
+
+  console.log('Parcurs asistat — situație, revizie, corectare și explicații');
+  await loadModel(example('anexa-3-varianta-4.json'));
+  await page.click('#tab-date');
+  await page.locator('.select-guide > summary').click();
+  await page.locator('.select-guide input[value="complex"]').check();
+  check('alegerea situației nu presupune varianta PR sau data contractului',
+    await page.locator('.select-guide').getByRole('button', { name: /Aplică recomandarea/ }).count() === 0 &&
+    await page.locator('#sel-contract').inputValue() === '', '');
+  const beforeRecommendation = await page.evaluate(() => JSON.stringify(window.AppUI.getState()));
+  await page.locator('#sel-var').selectOption('2');
+  check('recomandarea nu schimbă proiectul înainte de aplicare', await page.evaluate((snapshot) =>
+    JSON.stringify(window.AppUI.getState()) === snapshot, beforeRecommendation), '');
+  await page.locator('.select-guide').getByRole('button', { name: /Aplică recomandarea/ }).click();
+  check('recomandarea schimbă varianta în același model, fără pierderea componentelor',
+    await page.evaluate(() => {
+      const p = window.AppUI.getState();
+      return p.meta.model === 'complex' && p.complexConfig.varianta === 2 &&
+        p.linii.length === 2 && window.AppCalc.runCalculation(p).central.totalFaraTVA === 14000;
+    }), '');
+  await page.evaluate(() => window.AppUI.undo());
+  check('undo restaurează modelul anterior recomandării', await page.evaluate((snapshot) =>
+    JSON.stringify(window.AppUI.getState()) === snapshot, beforeRecommendation), '');
+
+  await loadModel(example('anexa-5-dezvoltator.json'));
+  await page.click('#tab-rezultate');
+  const beforeReview = await page.evaluate(() => JSON.stringify(window.AppUI.getState()));
+  await page.locator('.assist-confirm input').check();
+  check('revizia nu calculează, nu confirmă condițiile și nu salvează date noi',
+    await page.locator('.assist-confirm input').isChecked() &&
+    await page.evaluate((snapshot) => JSON.stringify(window.AppUI.getState()) === snapshot &&
+      window.AppUI.store.results === null, beforeReview), '');
+  await page.locator('.assist-data > summary').click();
+  await page.locator('.assist-data tr').filter({ hasText: 'Componentă eficientă (lei)' })
+    .getByRole('button', { name: 'Verifică / corectează', exact: true }).click();
+  check('corectarea din revizie focalizează câmpul exact fără a modifica proiectul',
+    await page.locator('[data-bind="dev.Ief"]').evaluate((el) => el === document.activeElement) &&
+    await page.evaluate((snapshot) => JSON.stringify(window.AppUI.getState()) === snapshot, beforeReview), '');
+  await page.getByRole('group', { name: 'Mod de introducere model', exact: true })
+    .getByRole('button', { name: 'Schemă', exact: true }).click();
+  await page.evaluate(() => window.AppUI.store.goToStep({ tab: 'instalatie', target: 'dev.Ief' }));
+  const efficiency = page.getByLabel('Cota de eficiență I_ef (lei)', { exact: true });
+  check('același câmp este disponibil și în inspector, cu documentul-sursă',
+    await efficiency.evaluate((el) => el === document.activeElement) &&
+    /analiza de eficiență economică/i.test(await page.locator('.model-inspector').textContent()), '');
+  await efficiency.fill('150000');
+  check('draftul din corectare nu modifică proiectul la fiecare tastă', await page.evaluate(() =>
+    window.AppUI.getState().dezvoltator.Ief === 90000), '');
+  await efficiency.press('Escape');
+  await efficiency.fill('150000'); await efficiency.press('Enter');
+  check('înlocuirea valorii după Escape nu concatenează vechea sumă', await page.evaluate(() =>
+    window.AppUI.getState().dezvoltator.Ief === 150000), '');
+  await page.click('#tab-rezultate');
+  check('editarea cere o nouă revizie', !await page.locator('.assist-confirm input').isChecked(), '');
+  await page.getByRole('button', { name: 'Calculează compensațiile', exact: true }).click();
+  await page.locator('.assist-diagnosis > summary').click();
+  check('eficiență integrală: cotele zero sunt explicate fără schimbarea formulelor',
+    /nu există componentă ineficientă/.test(await page.locator('.assist-diagnosis').innerText()) &&
+    await page.evaluate(() => window.AppUI.store.results.rows.every((row) => row.suma === 0)), '');
+  if (!await page.locator('.assist-review').evaluate((el) => el.open)) await page.locator('.assist-review > summary').click();
+  await page.locator('.assist-data').evaluate((el) => { el.open = true; });
+  await page.setViewportSize({ width: 320, height: 900 });
+  const reviewMobile = await page.evaluate(() => ({
+    page: document.documentElement.scrollWidth,
+    table: document.querySelector('.assist-data .table-wrap').scrollWidth,
+    viewport: document.querySelector('.assist-data .table-wrap').clientWidth
+  }));
+  check('revizia și explicațiile rămân utilizabile la 320 px',
+    reviewMobile.page <= 321 && reviewMobile.table > reviewMobile.viewport, JSON.stringify(reviewMobile));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.emulateMedia({ media: 'print' });
+  check('PDF nu include revizia interactivă sau îndrumările de completare', await page.evaluate(() =>
+    getComputedStyle(document.querySelector('.assist-review')).display === 'none' &&
+    Array.from(document.querySelectorAll('.input-note')).every((el) => getComputedStyle(el).display === 'none') &&
+    Array.from(document.querySelectorAll('.assist-diagnosis button')).every((el) => getComputedStyle(el).display === 'none')), '');
+  await page.emulateMedia({ media: 'screen' });
+
+  const zeroLength = example('anexa-4-tranzitoriu.json'); zeroLength.tranzitoriu.l2 = 0;
+  await loadModel(zeroLength); await page.click('#tab-rezultate');
+  await page.getByRole('button', { name: 'Calculează compensațiile', exact: true }).click();
+  await page.locator('.assist-diagnosis > summary').click();
+  check('lungimea zero este validă și explică factorul nul al Anexei 4',
+    /Lungime folosită l₂ \(m\) este zero/.test(await page.locator('.assist-diagnosis').innerText()) &&
+    await page.evaluate(() => window.AppUI.store.results.C2 === 0), '');
+  await page.locator('.assist-diagnosis').getByRole('button', { name: 'Verifică datele', exact: true }).click();
+  check('explicația rezultatului conduce la câmpul exact fără a modifica valoarea', await page.evaluate(() =>
+    document.activeElement.dataset.bind === 'tranz.l2' && window.AppUI.getState().tranzitoriu.l2 === 0), '');
+  check('fără erori JS în parcursul asistat', page.errors.length === 0, page.errors.join('; '));
   await page.close();
 
   await browser.close();

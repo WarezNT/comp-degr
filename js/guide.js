@@ -48,9 +48,11 @@
       users.forEach(function (u, i) {
         add('user-nume:' + u.id, 'utilizatori', 'user.' + u.id + '.nume',
           'Completează numele utilizatorului nr. ' + (i + 1), 'Nume sau denumirea firmei; apare în centralizator.', filled(u.nume));
-        if (model !== 'line') {
+        if ((model === 'station' || model === 'complex' && Number(p.complexConfig.varianta) >= 3) &&
+          p.statii.some(function (s) { return s.utilizatori.indexOf(u.id) >= 0 && (Number(s.Sn) > 0 || Number(s.IT) > 0 || s.intarire) &&
+            (model === 'station' || p.complexConfig.statiiIds.indexOf(s.id) >= 0); })) {
           add('user-putere:' + u.id, 'utilizatori', 'user.' + u.id + '.putere',
-            'Completează puterea aprobată pentru ' + nm(u) + ' (kVA)', 'Se folosește la repartizarea costului stației/postului.', num(u.putere) > 0, { rule: 'art13' });
+            'Completează puterea aprobată pentru ' + nm(u) + ' (kVA)', 'Din ATR, nu kW sau consum. Zero este permis, dar trebuie verificat.', filled(u.putere) && num(u.putere) >= 0, { rule: 'art13' });
         }
       });
 
@@ -82,7 +84,7 @@
       var id = l.id;
       var nmL = l.nume || label || 'linia';
       add('line-IL:' + id, 'instalatie', 'line.' + id + '.IL', 'Completează costul lucrărilor liniei „' + nmL + '” (I_L, lei)',
-        'Valoarea achitată de primul utilizator prin tariful de racordare.', num(l.IL) > 0, { rule: 'anexa1' });
+        'Valoarea achitată de primul utilizator prin tariful de racordare. Dacă zero este documentat, poți sări acest pas.', num(l.IL) > 0, { optional: true, rule: 'anexa1' });
       add('line-L:' + id, 'instalatie', 'line.' + id + '.L', 'Completează lungimea totală a liniei „' + nmL + '” (L, m)',
         'Din I_L / L rezultă costul specific b_L.', num(l.L) > 0, { rule: 'anexa1' });
 
@@ -93,7 +95,7 @@
         users.forEach(function (u) {
           add('tree-user:' + id + ':' + u.id, 'instalatie', 'tree:' + id,
             'Racordează ' + nm(u) + ' pe ramura potrivită', 'Fiecare utilizator folosește numai traseul său spre PR.',
-            (l.racordari || []).some(function (r) { return r.userId === u.id && Number(r.distanta) > 0; }));
+            (l.racordari || []).some(function (r) { return r.userId === u.id && filled(r.distanta) && Number(r.distanta) >= 0; }));
         });
         return;
       }
@@ -103,7 +105,7 @@
           var r = (l.racordari || []).filter(function (x) { return x.userId === u.id; })[0];
           add('line-dist:' + id + ':' + u.id, 'instalatie', 'dist:' + id + ':' + u.id,
             'Distanța de la punctul de racordare (PR) pentru ' + nm(u), 'Gol = utilizatorul nu este racordat pe această linie.',
-            !!r && num(r.distanta) > 0);
+            !!r && filled(r.distanta) && num(r.distanta) >= 0);
         });
         return;
       }
@@ -130,16 +132,17 @@
     }
 
     function stationSteps(s, equipmentOnly) {
+      equipmentOnly = equipmentOnly || !Number(s.Sn) && !Number(s.IT) && Number(s.elementeComune) > 0 && !s.intarire;
       var id = s.id;
       var nmS = s.nume || 'stația';
       if (equipmentOnly) {
         add('stat-ec:' + id, 'instalatie', 'stat.' + id + '.elementeComune', 'Completează costul echipamentelor comune „' + nmS + '” (lei)',
-          'Varianta 2 nu include transformatorul. Costul echipamentelor poate fi 0; poți sări.', num(s.elementeComune) > 0, { optional: true, rule: 'art12.1' });
+          'Calcul numai pentru echipamente; transformatorul nu este inclus. Costul echipamentelor poate fi 0; poți sări.', num(s.elementeComune) > 0, { optional: true, rule: 'art12.1' });
       } else {
         add('stat-Sn:' + id, 'instalatie', 'stat.' + id + '.Sn', 'Completează capacitatea nominală a „' + nmS + '” (S_n, kVA)',
           'Puterea transformatorului.', num(s.Sn) > 0, { rule: 'anexa2' });
         add('stat-IT:' + id, 'instalatie', 'stat.' + id + '.IT', 'Completează costul lucrărilor „' + nmS + '” (I_T, lei)',
-          'Valoarea achitată de primul utilizator.', num(s.IT) > 0, { rule: 'anexa2' });
+          'Valoarea achitată de primul utilizator; zero este permis dacă este documentat.', filled(s.IT) && num(s.IT) >= 0, { rule: 'anexa2' });
       }
       if (primId) {
         add('stat-prim:' + id, 'instalatie', 'cell:' + id + ':' + primId, 'Bifează primul utilizator în „' + nmS + '”',
@@ -180,15 +183,20 @@
     } else if (model === 'transitional') {
       [['B', 'Componenta B din tariful de racordare (lei)'], ['S', 'Capacitatea instalației S (kVA)'], ['S2', 'Puterea noului utilizator S₂ (kVA)'],
         ['l2', 'Lungimea folosită l₂ (m)'], ['L', 'Lungimea totală L (m)']].forEach(function (f) {
-        add('tranz-' + f[0], 'instalatie', 'tranz.' + f[0], 'Completează: ' + f[1], '', num(p.tranzitoriu[f[0]]) > 0, { rule: 'anexa4' });
+        var positive = f[0] === 'S' || f[0] === 'L';
+        add('tranz-' + f[0], 'instalatie', 'tranz.' + f[0], 'Completează: ' + f[1],
+          positive ? 'Valoare pozitivă necesară.' : 'Zero este permis, dar trebuie verificat în documente.',
+          filled(p.tranzitoriu[f[0]]) && (positive ? num(p.tranzitoriu[f[0]]) > 0 : num(p.tranzitoriu[f[0]]) >= 0), { rule: 'anexa4' });
       });
     } else if (model === 'developer') {
       var d = p.dezvoltator;
       add('dev-Itotal', 'instalatie', 'dev.Itotal', 'Completează valoarea totală a investiției (I_total, lei)', '', num(d.Itotal) > 0, { rule: 'anexa5' });
-      add('dev-Ief', 'instalatie', 'dev.Ief', 'Completează cota de eficiență (I_ef, lei)', 'Din analiza de eficiență economică; poate fi 0. Poți sări.', num(d.Ief) > 0, { optional: true, rule: 'anexa5' });
+      add('dev-Ief', 'instalatie', 'dev.Ief', 'Completează componenta eficientă (I_ef, lei)', 'Din analiza de eficiență economică; zero este permis dacă este justificat.',
+        filled(d.Ief) && num(d.Ief) >= 0, { rule: 'anexa5' });
       add('dev-add', 'instalatie', 'btn:add-dev', 'Adaugă dezvoltatorii / utilizatorii care folosesc rețeaua în comun', '', (d.dezvoltatori || []).length >= 1, { rule: 'anexa5' });
       (d.dezvoltatori || []).forEach(function (x, i) {
-        add('dev-putere:' + x.id, 'instalatie', 'devitem.' + x.id + '.putere', 'Completează puterea aprobată a dezvoltatorului nr. ' + (i + 1) + ' (kVA)', '', num(x.putere) > 0, { rule: 'anexa5' });
+        add('dev-putere:' + x.id, 'instalatie', 'devitem.' + x.id + '.putere', 'Completează puterea aprobată a dezvoltatorului nr. ' + (i + 1) + ' (kVA)',
+          'Zero este permis individual; suma puterilor trebuie să fie pozitivă.', filled(x.putere) && num(x.putere) >= 0, { rule: 'anexa5' });
       });
     }
 

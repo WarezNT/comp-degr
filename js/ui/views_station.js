@@ -20,12 +20,15 @@
   function CommitInput(props) {
     var pending = useRef(null), dirty = useRef(false), value = store.get(props.path);
     function text(v) { return props.numeric ? K.fmtShow(v) : String(v == null ? '' : v); }
-    return html`<input type="text" inputmode=${props.numeric ? 'decimal' : undefined}
+    return html`<${global.preact.Fragment}><input type="text" inputmode=${props.numeric ? 'decimal' : undefined}
       data-bind=${props.path} aria-label=${props.label} placeholder=${props.numeric ? '0' : undefined} autocomplete="off"
       value=${pending.current === null ? text(value) : pending.current}
       onInput=${function (e) { pending.current = e.target.value; dirty.current = true; }}
       onFocus=${function (e) {
-        if (pending.current === null && props.numeric) { pending.current = K.fmtEdit(value); e.target.value = pending.current; }
+        if (pending.current === null && props.numeric) {
+          pending.current = K.fmtEdit(value); e.target.value = pending.current;
+          e.target.select();
+        }
       }}
       onBlur=${function (e) {
         if (!dirty.current) { pending.current = null; e.target.value = text(store.get(props.path)); return; }
@@ -39,13 +42,13 @@
         if (String(next) === String(value == null ? '' : value)) { e.target.value = text(value); return; }
         var target = e.relatedTarget;
         store.mutate(function (p) { C.setPath(p, props.path, next); },
-          { undo: true, noFocus: !!(target && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) });
+          { undo: true, noFocus: !!(target && /^(INPUT|SELECT|TEXTAREA|BUTTON|SUMMARY|A)$/.test(target.tagName)) });
         e.target.value = text(store.get(props.path));
       }}
       onKeyDown=${function (e) {
         if (e.key === 'Enter') e.target.blur();
         if (e.key === 'Escape') { dirty.current = false; pending.current = null; e.target.value = text(value); e.target.blur(); }
-      }} />`;
+      }} /><${K.InputNote} path=${props.path} /><//>`;
   }
 
   function Metrics(props) {

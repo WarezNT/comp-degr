@@ -22,6 +22,29 @@ TVA-ul este setat la 21% pentru modelele cu centralizator; rezultatul cu TVA est
 afișat separat de cel fără TVA. Pentru Anexa 5, sumele reprezintă cotele din
 componenta ineficientă a investiției.
 
+## Parcurs asistat — verificare înainte de calcul
+
+1. Importă varianta 4 a Anexei 3. În **Date generale → Ghid de alegere**, alege
+   instalația complexă: fără poziție PR explicită nu apare butonul de aplicare.
+   Alege varianta 2: proiectul nu se schimbă până la aplicare. După aplicare
+   totalul este **14.000 lei**; **Anulează** restaurează varianta 4.
+2. În **Rezultate → Revizie înainte de calcul**, verifică finanțatorul,
+   traseele și riscul ca echipamentele să fie deja în I_T. Deschide **Datele
+   relevante** și corectează un câmp prin legătura sa. Navigarea nu calculează
+   și nu schimbă proiectul. Confirmarea reviziei nu bifează condițiile.
+3. Importă Anexa 4, setează **l₂ = 0** și calculează: **C₂ = 0 lei**, fără eroare.
+   **Înțelege rezultatul** identifică factorul nul și conduce la câmpul l₂.
+4. Importă Anexa 5 și pune **I_ef = 150.000 lei**: toate cotele devin zero.
+   Explicația precizează că nu există componentă ineficientă. Revino cu
+   **Anulează** la **30.000 / 15.000 / 15.000 lei**.
+5. Bifează revizia, modifică datele și revino: confirmarea este pierdută.
+   Nu apare în JSON sau PDF; nu este o dovadă a documentelor.
+6. La **320 px**, tabelul reviziei derulează în interior, nu întreaga pagină.
+   În PDF nu apar revizia sau îndrumările interactive.
+
+Datele se schimbă aici numai pentru testarea exemplelor. Într-un calcul real,
+orice valoare trebuie justificată; nu folosi zero pentru o informație necunoscută.
+
 ## Parcurs grafic — Anexa 3, toate variantele
 
 Importă succesiv scenariile [varianta 1](./anexa-3-varianta-1.json),

@@ -46,7 +46,9 @@
   function Panel(props) {
     return html`<section class="panel" key=${props.k}
       role="tabpanel" aria-labelledby=${'tab-' + store.tab}>
-      <div class="panel-main"><h2>${props.title}</h2>${props.children}</div>
+      <div class="panel-main"><h2>${props.title}</h2>
+        ${store.tab === 'instalatie' || store.tab === 'utilizatori' ? html`<${global.AppViews.EntryGuide} />` : null}
+        ${props.children}</div>
     </section>`;
   }
 
@@ -83,6 +85,10 @@
     var prim = S.primId(p);
     var noi = S.newIds(p);
     return html`<${Panel} k="date" title="Date generale" help=${HELP.STEPS.date}>
+      <details class="select-guide" open=${!p.meta.modelConfirmat && !p.meta.exemplu}>
+        <summary>Pornește de la situația reală — <strong>Ghid de alegere</strong></summary>
+        <${global.AppViews.SelectGuide} />
+      </details>
       <div class="row2">
         <${K.Field} label="Operator de rețea" path="meta.operator" info="meta.operator"><${K.TextInput} path="meta.operator" ph="ex. Delgaz Grid" /><//>
         <${K.Field} label="Cod operator" path="meta.codOperator" info="meta.codOperator"><${K.TextInput} path="meta.codOperator" /><//>
@@ -95,10 +101,6 @@
       <${K.Field} label="Model de calcul" path="meta.model" info="meta.model">
         <${K.SelectInput} path="meta.model" options=${MODELS} />
       <//>
-      <details class="select-guide" open=${!p.meta.modelConfirmat && !p.meta.exemplu}>
-        <summary>Nu ești sigur ce anexă alegi? <strong>Ghid de alegere</strong></summary>
-        <${global.AppViews.SelectGuide} />
-      </details>
       <div class="roles-summary card">
         <strong>Cine plătește și cine primește</strong>
         <p class="hint">Rolurile se stabilesc în pasul „2 · Utilizatori”.</p>
