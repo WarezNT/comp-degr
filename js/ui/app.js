@@ -228,7 +228,13 @@
     var n = store.guideNext();
     if (!n || store.tab !== n.step.tab) return;
     var el = store.findTarget(n.step.target);
-    if (el) el.setAttribute('data-guide-active', '1');
+    if (el) {
+      // Câmpul evidențiat poate fi într-o secțiune „Detalii”; o deschidem ca să fie vizibil.
+      for (var parent = el.parentElement; parent; parent = parent.parentElement) {
+        if (parent.tagName === 'DETAILS') parent.open = true;
+      }
+      el.setAttribute('data-guide-active', '1');
+    }
   }
 
   function rerender() {

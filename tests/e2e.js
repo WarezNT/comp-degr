@@ -35,6 +35,13 @@ const focusedKey = (page) => page.evaluate(() => {
   return el ? (el.getAttribute('data-bind') || el.getAttribute('data-guide')) : null;
 });
 
+// Deschide secțiunea „Detalii” a liniilor, unde stau editoarele avansate.
+async function openLineDetails(page) {
+  const details = page.locator('.line-card details.line-details');
+  const n = await details.count();
+  for (let i = 0; i < n; i++) await details.nth(i).evaluate((el) => { el.open = true; });
+}
+
 (async () => {
   const launchOpts = { args: ['--no-sandbox'] };
   if (process.env.CHROME_PATH) launchOpts.executablePath = process.env.CHROME_PATH;
@@ -234,16 +241,17 @@ const focusedKey = (page) => page.evaluate(() => {
     window.AppUI.setTab('instalatie');
   });
   const projectBeforeMode = await page.evaluate(() => JSON.stringify(window.AppUI.getState()));
+  await openLineDetails(page);
   await page.getByRole('button', { name: 'Schemă', exact: true }).click();
   check('alegerea modului grafic nu modifică proiectul', await page.evaluate(() => JSON.stringify(window.AppUI.getState())) === projectBeforeMode, '');
   await page.mouse.move(0, 0);
-  const modeStyle = await page.locator('.line-card > .scheme-mode [aria-pressed="true"]').evaluate((el) => {
+  const modeStyle = await page.locator('.line-card .line-view-mode [aria-pressed="true"]').evaluate((el) => {
     const s = getComputedStyle(el);
     return { height: el.getBoundingClientRect().height, background: s.backgroundColor, color: s.color };
   });
   check('selectorul respectă E.ON: înălțime 48 px și selecție albastră cu text alb', modeStyle.height === 48 && modeStyle.background === 'rgb(0, 117, 194)' && modeStyle.color === 'rgb(255, 255, 255)', JSON.stringify(modeStyle));
-  await page.locator('.line-card > .scheme-mode [aria-pressed="true"]').hover();
-  check('hover activ E.ON folosește highlight-dark', await page.locator('.line-card > .scheme-mode [aria-pressed="true"]').evaluate((el) => getComputedStyle(el).backgroundColor) === 'rgb(0, 86, 143)', '');
+  await page.locator('.line-card .line-view-mode [aria-pressed="true"]').hover();
+  check('hover activ E.ON folosește highlight-dark', await page.locator('.line-card .line-view-mode [aria-pressed="true"]').evaluate((el) => getComputedStyle(el).backgroundColor) === 'rgb(0, 86, 143)', '');
   await page.locator('.scheme-canvas .dl-place').first().scrollIntoViewIfNeeded();
   const noSelectionPoint = await segmentPoint(0, 0.5);
   await page.mouse.click(noSelectionPoint.x, noSelectionPoint.y);
@@ -321,6 +329,7 @@ const focusedKey = (page) => page.evaluate(() => {
   await page.mouse.up();
   check('pointercancel păstrează racordarea și istoricul undo', await distanceOfNew() === 301 && await page.evaluate(() => window.AppUI.undoDepth()) === depthBeforeCancel, '');
 
+  await openLineDetails(page);
   await page.getByRole('button', { name: 'Formular / tabel', exact: true }).click();
   const formDistance = await page.locator('[data-guide="dist:linie:nou"]').inputValue();
   await page.locator('[data-guide="dist:linie:nou"]').fill('301');
@@ -368,6 +377,7 @@ const focusedKey = (page) => page.evaluate(() => {
     window.AppUI.store.addLine();
     window.AppUI.setTab('instalatie');
   });
+  await openLineDetails(page);
   await page.getByRole('button', { name: 'Schemă', exact: true }).nth(0).click();
   await page.getByRole('button', { name: 'Schemă', exact: true }).nth(1).click();
   const palettes = page.locator('.scheme-palette');
@@ -391,6 +401,7 @@ const focusedKey = (page) => page.evaluate(() => {
   await page.click('#tab-instalatie');
   const legacyState = await page.evaluate(() => JSON.stringify(window.AppUI.getState()));
   const normalizedLegacy = await page.evaluate(() => JSON.stringify(window.AppState.migrate(JSON.parse(JSON.stringify(window.AppUI.getState())))));
+  await openLineDetails(page);
   await page.getByRole('button', { name: 'Schemă', exact: true }).first().click();
   check('modul grafic nu convertește automat liniile manuale', await page.locator('.scheme-legacy').count() === 1 && await page.evaluate(() => JSON.stringify(window.AppUI.getState())) === legacyState, '');
   page.removeAllListeners('dialog');
@@ -403,6 +414,35 @@ const focusedKey = (page) => page.evaluate(() => {
   await page.evaluate(() => window.AppUI.undo());
   check('undo restaurează toate datele manuale, cu valorile implicite ale migrării', await page.evaluate(() => JSON.stringify(window.AppUI.getState())) === normalizedLegacy, '');
   check('fără erori JS la conversie și undo', page.errors.length === 0, page.errors.join('; '));
+  await page.close();
+
+  console.log('Canvas — meniu contextual');
+  page = await newPage(browser, 1440, 1000);
+  await page.evaluate(() => {
+    const p = window.AppState.emptyProject();
+    p.meta.model = 'line'; p.meta.modelConfirmat = true; p.conditii.tarifAchitatIntegral = true;
+    window.AppState.addUser(p, { id: 'u1', nume: 'U1', rol: 'prim' });
+    window.AppState.addUser(p, { id: 'u2', nume: 'U2', rol: 'nou' });
+    p.linii = [{ id: 'canvas', nume: 'Canvas', IL: 10000, L: 100, mod: 'distante', tronsoane: [],
+      racordari: [{ userId: 'u1', distanta: 100 }] }];
+    window.AppUI.setProject(p); window.AppUI.store.guide.on = false; window.AppUI.setTab('instalatie');
+  });
+  await page.locator('.line-canvas .plan-node').first().click({ button: 'right' });
+  check('canvas: click dreapta pe nod deschide meniul contextual',
+    await page.getByRole('menuitem', { name: 'Adaugă derivare aici', exact: true }).count() === 1, '');
+  await page.getByRole('menuitem', { name: 'Adaugă derivare aici', exact: true }).click();
+  const canvasDialog = page.locator('.canvas-dialog');
+  check('canvas: dialogul pornește din nodul ales',
+    await canvasDialog.count() === 1 && /Desprindere din/.test(await canvasDialog.innerText()), '');
+  await canvasDialog.getByLabel('Lungime (m)', { exact: true }).fill('25');
+  await canvasDialog.getByLabel('Denumire', { exact: true }).fill('Derivare canvas');
+  await canvasDialog.getByRole('button', { name: 'Creează', exact: true }).click();
+  await page.waitForFunction(() => window.AppUI.getState().linii[0].mod === 'ramuri');
+  check('canvas: derivarea este creată din meniul contextual', await page.evaluate(() => {
+    const l = window.AppUI.getState().linii[0];
+    return l.ramuri.length === 2 && l.ramuri[1].L === 25 && l.ramuri[1].nume === 'Derivare canvas';
+  }), '');
+  check('fără erori JS în meniul contextual', page.errors.length === 0, page.errors.join('; '));
   await page.close();
 
   console.log('Originea liniei și zone tehnice');
@@ -419,6 +459,7 @@ const focusedKey = (page) => page.evaluate(() => {
     window.AppUI.store.guide.on = false;
     window.AppUI.setTab('instalatie');
   });
+  await openLineDetails(page);
   await page.locator('.technical-editor > summary').click();
   await page.locator('[data-bind="pr.l.tip"]').selectOption('post');
   await page.locator('[data-bind="pr.l.denumire"]').fill('PT 123');
@@ -637,6 +678,7 @@ const focusedKey = (page) => page.evaluate(() => {
     window.AppUI.store.guide.on = false;
     window.AppUI.setTab('instalatie');
   });
+  await openLineDetails(page);
   await page.getByRole('button', { name: 'Schemă', exact: true }).first().click();
   const compensationCanvas = page.locator('.scheme-canvas').first();
   const selectPayer = async (name) => page.locator('.scheme-palette').first().getByRole('button', { name }).click();
@@ -715,6 +757,7 @@ const focusedKey = (page) => page.evaluate(() => {
     path.join(__dirname, '..', 'exemple', 'teste-prezentare', 'anexa-1-editor-grafic.json'));
   await page.waitForFunction(() => window.AppUI.getState().meta.operator === 'Operator demonstrativ — verificare editor grafic');
   await page.click('#tab-instalatie');
+  await openLineDetails(page);
   await page.getByRole('button', { name: 'Schemă', exact: true }).click();
   check('scenariul importat are PR și 7 tronsoane cu limite LES/LEA independente',
     /PT DEMO 01/.test(await page.locator('.scheme-canvas').innerText()) &&
@@ -781,6 +824,7 @@ const focusedKey = (page) => page.evaluate(() => {
     path.join(__dirname, '..', 'exemple', 'teste-prezentare', 'anexa-1-ramuri.json'));
   await page.waitForFunction(() => window.AppUI.getState().linii[0].mod === 'ramuri');
   await page.click('#tab-instalatie');
+  await openLineDetails(page);
   check('importul ramificat are 220 m fizici, 5 tronsoane și 2.640 lei fără dublarea trunchiului', await page.evaluate(() => {
     const l = window.AppUI.getState().linii[0];
     return l.L === 220 && l.tronsoane.length === 5 && l.tronsoane.reduce((s, t) => s + t.cost, 0) === 2640;
@@ -955,7 +999,7 @@ const focusedKey = (page) => page.evaluate(() => {
     path.join(__dirname, '..', 'exemple', 'teste-prezentare', 'anexa-1-editor-grafic.json'));
   await page.waitForFunction(() => window.AppUI.getState().linii[0].mod === 'distante');
   await page.click('#tab-instalatie');
-  await page.locator('.line-card details.line-advanced').first().evaluate((el) => { el.open = true; });
+  await openLineDetails(page);
   await page.getByRole('button', { name: '→ Rețea cu ramuri', exact: true }).click();
   check('conversia din UI păstrează cele 7 tronsoane, descrierile și calculul liniar', await page.evaluate(() => {
     const p = window.AppUI.getState(), l = p.linii[0];
@@ -1490,6 +1534,7 @@ const focusedKey = (page) => page.evaluate(() => {
   });
   const planEntry = () => page.getByRole('button', { name: 'Planșă cu noduri + tabel', exact: true });
   const enterPlan = async () => {
+    await openLineDetails(page);
     if (await page.locator('.plan-editor').count()) return;
     await page.locator('.line-card details.line-advanced').first().evaluate((el) => { el.open = true; });
     if (await planEntry().first().getAttribute('aria-pressed') !== 'true') await planEntry().first().click();

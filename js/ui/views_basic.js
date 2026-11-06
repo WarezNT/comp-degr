@@ -154,7 +154,7 @@
     var h = html;
     return html`<${Panel} k="utilizatori" title="Utilizatori" help=${HELP.STEPS.utilizatori}>
       <div class="toolbar">
-        <button type="button" class="btn" data-guide="btn:add-user" onClick=${store.addUser}>+ Adaugă utilizator</button>
+        <button type="button" class="btn" data-guide="btn:add-user" onClick=${function () { store.addUser(); }}>+ Adaugă utilizator</button>
         <span class="hint">Primul utilizator adăugat devine „Prim utilizator”, al doilea „Nou”; poți schimba rolurile.</span>
       </div>
       <div class="table-wrap"><table class="grid responsive users">

@@ -209,7 +209,13 @@
   store.setTab = function (t) { store.tab = t; store.render(); };
 
   /* --- utilizatori --- */
-  store.addUser = function () { mutate(function (p) { S.addUserAuto(p); }); };
+  store.addUser = function (data) {
+    // Butoanele pot apela direct acțiunea; evenimentul de click nu este date de utilizator.
+    var opts = data && Object.prototype.toString.call(data) === '[object Object]' ? data : {};
+    var created = null;
+    mutate(function (p) { created = S.addUserAuto(p, opts); });
+    return created ? created.id : null;
+  };
   store.delUser = function (id) {
     var u = S.findUser(store.state, id);
     if (!global.confirm('Ștergi utilizatorul „' + (u && (u.nume || u.codPA) || id) + '” (și apariția lui pe tronsoane/stații)? Poți anula cu „Anulează”.')) return;
@@ -376,6 +382,30 @@
       var l = byId(p.linii, lineId);
       l.zoneTehnice = l.zoneTehnice.filter(function (z) { return z.id !== zoneId; });
     }, { undo: true });
+  };
+
+  // Împarte tronsonul la o distanță (limită tehnică), pe linie sau pe o ramură.
+  store.splitLine = function (lineId, branchId, distance) {
+    var l = byId(store.state.linii, lineId);
+    var d = Number(distance);
+    if (!l || !isFinite(d) || d <= 0) return null;
+    if (l.mod === 'distante') return store.addTechnicalZone(lineId, d);
+    if (l.mod !== 'ramuri') {
+      store.toast('Împărțirea tronsonului este disponibilă după trecerea la distanțe.', 'error');
+      return null;
+    }
+    var parent = byId(l.ramuri, branchId);
+    if (!parent || d >= Number(parent.L)) {
+      store.toast('Alege un punct din interiorul tronsonului.', 'error');
+      return null;
+    }
+    var id = S.uid('zona');
+    var ok = store.editTree(lineId, function (next) {
+      next.zoneTehnice = next.zoneTehnice || [];
+      next.zoneTehnice.push({ id: id, branchId: parent.id, deLa: d,
+        tipLinie: '', conductor: '', sectiune: '', observatii: '' });
+    }, { noFocus: true });
+    return ok ? id : null;
   };
 
   function treeCandidate(l, rootId) {

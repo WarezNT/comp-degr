@@ -289,24 +289,30 @@
           pe ramuri și în PDF; culorile provin din paleta E.ON, disponibilă local.</li>
       </ul>
 
-      <h3>Formularul simplu (recomandat)</h3>
-      <p>În <strong>Instalație</strong>, fiecare linie se completează liniar, fără să alegi
-        mai întâi un editor: <strong>1)</strong> costul lucrării și lungimea totală,
-        <strong>2)</strong> distanța fiecărui utilizator față de PR (gol = nu folosește linia),
-        <strong>3)</strong> schița se desenează automat, <strong>4)</strong> rezumatul arată
-        tronsoanele, costul total și verificarea <code>sumă = I_L</code>. Butonul
-        <strong>+ Adaugă utilizator</strong> creează imediat o persoană nouă, iar
-        <strong>Nume și roluri</strong> duce la pasul Utilizatori. Tronsoanele folosite
-        de utilizatorii cu rol <strong>Nou</strong> sunt marcate cu roșu, inclusiv pe
-        derivări; o derivare tocmai adăugată primește eticheta <strong>„nou”</strong>.
-        Planșa, ramurile și limitele tehnice sunt grupate la <strong>Opțiuni avansate</strong>.</p>
+      <h3>Editorul pe schemă (recomandat)</h3>
+      <p>În <strong>Instalație</strong>, completezi costul lucrării și lungimea, apoi
+        lucrezi direct pe schemă. <strong>Click dreapta</strong> pe:</p>
+      <ul>
+        <li><strong>un nod</strong> — adaugi un utilizator, o derivare, prelungești linia
+          cu un tronson nou sau ștergi ramura;</li>
+        <li><strong>un tronson</strong> — adaugi un utilizator la distanța clickului,
+          o derivare sau împarți tronsonul printr-o limită tehnică.</li>
+      </ul>
+      <p>Dialogul apare direct peste schemă, cu ramura și distanța deja completate;
+        scrii doar numele, lungimea și tipul. Tronsoanele folosite de utilizatorii cu
+        rol <strong>Nou</strong> sunt marcate cu roșu, inclusiv pe derivări; o derivare
+        tocmai adăugată primește eticheta <strong>„nou”</strong>. Restul formularelor
+        (lista exactă de distanțe, tabelul de tronsoane, editorul tehnic, planșa și
+        schema veche) este strâns în <strong>Detalii</strong>.</p>
 
       <h3>Cum adaugi o derivare (ramură) în mijlocul liniei</h3>
-      <p>În secțiunea <strong>Derivări</strong> a liniei, apasă <strong>+ Adaugă derivare</strong>.
-        Alege <strong>ramura părinte</strong>, scrie <strong>distanța de desprindere</strong>
-        (măsurată de la începutul ramurii părinte, nu de la PR), apoi lungimea, denumirea
-        și tipul LEA/LES. Poți alege orice punct al ramurii părinte, inclusiv în mijlocul
-        unui tronson.</p>
+      <p>Click dreapta pe nodul sau pe tronsonul dorit → <strong>Adaugă derivare</strong>.
+        Dialogul cere ramura părinte, distanța de desprindere (măsurată de la începutul
+        ramurii părinte, nu de la PR), lungimea, denumirea și tipul LEA/LES. Poți alege
+        orice punct al ramurii părinte, inclusiv în mijlocul unui tronson. Aceeași
+        acțiune există și ca buton <strong>+ Adaugă derivare</strong> în <strong>Detalii</strong>.</p>
+      <p>Pentru un tronson fizic nou care continuă linia, alege
+        <strong>Prelungește linia (tronson nou)</strong> din meniul nodului.</p>
       <p>Dacă linia este încă pe distanțe, aplicația o trece automat la rețea cu ramuri
         în aceeași acțiune, păstrând racordările existente. Investiția totală
         <code>I_L</code> rămâne neschimbată; derivarea primește cost automat din
@@ -314,7 +320,7 @@
         după salvare. Lista ramurilor arată ierarhia și punctul de desprindere.</p>
 
       <h3>Planșă cu noduri — opțiune avansată</h3>
-      <p>În <strong>Instalație → Opțiuni avansate → Planșă cu noduri + tabel</strong>,
+      <p>În <strong>Instalație → Detalii → Opțiuni avansate → Planșă cu noduri + tabel</strong>,
         schema este deasupra tabelului. Rândurile tabelului definesc porțiunile, iar nodurile și tronsoanele
         se generează din ele. Pentru prima porțiune, originea este PR; pentru o
         continuare, alegi nodul de început, apoi introduci lungimea locală și costul.
@@ -538,11 +544,11 @@
       <p>Pe linia <code>l_U1</code>: <strong>lungimea totală L_U1</strong> (folosește toată linia). Pe <code>l_U2</code>
         (doar varianta 4): distanța reală pe JT.</p>
       <h3>De ce nu pot edita tronsoanele?</h3>
-      <p>În modul simplu pe distanțe, tronsoanele se generează automat din racordări.
-        Pentru o rețea definită pe porțiuni și noduri, folosește
-        <strong>Opțiuni avansate → Planșă cu noduri + tabel</strong>; acolo fiecare rând
-        de tronson se poate introduce sau edita explicit. Alocările și detaliile tehnice
-        rămân în aceleași opțiuni avansate.</p>
+      <p>În editorul pe schemă, tronsoanele se generează automat din racordări.
+        Pentru editarea exactă a distanțelor și a datelor tehnice, deschide
+        <strong>Detalii</strong>. Pentru o rețea definită pe porțiuni și noduri, folosește
+        <strong>Detalii → Opțiuni avansate → Planșă cu noduri + tabel</strong>; acolo
+        fiecare rând de tronson se poate introduce sau edita explicit.</p>
       <h3>De ce diagrama nu e proporțională?</h3>
       <p>Ca să rămână lizibilă și la kilometri, segmentele scurte au o lățime minimă; apare mențiunea
         „Schemă orientativă — nu este la scară”.</p>

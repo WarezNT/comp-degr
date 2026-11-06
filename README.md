@@ -68,9 +68,9 @@ opționali, opri mutarea automată a focusului sau ascunde ghidul (meniul „Pro
 2. **Utilizatori** — fiecare utilizator are **un singur rol**: *prim utilizator* (finanțator,
    primește), *nou* (plătește), *existent* sau *operator de rețea* (art. 6 alin. 5). Primul
    adăugat devine prim, al doilea nou. Contract/avize (art. 7, 17–18) într-un rând extensibil.
-3. **Instalație** — pentru Anexa 1, formularul simplu cere **costul lucrării**, **lungimea**
-   și **distanța fiecărui utilizator față de PR**; schema, tronsoanele și costurile apar
-   automat. Planșa cu noduri, rețeaua cu ramuri și limitele tehnice sunt opțiuni avansate.
+3. **Instalație** — pentru Anexa 1, completezi **costul lucrării** și **lungimea**, apoi
+   lucrezi direct pe **schema liniei**: click dreapta pe un nod sau pe un tronson pentru
+   utilizatori, derivări și tronsoane noi. Restul formularelor este strâns în **Detalii**.
    Stațiile/PT, instalația complexă, vechea metodologie și rețeaua de dezvoltator
    păstrează formularele lor.
 4. **Rezultate** — stare (probleme cu link „Mergi la câmp”), rezumat (totaluri), centralizator cu
@@ -79,45 +79,47 @@ opționali, opri mutarea automată a focusului sau ascunde ghidul (meniul „Pro
 
 ### Introducere grafică — Anexa 1
 
-#### Formularul simplu (recomandat)
+#### Editorul pe schemă (recomandat)
 
-În pasul **Instalație**, fiecare linie se completează de sus în jos, fără să alegi
-mai întâi un editor:
+În pasul **Instalație**, fiecare linie se lucrează direct pe desen:
 
 1. **Datele liniei** — costul lucrărilor `I_L`, lungimea totală `L` și, automat,
    costul specific `b_L = I_L / L`.
-2. **Racordările utilizatorilor** — o singură listă cu toți utilizatorii proiectului.
-   Scrie distanța de la punctul de racordare (PR), în metri; lasă gol dacă utilizatorul
-   nu folosește linia. Butonul **+ Adaugă utilizator** creează imediat o persoană nouă.
-3. **Schița liniei** — se desenează automat din lungime și distanțe. Cercurile pot fi
-   trase pentru ajustare rapidă, iar distanța exactă rămâne cea scrisă în listă.
-   Tronsoanele folosite de utilizatorii cu rol **Nou** sunt marcate cu roșu, inclusiv
-   pe derivări; o derivare tocmai adăugată primește eticheta **„nou”**.
-4. **Rezumatul** — numărul de tronsoane, lungimea însumată, costul total și verificarea
-   `sumă tronsoane = I_L`. Tabelul detaliat se deschide dintr-un singur click.
+2. **Canvasul** — arată PR, nodurile, utilizatorii și tronsoanele. Click dreapta:
+   - **pe un nod**: adaugă utilizator, adaugă derivare, prelungește linia cu un
+     tronson nou sau șterge ramura;
+   - **pe un tronson**: adaugă utilizator la distanța clickului, adaugă derivare
+     sau împarte tronsonul (limită tehnică).
+3. **Dialogurile** — apar direct peste schemă, cu ramura și distanța deja completate;
+   scrii doar numele, lungimea și tipul.
+4. **Detalii** — lista exactă de distanțe, tabelul de tronsoane, editorul tehnic,
+   planșa și schema veche sunt ascunse într-o singură secțiune, ca să nu concureze
+   cu canvasul.
 
-Tronsoanele se regenerează la fiecare modificare; nu se editează manual în acest flux.
-Opțiunile pentru rețele ramificate, planșă cu noduri, limite tehnice și conversia
-liniilor vechi sunt grupate la **Opțiuni avansate**, ca să nu încarce introducerea
-obișnuită. Liniile importate cu tronsoane manuale rămân complet editabile în tabelul
-lor, cu un buton explicit de trecere la distanțe.
+Tronsoanele folosite de utilizatorii cu rol **Nou** sunt marcate cu roșu, inclusiv
+pe derivări; o derivare tocmai adăugată primește eticheta **„nou”**. Tronsoanele se
+regenerează la fiecare modificare. Liniile importate cu tronsoane manuale rămân
+complet editabile în tabelul din **Detalii**, cu un buton explicit de trecere la
+distanțe.
 
 #### Derivări (ramuri) în mijlocul liniei
 
-Secțiunea **Derivări** are butonul **+ Adaugă derivare**. Formularul cere ramura
-părinte, distanța de desprindere (de la începutul ramurii părinte, nu de la PR),
+Click dreapta pe nodul sau pe tronsonul dorit → **Adaugă derivare**. Dialogul cere
+ramura părinte, distanța de desprindere (de la începutul ramurii părinte, nu de la PR),
 lungimea, denumirea și tipul LEA/LES. Poți alege orice punct al ramurii părinte,
-deci derivarea poate porni și din mijlocul unui tronson.
+deci derivarea poate porni și din mijlocul unui tronson. Aceeași acțiune există și
+ca buton **+ Adaugă derivare** în **Detalii**.
 
 Dacă linia este încă pe distanțe, trecerea la rețeaua cu ramuri se face automat
 în aceeași acțiune, păstrând racordările. `I_L` rămâne neschimbat, iar costul
 derivării se calculează automat din `b_L`; dacă derivarea aduce investiție nouă,
 crește `I_L` după salvare. Operația are undo, iar lista ramurilor arată ierarhia
-și punctul de desprindere.
+și punctul de desprindere. Pentru un tronson fizic nou care continuă linia, alege
+**Prelungește linia (tronson nou)** din meniul nodului.
 
 #### Planșă cu noduri + tabel (opțiune avansată)
 
-În pasul **Instalație → Opțiuni avansate**, deschide **Planșă cu noduri + tabel**.
+În **Instalație → Detalii → Opțiuni avansate**, deschide **Planșă cu noduri + tabel**.
 Schema este deasupra tabelelor; definițiile din tabel generează nodurile și
 tronsoanele din desen.
 
@@ -153,7 +155,10 @@ tronsoanele din desen.
 - **Opțiunile avansate** rămân disponibile pentru limite tehnice, alocări speciale și
   detaliul de calcul. Butonul **Formular avansat** revine din planșă la formularul simplu.
 
-#### Schemă simplă și unelte grafice
+#### Schema veche și unelte grafice (în Detalii)
+
+Deschide **Detalii → Schemă** pentru vechiul editor interactiv, util pentru
+inspectarea tronsoanelor, mutarea limitelor și explicația vizuală a compensației.
 
 - Selectează un utilizator din stânga (sau adaugă unul): se activează acțiunea
   **Racordează utilizator**. Apasă pe linie pentru a-l racorda; lungimea totală trebuie
@@ -205,8 +210,8 @@ selecția vizuală nu sunt salvate în proiect.
 
 #### Planșă cu noduri
 
-După conversia explicită la ramuri, în **Instalație → Opțiuni avansate → Planșă cu
-noduri + tabel**, desenul SVG este deasupra tabelelor de porțiuni și racordări.
+După conversia explicită la ramuri, în **Instalație → Detalii → Opțiuni avansate →
+Planșă cu noduri + tabel**, desenul SVG este deasupra tabelelor de porțiuni și racordări.
 **Extinde planșa** oferă mai mult spațiu desenului în aceeași
 pagină; butonul de revenire sau Escape închide modul extins. Totul funcționează
 offline, fără biblioteci sau servicii noi.

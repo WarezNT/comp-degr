@@ -1051,7 +1051,7 @@
             '; card=' + !!document.querySelector('.line-card') +
             '; panel=' + (document.querySelector('.panel-main') ? document.querySelector('.panel-main').textContent.slice(0, 120) : '—'));
         }
-        if (!document.querySelector('.line-overview svg.diagram')) throw new Error('lipsește schița');
+        if (!document.querySelector('.line-canvas svg')) throw new Error('lipsește schița');
         if (!document.querySelector('.line-stats')) throw new Error('lipsește rezumatul');
         var plan = byText('button', 'Planșă cu noduri + tabel');
         if (!plan || !plan.closest('details.line-advanced') || document.querySelector('.plan-editor')) {
@@ -1138,12 +1138,88 @@
         window.AppUI.setProject(p);
         window.AppUI.store.guide.on = false; window.AppUI.render();
         window.AppUI.setTab('instalatie');
-        var segs = document.querySelectorAll('.line-overview .dl-seg');
-        if (segs.length !== 2 || !segs[0].classList.contains('dl-new') || segs[1].classList.contains('dl-new')) {
+        var segs = document.querySelectorAll('.line-canvas .plan-edge');
+        if (segs.length !== 2 || !segs[0].classList.contains('plan-edge-new') || segs[1].classList.contains('plan-edge-new')) {
           throw new Error('segmentele utilizatorului nou nu sunt marcate corect');
         }
         if (!/utilizatorul nou/.test(document.querySelector('.dl-legend').textContent)) {
           throw new Error('legenda nu explică marcajul roșu');
+        }
+      });
+
+      test('Canvas: click dreapta pe nod creează o derivare din meniu', function () {
+        var p = emptyOk(); p.meta.model = 'line';
+        var u1 = window.AppState.addUser(p, { id: 'u1', nume: 'U1', rol: 'prim' });
+        window.AppState.addUser(p, { id: 'u2', nume: 'U2', rol: 'nou' });
+        p.linii.push({ id: 'Lcanvas', nume: 'Canvas', IL: 10000, L: 100, mod: 'distante', tronsoane: [],
+          racordari: [{ userId: u1.id, distanta: 100 }] });
+        window.AppUI.setProject(p);
+        window.AppUI.store.guide.on = false; window.AppUI.render();
+        window.AppUI.setTab('instalatie');
+        var node = document.querySelector('.line-canvas .plan-node');
+        if (!node) throw new Error('lipsește nodul din canvas');
+        node.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 120, clientY: 120 }));
+        window.AppUI.render();
+        var add = byText('.canvas-menu button', 'Adaugă derivare aici');
+        if (!add) throw new Error('meniul contextual nu conține derivarea');
+        add.click(); window.AppUI.render();
+        var form = document.querySelector('.canvas-dialog');
+        if (!form) throw new Error('formularul de derivare nu s-a deschis');
+        form.querySelector('[name="nume"]').value = 'Derivare canvas';
+        form.querySelector('[name="L"]').value = '25';
+        form.querySelector('[name="tip"]').value = 'LES';
+        form.requestSubmit(); window.AppUI.render();
+        var l = window.AppUI.getState().linii[0];
+        var branch = l.ramuri.filter(function (b) { return b.parentId; })[0];
+        if (l.mod !== 'ramuri' || !branch || branch.L !== 25 || branch.nume !== 'Derivare canvas' || branch.tipLinie !== 'LES') {
+          throw new Error('derivarea din meniul contextual este incorectă');
+        }
+      });
+
+      test('Canvas: click dreapta pe tronson racordează utilizatorul la distanța aleasă', function () {
+        var p = emptyOk(); p.meta.model = 'line';
+        var u1 = window.AppState.addUser(p, { id: 'u1', nume: 'U1', rol: 'prim' });
+        var u2 = window.AppState.addUser(p, { id: 'u2', nume: 'U2', rol: 'nou' });
+        p.linii.push({ id: 'Lcanvas2', nume: 'Canvas 2', IL: 10000, L: 100, mod: 'distante', tronsoane: [],
+          racordari: [{ userId: u1.id, distanta: 100 }] });
+        window.AppUI.setProject(p);
+        window.AppUI.store.guide.on = false; window.AppUI.render();
+        window.AppUI.setTab('instalatie');
+        var edge = document.querySelector('.line-canvas .plan-hit');
+        if (!edge) throw new Error('lipsește tronsonul din canvas');
+        edge.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 150, clientY: 150 }));
+        window.AppUI.render();
+        var add = byText('.canvas-menu button', 'Adaugă utilizator pe tronson');
+        if (!add) throw new Error('meniul contextual nu conține racordarea');
+        add.click(); window.AppUI.render();
+        var form = document.querySelector('.canvas-dialog');
+        if (!form) throw new Error('formularul de racordare nu s-a deschis');
+        form.querySelector('[name="user"]').value = u2.id;
+        form.querySelector('[name="distanta"]').value = '60';
+        form.requestSubmit(); window.AppUI.render();
+        var rec = window.AppUI.getState().linii[0].racordari.filter(function (r) { return r.userId === u2.id; })[0];
+        if (!rec || rec.distanta !== 60) throw new Error('racordarea din meniul contextual nu s-a salvat');
+      });
+
+      test('Canvas: meniul contextual funcționează și pe rețeaua cu ramuri', function () {
+        window.AppUI.setProject(treeProject());
+        window.AppUI.store.guide.on = false; window.AppUI.render();
+        window.AppUI.setTab('instalatie');
+        var node = document.querySelector('.line-canvas .plan-node');
+        if (!node) throw new Error('lipsește nodul PR din canvas');
+        node.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 100, clientY: 100 }));
+        window.AppUI.render();
+        var add = byText('.canvas-menu button', 'Adaugă utilizator aici');
+        if (!add) throw new Error('meniul contextual lipsește pe ramuri');
+        add.click(); window.AppUI.render();
+        var form = document.querySelector('.canvas-dialog');
+        if (!form) throw new Error('formularul de racordare nu s-a deschis');
+        form.querySelector('[name="user"]').value = 'existent';
+        form.querySelector('[name="distanta"]').value = '10';
+        form.requestSubmit(); window.AppUI.render();
+        var rec = window.AppUI.getState().linii[0].racordari.filter(function (r) { return r.userId === 'existent'; })[0];
+        if (!rec || rec.branchId !== 'root' || rec.distanta !== 10) {
+          throw new Error('racordarea din meniul contextual nu a fost salvată pe ramură');
         }
       });
 
