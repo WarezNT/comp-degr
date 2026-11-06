@@ -445,6 +445,21 @@
         if (window.AppUI.getState().linii[0].tronsoane.length !== before) throw new Error('undo nu a restaurat');
       });
 
+      test('Redo: reface ultima anulare și este golit de o modificare nouă', function () {
+        window.AppUI.setProject(window.AppState.demoU4());
+        window.AppUI.setTab('instalatie');
+        var st = window.AppUI.getState();
+        var line = st.linii[0], before = line.tronsoane.length;
+        window.AppUI.store.delTronson(line.id, line.tronsoane[0].id);
+        window.AppUI.undo();
+        if (window.AppUI.redoDepth() < 1) throw new Error('redo indisponibil după undo');
+        window.AppUI.redo();
+        if (window.AppUI.getState().linii[0].tronsoane.length !== before - 1) throw new Error('redo nu a refăcut ștergerea');
+        window.AppUI.undo();
+        window.AppUI.store.addLine();
+        if (window.AppUI.redoDepth() !== 0) throw new Error('redo ar trebui golit de o modificare nouă');
+      });
+
       test('Export CSV: 2 zecimale, virgulă, coloane aliniate', function () {
         window.AppUI.setProject(window.AppState.demoU4());
         window.AppUI.setTab('rezultate');
@@ -1179,7 +1194,8 @@
         form.requestSubmit(); window.AppUI.render();
         var l = window.AppUI.getState().linii[0];
         var branch = l.ramuri.filter(function (b) { return b.parentId; })[0];
-        if (l.mod !== 'ramuri' || !branch || branch.L !== 25 || branch.nume !== 'Derivare canvas' || branch.tipLinie !== 'LES') {
+        if (l.mod !== 'ramuri' || !branch || branch.L !== 25 || branch.nume !== 'Derivare canvas' ||
+          branch.tipLinie !== 'LES' || !branch.costManual || Number(branch.IL) !== 0 || l.IL !== 10000) {
           throw new Error('derivarea din meniul contextual este incorectă');
         }
       });
@@ -1228,6 +1244,104 @@
         var rec = window.AppUI.getState().linii[0].racordari.filter(function (r) { return r.userId === 'existent'; })[0];
         if (!rec || rec.branchId !== 'root' || rec.distanta !== 10) {
           throw new Error('racordarea din meniul contextual nu a fost salvată pe ramură');
+        }
+      });
+
+      test('Canvas: Încadrează linia elimină derularea orizontală', function () {
+        var p = emptyOk(); p.meta.model = 'line';
+        var users = [];
+        for (var i = 1; i <= 10; i++) {
+          users.push(window.AppState.addUser(p, { id: 'uf' + i, nume: 'UF' + i, rol: i === 1 ? 'prim' : 'existent' }));
+        }
+        p.linii.push({ id: 'Lfit', nume: 'Linie lungă', IL: 100000, L: 4000, mod: 'distante', tronsoane: [],
+          racordari: users.map(function (u, index) { return { userId: u.id, distanta: 400 * (index + 1) }; }) });
+        window.AppUI.setProject(p);
+        window.AppUI.store.guide.on = false; window.AppUI.render();
+        window.AppUI.setTab('instalatie');
+        var scroll = document.querySelector('.line-canvas .plan-scroll');
+        var svg = scroll && scroll.querySelector('svg');
+        if (!svg || !svg.classList.contains('fit')) throw new Error('linia nu este încadrată implicit');
+        if (scroll.scrollWidth > scroll.clientWidth + 1) throw new Error('încadrarea păstrează derularea orizontală');
+        byText('button', 'Mărime reală').click(); window.AppUI.render();
+        scroll = document.querySelector('.line-canvas .plan-scroll');
+        if (scroll.querySelector('svg').classList.contains('fit')) throw new Error('mărimea reală nu s-a activat');
+        byText('button', 'Încadrează linia').click(); window.AppUI.render();
+        if (!document.querySelector('.line-canvas .plan-scroll svg').classList.contains('fit')) {
+          throw new Error('încadrarea nu s-a reactivat');
+        }
+      });
+
+      test('Canvas: turul rapid apare la prima folosire și poate fi redeschis', function () {
+        try { window.localStorage.removeItem('comp-degr:canvas-tour:v1'); } catch (e) { /* ignorat */ }
+        var p = emptyOk(); p.meta.model = 'line';
+        var u1 = window.AppState.addUser(p, { id: 'ut', nume: 'UT', rol: 'prim' });
+        p.linii.push({ id: 'Ltour', nume: 'Linie tur', IL: 10000, L: 100, mod: 'distante', tronsoane: [],
+          racordari: [{ userId: u1.id, distanta: 100 }] });
+        window.AppUI.setProject(p);
+        window.AppUI.store.guide.on = false; window.AppUI.render();
+        window.AppUI.setTab('instalatie');
+        var tour = document.querySelector('.canvas-tour');
+        if (!tour || !/Click dreapta/.test(tour.textContent)) throw new Error('turul nu apare la prima folosire');
+        byText('.canvas-tour button', 'Sari peste tur').click(); window.AppUI.render();
+        if (document.querySelector('.canvas-tour')) throw new Error('turul nu s-a închis');
+        byText('button', 'Tur rapid').click(); window.AppUI.render();
+        if (!document.querySelector('.canvas-tour')) throw new Error('turul nu poate fi redeschis');
+      });
+
+      test('Canvas: panoul contextual afișează nodul și tronsonul selectat', function () {
+        var p = emptyOk(); p.meta.model = 'line';
+        var u1 = window.AppState.addUser(p, { id: 'up', nume: 'UP', rol: 'prim' });
+        p.linii.push({ id: 'Lpanel', nume: 'Linie panou', IL: 10000, L: 100, mod: 'distante', tronsoane: [],
+          racordari: [{ userId: u1.id, distanta: 100 }] });
+        window.AppUI.setProject(p);
+        window.AppUI.store.guide.on = false; window.AppUI.render();
+        window.AppUI.setTab('instalatie');
+        var node = document.querySelector('.line-canvas .plan-node');
+        node.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 100, clientY: 100 }));
+        window.AppUI.render();
+        var panel = document.querySelector('.line-canvas-panel');
+        if (!panel || !/Punct de racordare/.test(panel.textContent) || !/Adaugă derivare aici/.test(panel.textContent)) {
+          throw new Error('panoul nodului nu s-a deschis');
+        }
+        var edge = document.querySelector('.line-canvas .plan-hit');
+        edge.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 150, clientY: 150 }));
+        window.AppUI.render();
+        panel = document.querySelector('.line-canvas-panel');
+        if (!panel || !/Tronson selectat/.test(panel.textContent) || !/Împarte tronsonul aici/.test(panel.textContent)) {
+          throw new Error('panoul tronsonului nu s-a deschis');
+        }
+      });
+
+      test('Derivare cu cost propriu: investiția inițială nu se redistribuie', function () {
+        var p = emptyOk(); p.meta.model = 'line';
+        var u1 = window.AppState.addUser(p, { id: 'u1', nume: 'U1', rol: 'prim' });
+        var u2 = window.AppState.addUser(p, { id: 'u2', nume: 'U2', rol: 'nou' });
+        p.linii.push({ id: 'Lcost', nume: 'Linie cu extindere', IL: 10000, L: 100, mod: 'distante', tronsoane: [],
+          racordari: [{ userId: u1.id, distanta: 100 }, { userId: u2.id, distanta: 50 }] });
+        window.AppUI.setProject(p);
+        var id = window.AppUI.store.addDerivation('Lcost', {
+          nume: 'Extindere nouă', deLa: 30, L: 50, cost: 5000, tipLinie: 'LEA'
+        });
+        if (!id) throw new Error('derivarea nu a fost creată');
+        var l = window.AppUI.getState().linii[0];
+        var root = l.ramuri.filter(function (b) { return !b.parentId; })[0];
+        var branch = l.ramuri.filter(function (b) { return b.id === id; })[0];
+        if (l.IL !== 15000 || l.L !== 150 || !branch.costManual || Number(branch.IL) !== 5000) {
+          throw new Error('investiția totală sau costul derivării sunt greșite');
+        }
+        var tree = window.AppTree.analyze(l);
+        if (Math.abs(tree.rate - 100) > 1e-6) throw new Error('b_L inițial s-a schimbat: ' + tree.rate);
+        var rootCost = l.tronsoane.filter(function (t) { return t.branchId === root.id; })
+          .reduce(function (s, t) { return s + t.cost; }, 0);
+        var branchCost = l.tronsoane.filter(function (t) { return t.branchId === branch.id; })
+          .reduce(function (s, t) { return s + t.cost; }, 0);
+        if (Math.abs(rootCost - 10000) > 0.01 || Math.abs(branchCost - 5000) > 0.01) {
+          throw new Error('costurile s-au redistribuit: ' + rootCost + ' / ' + branchCost);
+        }
+        var chart = document.querySelector('.investment-chart');
+        var legend = document.querySelector('.investment-legend');
+        if (!chart || !legend || !/Partea inițială/.test(legend.textContent) || !/Lucrări noi/.test(legend.textContent)) {
+          throw new Error('graficul investiției nu s-a afișat');
         }
       });
 

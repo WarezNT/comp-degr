@@ -91,10 +91,15 @@ opționali, opri mutarea automată a focusului sau ascunde ghidul (meniul „Pro
    - **pe un tronson**: adaugă utilizator la distanța clickului, adaugă derivare
      sau împarte tronsonul (limită tehnică).
 3. **Dialogurile** — apar direct peste schemă, cu ramura și distanța deja completate;
-   scrii doar numele, lungimea și tipul.
+   scrii numele, lungimea, costul lucrării noi și tipul.
 4. **Detalii** — lista exactă de distanțe, tabelul de tronsoane, editorul tehnic,
    planșa și schema veche sunt ascunse într-o singură secțiune, ca să nu concureze
    cu canvasul.
+
+Canvasul are **Încadrează linia** (implicit, fără derulare orizontală) și **Mărime
+reală**, un **tur rapid** de trei pași afișat la prima folosire, un **panou contextual**
+la click pe nod/tronson și un grafic mic **partea inițială vs. lucrări noi**. Butonul
+**Refă** din antet și Ctrl+Y refac ultima anulare; orice modificare nouă golește redo.
 
 Tronsoanele folosite de utilizatorii cu rol **Nou** sunt marcate cu roșu, inclusiv
 pe derivări; o derivare tocmai adăugată primește eticheta **„nou”**. Tronsoanele se
@@ -111,10 +116,11 @@ deci derivarea poate porni și din mijlocul unui tronson. Aceeași acțiune exis
 ca buton **+ Adaugă derivare** în **Detalii**.
 
 Dacă linia este încă pe distanțe, trecerea la rețeaua cu ramuri se face automat
-în aceeași acțiune, păstrând racordările. `I_L` rămâne neschimbat, iar costul
-derivării se calculează automat din `b_L`; dacă derivarea aduce investiție nouă,
-crește `I_L` după salvare. Operația are undo, iar lista ramurilor arată ierarhia
-și punctul de desprindere. Pentru un tronson fizic nou care continuă linia, alege
+în aceeași acțiune, păstrând racordările. Formularul cere și **costul lucrării noi**:
+acesta se adaugă la investiția totală `I_L`, iar partea inițială și `b_L` rămân
+neschimbate. Cu cost `0`, derivarea nu aduce investiție nouă și nu modifică prețul
+inițial. Operația are undo, iar lista ramurilor arată ierarhia, punctul de desprindere
+și costul propriu. Pentru un tronson fizic nou care continuă linia, alege
 **Prelungește linia (tronson nou)** din meniul nodului.
 
 #### Planșă cu noduri + tabel (opțiune avansată)

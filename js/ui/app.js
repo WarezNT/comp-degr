@@ -62,7 +62,9 @@
       <div class="topbar-actions">
         <span id="save-status" class=${'save-status ' + st} role="status" title=${txt}>${has ? html`<span class="ss-label">${label}</span>${when ? html`<span class="ss-when">${when}</span>` : null}` : ''}</span>
         ${has && store.undoStack.length ? html`<button type="button" data-action="undo" class="btn ghost"
-          title="Anulează ultima modificare distructivă (ștergere, import, exemplu, proiect nou)" onClick=${store.undo}>↶ Anulează</button>` : null}
+          title="Anulează ultima modificare (Ctrl+Z)" onClick=${store.undo}>↶ Anulează</button>` : null}
+        ${has && store.redoStack.length ? html`<button type="button" data-action="redo" class="btn ghost"
+          title="Reface ultima modificare anulată (Ctrl+Y)" onClick=${store.redo}>↷ Refă</button>` : null}
         ${has ? html`<${HelpMenu} />` : null}
         <details class="menu"><summary class="btn ghost">Proiect ▾</summary>
           <div class="menu-pop" onClick=${closeMenu}>
@@ -254,6 +256,15 @@
       var m = document.querySelector('details.menu[open]');
       if (m) m.removeAttribute('open');
     });
+    // Ctrl+Z / Ctrl+Y pentru anulare și refacere, în afara câmpurilor de text.
+    document.addEventListener('keydown', function (e) {
+      if (!(e.ctrlKey || e.metaKey) || !store.state) return;
+      var tag = e.target && e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable)) return;
+      var key = String(e.key || '').toLowerCase();
+      if (key === 'z' && !e.shiftKey) { e.preventDefault(); store.undo(); }
+      else if (key === 'y' || (key === 'z' && e.shiftKey)) { e.preventDefault(); store.redo(); }
+    });
     // Închide meniurile din antet la click în afara lor.
     document.addEventListener('click', function (e) {
       if (e.target && e.target.closest && e.target.closest('details.menu')) return;
@@ -281,6 +292,8 @@
     flushSave: function () { return store.flushSave(); },
     undo: function () { store.undo(); },
     undoDepth: function () { return store.undoStack.length; },
+    redo: function () { store.redo(); },
+    redoDepth: function () { return store.redoStack.length; },
     validate: function () { return V.validate(store.state); },
     csv: function () { return store.csv(); }
   };

@@ -26,6 +26,12 @@
 
   // Derivările adăugate în sesiunea curentă primesc un marcaj vizual „nou”.
   var NEW_BRANCH_IDS = Object.create(null);
+  var CANVAS_TOUR_KEY = 'comp-degr:canvas-tour:v1';
+  var CANVAS_TOUR_STEPS = [
+    'Click dreapta pe un nod: adaugi un utilizator, o derivare sau prelungești linia.',
+    'Click dreapta pe un tronson: racordezi un utilizator, adaugi o derivare sau împarți tronsonul.',
+    'Pe telefon ține apăsat pe nod sau tronson. Restul formularelor este în „Detalii”.'
+  ];
 
   /* ----------------------- prevederi tranzitorii (art. 17–18) ----------------------- */
 
@@ -660,11 +666,15 @@
     function submit(event) {
       event.preventDefault();
       var data = new global.FormData(event.currentTarget);
+      var costText = String(data.get('cost') || '').trim();
+      var cost = costText === '' ? 0 : K.parseNum(costText);
+      if (cost === null) { store.toast('Costul lucrării noi trebuie să fie un număr nenegativ.', 'error'); return; }
       var created = store.addDerivation(l.id, {
         nume: String(data.get('nume') || '').trim() || ('Derivare ' + (branches.length + 1)),
         parentId: String(data.get('parent') || ''),
         deLa: K.parseNum(String(data.get('deLa') || '')),
         L: K.parseNum(String(data.get('L') || '')),
+        cost: cost,
         tipLinie: String(data.get('tip') || ''),
         conductor: String(data.get('conductor') || ''),
         sectiune: String(data.get('sectiune') || '')
@@ -689,7 +699,7 @@
           style=${{ marginLeft: (depthOf(b) * 18) + 'px' }} key=${b.id}>
           <span class="branch-glyph" aria-hidden="true">↳</span>
           <span><strong>${b.nume || b.id}</strong>${isNew ? html` <span class="chip-new">nou</span>` : null}
-            <span class="muted">· ${K.fmtLen(b.L)} m${b.parentId ? ' · desprinsă la ' + K.fmtLen(b.deLa) + ' m din ' + (parent ? parent.nume : 'ramura părinte') : ' · de la PR'}</span>
+            <span class="muted">· ${K.fmtLen(b.L)} m${b.parentId ? ' · desprinsă la ' + K.fmtLen(b.deLa) + ' m din ' + (parent ? parent.nume : 'ramura părinte') : ' · de la PR'}${b.costManual ? ' · cost propriu ' + money(b.IL) + ' lei' : ' · cost automat'}</span>
           </span>
         </li>`;
       })}</ul>` : html`<p class="hint">Linia este încă o singură ramură. Poți adăuga o derivare oricând.</p>`}
@@ -711,6 +721,9 @@
           <label>Lungimea derivării (m)
             <input name="L" type="text" inputmode="decimal" required autocomplete="off" />
           </label>
+          <label>Cost lucrare nouă (lei)
+            <input name="cost" type="text" inputmode="decimal" placeholder="0 dacă nu aduce investiție" autocomplete="off" />
+          </label>
           <label>Denumire
             <input name="nume" type="text" defaultValue=${'Derivare ' + (branches.length + 1)} autocomplete="off" />
           </label>
@@ -729,9 +742,9 @@
             <input name="sectiune" type="text" autocomplete="off" />
           </label>
         </div>
-        <p class="hint">Distanța se măsoară de la începutul ramurii părinte. Investiția totală I_L rămâne neschimbată;
-          derivarea primește cost automat din b_L. Dacă derivarea aduce investiție nouă, crește I_L după salvare.
-          ${l.mod !== 'ramuri' ? ' Linia va trece automat la rețea cu ramuri.' : ''}</p>
+        <p class="hint">Distanța se măsoară de la începutul ramurii părinte. Costul lucrării noi se adaugă la
+          investiția totală I_L, iar partea inițială și b_L rămân neschimbate. Lasă 0 dacă derivarea nu aduce
+          investiție nouă. ${l.mod !== 'ramuri' ? ' Linia va trece automat la rețea cu ramuri.' : ''}</p>
         <div class="toolbar">
           <button type="submit" class="btn primary">Creează derivarea</button>
           <button type="button" class="btn ghost" onClick=${function () { setOpen(false); }}>Renunță</button>
@@ -764,9 +777,21 @@
     var l = props.l;
     var graph = global.AppPlan.display(l);
     var canvasRef = useRef(null);
+    var touchTimer = useRef(null);
     var menuState = useState(null), dialogState = useState(null);
     var menu = menuState[0], setMenu = menuState[1];
     var dialog = dialogState[0], setDialog = dialogState[1];
+    var fitState = useState(true), selectionState = useState(null);
+    var fit = fitState[0], setFit = fitState[1];
+    var selection = selectionState[0], setSelection = selectionState[1];
+    var tourState = useState(function () {
+      try {
+        return !global.localStorage || !global.localStorage.getItem(CANVAS_TOUR_KEY);
+      } catch (e) { return true; }
+    });
+    var tourStepState = useState(0);
+    var tour = tourState[0], setTour = tourState[1];
+    var tourStep = tourStepState[0], setTourStep = tourStepState[1];
     var newSet = {};
     S.newIds(store.state).forEach(function (id) { newSet[id] = true; });
     var tree = l.mod === 'ramuri' ? global.AppTree.analyze(l) : null;
@@ -778,6 +803,31 @@
       document.addEventListener('keydown', onKey);
       return function () { document.removeEventListener('keydown', onKey); };
     }, [menu, dialog]);
+    useEffect(function () {
+      return function () { clearTimeout(touchTimer.current); };
+    }, []);
+    useEffect(function () {
+      if (!selection) return;
+      var exists = selection.kind === 'node'
+        ? graph.nodes.some(function (n) { return n.key === selection.node.key; })
+        : graph.edges.some(function (e) { return e.key === selection.edge.key; });
+      if (!exists) setSelection(null);
+    }, [graph, selection]);
+    function closeTour(persist) {
+      setTour(false);
+      if (persist) {
+        try { if (global.localStorage) global.localStorage.setItem(CANVAS_TOUR_KEY, '1'); } catch (e) { /* ignorat */ }
+      }
+    }
+    function startTour() { setTourStep(0); setTour(true); }
+
+    // Pe telefon, meniul contextual se deschide prin apăsare lungă.
+    function startTouch(ev, open) {
+      if (ev.pointerType !== 'touch' && ev.pointerType !== 'pen') return;
+      clearTimeout(touchTimer.current);
+      touchTimer.current = setTimeout(open, 520);
+    }
+    function cancelTouch() { clearTimeout(touchTimer.current); }
 
     function branchName(id) {
       var b = (l.ramuri || []).filter(function (x) { return x.id === id; })[0];
@@ -827,35 +877,37 @@
       placeMenu(ev.clientX, ev.clientY, { kind: 'edge', edge: edge, distance: distanceOnEdge(edge, ev) });
     }
 
-    function askUser() {
-      var m = menu; if (!m) return;
+    function askUser(m) {
+      if (!m) return;
       setMenu(null);
       setDialog({ type: 'user',
         branchId: m.kind === 'node' ? m.node.branchId : m.edge.branchId,
         distance: m.kind === 'node' ? m.node.distance : m.distance });
     }
-    function askDerivation(extend) {
-      var m = menu; if (!m) return;
+    function askDerivation(m, extend) {
+      if (!m) return;
       setMenu(null);
       var parentId = m.kind === 'node' ? m.node.branchId : m.edge.branchId;
       setDialog({ type: extend ? 'extend' : 'derivation', parentId: parentId,
         parentName: branchName(parentId), distance: m.kind === 'node' ? m.node.distance : m.distance });
     }
-    function splitHere() {
-      var m = menu; if (!m) return;
+    function splitHere(m) {
+      if (!m) return;
       var distance = m.kind === 'node' ? m.node.distance : m.distance;
       var branchId = m.kind === 'node' ? m.node.branchId : m.edge.branchId;
       setMenu(null);
       var id = store.splitLine(l.id, branchId, distance);
       if (!id) store.toast('Nu s-a putut împărți tronsonul aici; poate exista deja o limită.', 'error');
+      else setSelection(null);
     }
-    function deleteBranch() {
-      var m = menu; if (!m || m.kind !== 'node') return;
+    function deleteBranch(m) {
+      if (!m || m.kind !== 'node') return;
       var branch = (l.ramuri || []).filter(function (b) { return b.id === m.node.branchId; })[0];
       if (!branch || !branch.parentId) return;
       setMenu(null);
       if (!global.confirm('Ștergi ramura „' + (branch.nume || branch.id) + '” și subramurile ei? Utilizatorii rămân în proiect. Poți anula.')) return;
       store.delBranch(l.id, branch.id);
+      setSelection(null);
     }
 
     function submitDialog(ev) {
@@ -878,18 +930,22 @@
           store.setRacordare(l.id, userId, distance);
         }
         setDialog(null);
+        setSelection(null);
         return;
       }
       var L = K.parseNum(String(data.get('L') || ''));
       if (L === '' || L === null || !(Number(L) > 0)) { store.toast('Introdu o lungime pozitivă.', 'error'); return; }
+      var costText = String(data.get('cost') || '').trim();
+      var cost = costText === '' ? 0 : K.parseNum(costText);
+      if (cost === null) { store.toast('Costul lucrării noi trebuie să fie un număr nenegativ.', 'error'); return; }
       var created = store.addDerivation(l.id, {
         nume: String(data.get('nume') || '').trim() || (d.type === 'extend' ? 'Tronson nou' : 'Derivare'),
-        parentId: d.parentId, deLa: d.distance, L: L,
+        parentId: d.parentId, deLa: d.distance, L: L, cost: cost,
         tipLinie: String(data.get('tip') || ''),
         conductor: String(data.get('conductor') || ''),
         sectiune: String(data.get('sectiune') || '')
       });
-      if (created) setDialog(null);
+      if (created) { setDialog(null); setSelection(null); }
     }
 
     if (!graph.nodes.length) {
@@ -911,23 +967,115 @@
     var maxX = Math.max.apply(null, [850].concat(graph.nodes.map(function (n) { return n.x + 220; })));
     var maxY = Math.max.apply(null, [280].concat(graph.nodes.map(function (n) { return n.y + 120 + (n.users || []).length * 24; })));
 
+    var selectedNode = selection && selection.kind === 'node' ? selection.node : null;
+    var selectedEdge = selection && selection.kind === 'edge' ? selection.edge : null;
+    function edgeUserIds(edge) {
+      if (l.mod === 'ramuri') {
+        return (tree && !tree.errors.length ? tree.routes : []).filter(function (route) {
+          return route.path.some(function (part) {
+            return part.branchId === edge.branchId && part.to >= Number(edge.to.distance) - 1e-6;
+          });
+        }).map(function (route) { return route.userId; });
+      }
+      return (l.racordari || []).filter(function (r) {
+        return Number(r.distanta) >= Number(edge.to.distance) - 1e-6;
+      }).map(function (r) { return r.userId; });
+    }
+    var panel = null;
+    if (selectedNode) {
+      var nodeIndex = -1;
+      for (var ni = 0; ni < graph.nodes.length; ni++) {
+        if (graph.nodes[ni].key === selectedNode.key) { nodeIndex = ni; break; }
+      }
+      var nodeBranch = (l.ramuri || []).filter(function (b) { return b.id === selectedNode.branchId; })[0];
+      panel = html`<aside class="line-canvas-panel" aria-label="Detalii nod selectat">
+        <div class="toolbar"><h3>${selectedNode.origin ? 'Punct de racordare (PR)' : (nodeIndex >= 0 ? 'Nod ' + nodeIndex : 'Nod selectat')}</h3>
+          <button type="button" class="btn tiny ghost" aria-label="Închide panoul" onClick=${function () { setSelection(null); }}>×</button></div>
+        <dl>
+          <dt>Distanță de la PR</dt><dd>${K.fmtLen(selectedNode.total)} m</dd>
+          <dt>Ramură</dt><dd>${branchName(selectedNode.branchId) || 'Linia principală'}</dd>
+        </dl>
+        <h4>Utilizatori în nod</h4>
+        ${(selectedNode.users || []).length ? html`<ul class="panel-users">${(selectedNode.users || []).map(function (id) {
+          return html`<li key=${id}>${C.nameOf(store.state, id)}</li>`;
+        })}</ul>` : html`<p class="hint">Niciun utilizator în acest nod.</p>`}
+        <div class="toolbar line-canvas-panel-actions">
+          <button type="button" class="btn tiny" onClick=${function () { askUser(selection); }}>Adaugă utilizator aici</button>
+          <button type="button" class="btn tiny" onClick=${function () { askDerivation(selection, false); }}>Adaugă derivare aici</button>
+          <button type="button" class="btn tiny" onClick=${function () { askDerivation(selection, true); }}>Prelungește linia (tronson nou)</button>
+          ${nodeBranch && nodeBranch.parentId ? html`<button type="button" class="btn tiny danger" onClick=${function () { deleteBranch(selection); }}>Șterge ramura</button>` : null}
+        </div>
+      </aside>`;
+    } else if (selectedEdge) {
+      var edgeUsers = edgeUserIds(selectedEdge);
+      panel = html`<aside class="line-canvas-panel" aria-label="Detalii tronson selectat">
+        <div class="toolbar"><h3>Tronson selectat</h3>
+          <button type="button" class="btn tiny ghost" aria-label="Închide panoul" onClick=${function () { setSelection(null); }}>×</button></div>
+        <dl>
+          <dt>Ramură</dt><dd>${branchName(selectedEdge.branchId) || 'Linia principală'}</dd>
+          <dt>Interval local</dt><dd>${K.fmtLen(selectedEdge.from.distance)}–${K.fmtLen(selectedEdge.to.distance)} m</dd>
+          <dt>De la PR</dt><dd>${K.fmtLen(selectedEdge.from.total)}–${K.fmtLen(selectedEdge.to.total)} m</dd>
+          <dt>Lungime</dt><dd>${K.fmtLen(selectedEdge.length)} m</dd>
+          <dt>Cost</dt><dd>${K.money(selectedEdge.cost)} lei</dd>
+          <dt>Tip</dt><dd>${selectedEdge.type || 'Nespecificat'}</dd>
+        </dl>
+        <h4>Utilizatori care îl folosesc</h4>
+        ${edgeUsers.length ? html`<ul class="panel-users">${edgeUsers.map(function (id) {
+          return html`<li key=${id}>${C.nameOf(store.state, id)}</li>`;
+        })}</ul>` : html`<p class="hint">Niciun utilizator pe acest tronson.</p>`}
+        <div class="toolbar line-canvas-panel-actions">
+          <button type="button" class="btn tiny" onClick=${function () { askUser(selection); }}>Adaugă utilizator pe tronson</button>
+          <button type="button" class="btn tiny" onClick=${function () { askDerivation(selection, false); }}>Adaugă derivare pe tronson</button>
+          <button type="button" class="btn tiny" onClick=${function () { splitHere(selection); }}>Împarte tronsonul aici</button>
+        </div>
+      </aside>`;
+    }
+
     return html`<section class="line-canvas" aria-label="Editor pe schemă">
       <div class="line-canvas-head">
         <div><h3>Editor pe schemă</h3>
           <p class="hint">Click dreapta pe un nod sau pe un tronson pentru a adăuga un utilizator,
-            o derivare sau un tronson nou. Datele exacte se editează în „Detalii”.</p></div>
+            o derivare sau un tronson nou. Pe telefon, ține apăsat. Datele exacte se editează în „Detalii”.</p></div>
       </div>
+      <div class="toolbar line-canvas-tools" role="group" aria-label="Afișare schemă">
+        <button type="button" class="btn tiny" aria-pressed=${fit} onClick=${function () { setFit(true); }}>Încadrează linia</button>
+        <button type="button" class="btn tiny" aria-pressed=${!fit} onClick=${function () { setFit(false); }}>Mărime reală</button>
+        <button type="button" class="btn tiny ghost" onClick=${startTour}>Tur rapid</button>
+        <span class="hint">${fit ? 'Toată linia este încadrată în lățime.' : 'Textul rămâne la mărimea reală; derulează orizontal.'}</span>
+      </div>
+      ${tour ? html`<div class="canvas-tour" role="dialog" aria-label="Tur rapid">
+        <div class="canvas-tour-step">Pasul ${tourStep + 1} din ${CANVAS_TOUR_STEPS.length}</div>
+        <p>${CANVAS_TOUR_STEPS[tourStep]}</p>
+        <div class="toolbar">
+          ${tourStep > 0 ? html`<button type="button" class="btn tiny ghost" onClick=${function () { setTourStep(tourStep - 1); }}>Înapoi</button>` : null}
+          ${tourStep < CANVAS_TOUR_STEPS.length - 1
+            ? html`<button type="button" class="btn tiny primary" onClick=${function () { setTourStep(tourStep + 1); }}>Înainte</button>`
+            : html`<button type="button" class="btn tiny primary" onClick=${function () { closeTour(true); }}>Am înțeles</button>`}
+          <button type="button" class="btn tiny ghost" onClick=${function () { closeTour(true); }}>Sari peste tur</button>
+        </div>
+      </div>` : null}
       ${!tree && graph.errors && graph.errors.length ? html`<div class="warn" role="alert">${graph.errors.map(function (text) { return html`<p>${text}</p>`; })}</div>` : null}
+      <div class=${'line-canvas-layout' + (panel ? ' has-panel' : '')}>
+      <div class="line-canvas-main">
       <div class="plan-scroll" tabindex="0" role="region" aria-label="Schemă derulabilă">
-        <svg ref=${canvasRef} class="plan-svg line-canvas-svg" width=${maxX} height=${maxY}
+        <svg ref=${canvasRef} class=${'plan-svg line-canvas-svg' + (fit ? ' fit' : '')}
+          width=${fit ? '100%' : maxX} height=${fit ? null : maxY}
           viewBox=${'0 0 ' + maxX + ' ' + maxY} role="group" aria-label="Noduri și tronsoane">
           ${graph.edges.map(function (edge) {
             return html`<g key=${edge.key}>
-              <line class=${'plan-edge tree-segment tip-' + (edge.type || 'nespecificat') + (edgeUsedByNew(edge) ? ' plan-edge-new' : '')}
+              <line class=${'plan-edge tree-segment tip-' + (edge.type || 'nespecificat') +
+                (edgeUsedByNew(edge) ? ' plan-edge-new' : '') +
+                (selection && selection.kind === 'edge' && selection.edge.key === edge.key ? ' plan-edge-selected' : '')}
                 x1=${edge.from.x} y1=${edge.from.y} x2=${edge.to.x} y2=${edge.to.y} />
               <line class="plan-hit" x1=${edge.from.x} y1=${edge.from.y} x2=${edge.to.x} y2=${edge.to.y}
                 aria-label=${'Tronson ' + K.fmtLen(edge.length) + ' m. Click dreapta pentru acțiuni.'}
-                onContextMenu=${function (e) { openEdgeMenu(edge, e); }} />
+                onClick=${function (e) { setSelection({ kind: 'edge', edge: edge, distance: distanceOnEdge(edge, e) }); }}
+                onContextMenu=${function (e) { openEdgeMenu(edge, e); }}
+                onPointerDown=${function (e) {
+                  var x = e.clientX, y = e.clientY, distance = distanceOnEdge(edge, e);
+                  startTouch(e, function () { placeMenu(x, y, { kind: 'edge', edge: edge, distance: distance }); });
+                }}
+                onPointerMove=${cancelTouch} onPointerUp=${cancelTouch} onPointerCancel=${cancelTouch} />
               <text class="plan-edge-label" x=${(edge.from.x + edge.to.x) / 2} y=${(edge.from.y + edge.to.y) / 2 - 18}>
                 ${edge.type || 'Tip nespecificat'} · ${K.fmtLen(edge.length)} m · ${K.money(edge.cost)} lei</text>
             </g>`;
@@ -936,13 +1084,20 @@
             var children = (l.ramuri || []).filter(function (b) {
               return b.parentId === node.branchId && Math.abs(Number(b.deLa) - Number(node.distance)) < 1e-6;
             });
-            return html`<g class=${'plan-node' + (node.origin ? ' line-canvas-origin' : '')}
+            return html`<g class=${'plan-node' + (node.origin ? ' line-canvas-origin' : '') +
+                (selection && selection.kind === 'node' && selection.node.key === node.key ? ' plan-node-selected' : '')}
               transform=${'translate(' + node.x + ' ' + node.y + ')'} tabindex="0" role="button"
+              onClick=${function () { setSelection({ kind: 'node', node: node }); }}
               aria-label=${(node.origin ? 'PR' : 'Nod ' + index) + ' · ' + K.fmtLen(node.total) + ' m de la PR. Click dreapta pentru acțiuni.'}
               onContextMenu=${function (e) { openNodeMenu(node, e); }}
               onKeyDown=${function (e) {
                 if (e.key === 'Enter' || e.key === ' ' || (e.shiftKey && e.key === 'F10')) openNodeMenu(node, e);
-              }}>
+              }}
+              onPointerDown=${function (e) {
+                var x = e.clientX, y = e.clientY;
+                startTouch(e, function () { placeMenu(x, y, { kind: 'node', node: node }); });
+              }}
+              onPointerMove=${cancelTouch} onPointerUp=${cancelTouch} onPointerCancel=${cancelTouch}>
               <circle r=${node.origin ? 18 : 16} />
               <text class="plan-node-code" y="5">${node.origin ? 'PR' : 'N' + index}</text>
               <text class="plan-node-distance" y="-25">${K.fmtLen(node.total)} m de la PR</text>
@@ -957,20 +1112,23 @@
         </svg>
       </div>
       <${LineLegend} />
+      </div>
+      ${panel}
+      </div>
       ${menu ? html`<div class="canvas-menu-backdrop" onClick=${function () { setMenu(null); }}
         onContextMenu=${function (e) { e.preventDefault(); setMenu(null); }}>
         <div class="canvas-menu" role="menu" style=${{ left: menu.x + 'px', top: menu.y + 'px' }}
           onClick=${function (e) { e.stopPropagation(); }}>
           ${menu.kind === 'node' ? html`<${global.preact.Fragment}>
-            <button type="button" role="menuitem" onClick=${askUser}>Adaugă utilizator aici</button>
-            <button type="button" role="menuitem" onClick=${function () { askDerivation(false); }}>Adaugă derivare aici</button>
-            <button type="button" role="menuitem" onClick=${function () { askDerivation(true); }}>Prelungește linia (tronson nou)</button>
+            <button type="button" role="menuitem" onClick=${function () { askUser(menu); }}>Adaugă utilizator aici</button>
+            <button type="button" role="menuitem" onClick=${function () { askDerivation(menu, false); }}>Adaugă derivare aici</button>
+            <button type="button" role="menuitem" onClick=${function () { askDerivation(menu, true); }}>Prelungește linia (tronson nou)</button>
             ${(l.ramuri || []).some(function (b) { return b.id === menu.node.branchId && b.parentId; })
-              ? html`<button type="button" role="menuitem" class="danger" onClick=${deleteBranch}>Șterge ramura</button>` : null}
+              ? html`<button type="button" role="menuitem" class="danger" onClick=${function () { deleteBranch(menu); }}>Șterge ramura</button>` : null}
           <//>` : html`<${global.preact.Fragment}>
-            <button type="button" role="menuitem" onClick=${askUser}>Adaugă utilizator pe tronson</button>
-            <button type="button" role="menuitem" onClick=${function () { askDerivation(false); }}>Adaugă derivare pe tronson</button>
-            <button type="button" role="menuitem" onClick=${splitHere}>Împarte tronsonul aici</button>
+            <button type="button" role="menuitem" onClick=${function () { askUser(menu); }}>Adaugă utilizator pe tronson</button>
+            <button type="button" role="menuitem" onClick=${function () { askDerivation(menu, false); }}>Adaugă derivare pe tronson</button>
+            <button type="button" role="menuitem" onClick=${function () { splitHere(menu); }}>Împarte tronsonul aici</button>
           <//>`}
         </div>
       </div>` : null}
@@ -1007,6 +1165,9 @@
             <label>Lungime (m)
               <input name="L" type="text" inputmode="decimal" required autocomplete="off" />
             </label>
+            <label>Cost lucrare nouă (lei)
+              <input name="cost" type="text" inputmode="decimal" placeholder="0 dacă nu aduce investiție" autocomplete="off" />
+            </label>
             <label>Tip linie
               <select name="tip">
                 <option value="">Nespecificat</option>
@@ -1021,7 +1182,8 @@
             <label>Secțiune / configurație
               <input name="sectiune" type="text" autocomplete="off" />
             </label>
-            <p class="hint">Investiția I_L rămâne neschimbată; noul segment primește cost automat din b_L.
+            <p class="hint">Costul lucrării noi se adaugă la I_L; partea inițială și b_L rămân neschimbate.
+              Lasă 0 dacă segmentul nu aduce investiție nouă.
               ${l.mod !== 'ramuri' ? ' Linia va trece automat la rețea cu ramuri.' : ''}</p>
           <//>`}
           <div class="toolbar">
@@ -1451,6 +1613,11 @@
     var id = l.id;
     var k = 'line.' + id + '.';
     var bL = C.lineBl(l);
+    var manualBranches = (l.ramuri || []).filter(function (b) { return b.costManual; });
+    var newWorks = manualBranches.reduce(function (sum, b) { return sum + (Number(b.IL) || 0); }, 0);
+    var autoWorks = Math.max(0, (Number(l.IL) || 0) - newWorks);
+    var userCount = (l.racordari || []).length;
+    var trsCount = (l.tronsoane || []).filter(function (t) { return t.tip !== 'stalpi'; }).length;
     var complex = p.meta.model === 'complex';
     var viewState = useState(props.initialScheme ? 'schema' : 'simplu');
     var view = viewState[0], setView = viewState[1];
@@ -1545,14 +1712,29 @@
           <button type="button" class="linkish bL-auto" hidden=${!l.bLManual} onClick=${function () { store.setLineBlAuto(id); }}>↺ automat = I_L / L</button>
         <//>
       </div>
-      <p class="hint">${l.mod === 'ramuri' ? 'După deducerea costurilor proprii, restul investiției se distribuie pe lungimea ramurilor automate.' : 'Costul fiecărui tronson = lungime × b_L.'}
+      <p class="hint">${l.mod === 'ramuri' ? 'Lucrările noi pe derivări au cost propriu; partea rămasă se distribuie doar pe ramurile automate existente.' : 'Costul fiecărui tronson = lungime × b_L.'}
         <strong> <span data-line-bl=${id}>${money(bL)}</span> lei/m</strong>. <${K.RefChip} id="art12.1" />
         <span data-line-status=${id}>${lineStatus(l)}</span></p>
+      ${l.mod === 'ramuri' && manualBranches.length ? html`<${global.preact.Fragment}>
+        <p class="hint line-investment">
+          <strong>Investiție totală ${money(l.IL)} lei</strong> = partea automată <strong>${money(autoWorks)} lei</strong>
+          + lucrări noi pe derivări <strong>${money(newWorks)} lei</strong>. b_L rămâne ${money(bL)} lei/m
+          pentru partea automată.</p>
+        ${Number(l.IL) > 0 ? html`<div class="investment-chart" role="img"
+          aria-label=${'Partea inițială ' + money(autoWorks) + ' lei, lucrări noi ' + money(newWorks) + ' lei'}>
+          <span class="investment-initial" style=${{ width: (autoWorks / Math.max(Number(l.IL), newWorks, 1) * 100) + '%' }}></span>
+          <span class="investment-new" style=${{ width: (newWorks / Math.max(Number(l.IL), newWorks, 1) * 100) + '%' }}></span>
+        </div>
+        <div class="investment-legend">
+          <span><i class="inv-dot initial" aria-hidden="true"></i>Partea inițială ${money(autoWorks)} lei</span>
+          <span><i class="inv-dot new" aria-hidden="true"></i>Lucrări noi ${money(newWorks)} lei</span>
+        </div>` : null}
+      <//>` : null}
       <${TranzDetails} kind="line" x=${l} />
       ${props.initialScheme ? detailsContent : html`<${global.preact.Fragment}>
         <${LineCanvas} l=${l} />
         <details class="advanced line-details">
-          <summary>Detalii — utilizatori, distanțe, tronsoane și date tehnice</summary>
+          <summary>Detalii — ${userCount} utilizatori, ${trsCount} tronsoane și date tehnice</summary>
           ${detailsContent}
         </details>
       <//>`}

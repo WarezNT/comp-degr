@@ -554,6 +554,7 @@ svg.diagram { display: block; width: 100%; height: auto; }
 .dist-input { display: inline-flex; align-items: center; gap: 6px; }
 .dist-input input { width: 110px; min-height: 40px; }
 .line-intro { margin: 4px 0 14px; }
+.line-investment { border-left: 3px solid var(--info); padding-left: 10px; }
 .line-view-mode { margin: 4px 0 16px; }
 .line-section-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px 20px; flex-wrap: wrap; margin-bottom: 10px; }
 .line-section-head h3 { margin: 0 0 4px; }
@@ -583,6 +584,38 @@ svg.diagram { display: block; width: 100%; height: auto; }
 .line-canvas-head h3 { margin: 0 0 4px; }
 .line-canvas .plan-scroll { max-height: 62vh; }
 .line-canvas-svg { min-width: 720px; }
+.line-canvas-svg.fit { width: 100%; height: auto; min-width: 0; }
+.line-canvas .plan-node:focus { outline: none; }
+.line-canvas .plan-node:focus-visible circle { stroke: var(--info); stroke-width: 4; }
+.line-canvas-tools { flex-wrap: wrap; margin: 8px 0; }
+.line-canvas-tools .btn[aria-pressed="true"] { background: var(--info); color: var(--eon-white); border-color: var(--info); }
+.line-canvas-tools .btn[aria-pressed="true"]:hover { background: var(--eon-system-highlight-dark); border-color: var(--eon-system-highlight-dark); }
+.canvas-tour { border: 1px solid var(--info); background: var(--info-soft); border-radius: var(--radius); padding: 10px 14px; margin: 8px 0; }
+.canvas-tour-step { font-size: 12px; font-weight: 700; color: var(--info); }
+.canvas-tour p { margin: 4px 0 8px; }
+.line-canvas-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.line-canvas-layout.has-panel { grid-template-columns: minmax(0, 1fr) 300px; }
+.line-canvas-main { min-width: 0; }
+.line-canvas-panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); padding: 14px; min-width: 0; }
+.line-canvas-panel h3 { margin: 0; }
+.line-canvas-panel h4 { margin: 16px 0 6px; }
+.line-canvas-panel dl { display: grid; grid-template-columns: minmax(80px, .7fr) minmax(0, 1fr); gap: 6px 10px; }
+.line-canvas-panel dt { color: var(--muted); }
+.line-canvas-panel dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.panel-users { margin: 0; padding-left: 18px; }
+.line-canvas-panel-actions { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin-top: 12px; }
+.line-canvas-panel-actions .btn { text-align: left; white-space: normal; }
+.investment-chart { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--eon-grey200); margin: 6px 0; }
+.investment-chart span { display: block; height: 100%; }
+.investment-initial { background: var(--info); }
+.investment-new { background: var(--eon-red600); }
+.investment-legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.inv-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+.inv-dot.initial { background: var(--info); }
+.inv-dot.new { background: var(--eon-red600); }
+@media (max-width: 1000px) {
+  .line-canvas-layout.has-panel { grid-template-columns: minmax(0, 1fr); }
+}
 .line-canvas-origin circle { fill: var(--panel); stroke: var(--eon-red600); stroke-width: 3; }
 .plan-node-branch { fill: var(--info); font-size: 11px; font-weight: 600; }
 .canvas-menu-backdrop { position: fixed; inset: 0; z-index: 1300; }

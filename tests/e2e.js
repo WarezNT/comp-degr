@@ -427,6 +427,15 @@ async function openLineDetails(page) {
       racordari: [{ userId: 'u1', distanta: 100 }] }];
     window.AppUI.setProject(p); window.AppUI.store.guide.on = false; window.AppUI.setTab('instalatie');
   });
+  check('canvas: linia este încadrată implicit, fără derulare orizontală',
+    await page.locator('.line-canvas-svg.fit').count() === 1, '');
+  check('canvas: turul rapid apare la prima folosire', await page.locator('.canvas-tour').count() === 1, '');
+  await page.getByRole('button', { name: 'Sari peste tur', exact: true }).click();
+  await page.locator('.line-canvas .plan-node').first().click();
+  check('canvas: click pe nod deschide panoul contextual',
+    await page.locator('.line-canvas-panel').count() === 1 &&
+    /Adaugă derivare aici/.test(await page.locator('.line-canvas-panel').innerText()), '');
+  await page.locator('.line-canvas-panel').getByRole('button', { name: 'Închide panoul', exact: true }).click();
   await page.locator('.line-canvas .plan-node').first().click({ button: 'right' });
   check('canvas: click dreapta pe nod deschide meniul contextual',
     await page.getByRole('menuitem', { name: 'Adaugă derivare aici', exact: true }).count() === 1, '');
@@ -435,12 +444,24 @@ async function openLineDetails(page) {
   check('canvas: dialogul pornește din nodul ales',
     await canvasDialog.count() === 1 && /Desprindere din/.test(await canvasDialog.innerText()), '');
   await canvasDialog.getByLabel('Lungime (m)', { exact: true }).fill('25');
+  await canvasDialog.getByLabel('Cost lucrare nouă (lei)', { exact: true }).fill('5000');
   await canvasDialog.getByLabel('Denumire', { exact: true }).fill('Derivare canvas');
   await canvasDialog.getByRole('button', { name: 'Creează', exact: true }).click();
   await page.waitForFunction(() => window.AppUI.getState().linii[0].mod === 'ramuri');
-  check('canvas: derivarea este creată din meniul contextual', await page.evaluate(() => {
+  check('canvas: derivarea este creată cu cost propriu, fără redistribuire', await page.evaluate(() => {
     const l = window.AppUI.getState().linii[0];
-    return l.ramuri.length === 2 && l.ramuri[1].L === 25 && l.ramuri[1].nume === 'Derivare canvas';
+    return l.ramuri.length === 2 && l.ramuri[1].L === 25 && l.ramuri[1].nume === 'Derivare canvas' &&
+      l.ramuri[1].IL === 5000 && l.IL === 15000;
+  }), '');
+  check('canvas: graficul investiției apare', await page.locator('.investment-chart').count() === 1 &&
+    /Lucrări noi/.test(await page.locator('.investment-legend').innerText()), '');
+  await page.evaluate(() => window.AppUI.undo());
+  check('canvas: redo devine disponibil după undo',
+    await page.getByRole('button', { name: /Refă/ }).count() === 1, '');
+  await page.getByRole('button', { name: /Refă/ }).click();
+  check('canvas: redo restaurează derivarea', await page.evaluate(() => {
+    const l = window.AppUI.getState().linii[0];
+    return l.mod === 'ramuri' && l.ramuri.length === 2 && l.IL === 15000;
   }), '');
   check('fără erori JS în meniul contextual', page.errors.length === 0, page.errors.join('; '));
   await page.close();
@@ -1689,7 +1710,7 @@ async function openLineDetails(page) {
   await page.setViewportSize({ width: 320, height: 900 });
   check('planșa la 320 px: derulare conținută, fără depășirea paginii', await page.evaluate(() =>
     document.documentElement.scrollWidth <= 321 &&
-    document.querySelector('.plan-scroll').scrollWidth > document.querySelector('.plan-scroll').clientWidth), '');
+    document.querySelector('.plan-editor .plan-scroll').scrollWidth > document.querySelector('.plan-editor .plan-scroll').clientWidth), '');
   await page.setViewportSize({ width: 1440, height: 1100 });
   await page.evaluate(() => window.AppUI.flushSave());
   const persistedPlan = await page.evaluate(() => {

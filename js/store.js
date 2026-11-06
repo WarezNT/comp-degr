@@ -38,6 +38,7 @@
     saveStatus: 'ok',     // 'ok' | 'pending' | 'failed'
     lastSavedAt: readLastSaved(),   // momentul ultimei salvări reușite
     undoStack: [],
+    redoStack: [],
     projectSeq: 0,        // crește la încărcarea unui alt proiect (nu la undo)
     norma: null,          // id-ul regulii afișate în fereastra cu textul normei
     render: function () {},
@@ -135,19 +136,43 @@
     try {
       store.undoStack.push(JSON.stringify(store.state));
       if (store.undoStack.length > UNDO_MAX) store.undoStack.shift();
+      store.redoStack = [];
     } catch (e) { /* proiect nesalvabil — fără undo */ }
   }
   store.pushUndo = pushUndo;
 
   store.undo = function () {
     if (!store.undoStack.length) return;
+    var current = null;
+    try { current = JSON.stringify(store.state); } catch (e) { /* ignorat */ }
     try {
       store.state = S.migrate(JSON.parse(store.undoStack.pop()));
     } catch (e) { store.toast('Nu s-a putut reveni la starea anterioară.', 'error'); return; }
+    if (current) {
+      store.redoStack.push(current);
+      if (store.redoStack.length > UNDO_MAX) store.redoStack.shift();
+    }
     C.deriveAll(store.state);
     recompute();
     saveNow();
     store.toast('Ultima modificare a fost anulată.', 'info');
+  };
+
+  store.redo = function () {
+    if (!store.redoStack.length) return;
+    var current = null;
+    try { current = JSON.stringify(store.state); } catch (e) { /* ignorat */ }
+    try {
+      store.state = S.migrate(JSON.parse(store.redoStack.pop()));
+    } catch (e) { store.toast('Nu s-a putut reface modificarea.', 'error'); return; }
+    if (current) {
+      store.undoStack.push(current);
+      if (store.undoStack.length > UNDO_MAX) store.undoStack.shift();
+    }
+    C.deriveAll(store.state);
+    recompute();
+    saveNow();
+    store.toast('Modificarea a fost refăcută.', 'info');
   };
 
   /* ----------------------- modificări de date ----------------------- */
@@ -447,12 +472,16 @@
     var nume = String(values.nume || '').trim();
     var L = Number(values.L);
     var deLa = Number(values.deLa);
+    var hasCost = values.cost !== undefined && values.cost !== null && String(values.cost).trim() !== '';
+    var cost = hasCost ? Number(values.cost) : 0;
     if (!nume) { store.toast('Completează denumirea derivării.', 'error'); return null; }
     if (!isFinite(L) || L <= 0) { store.toast('Lungimea derivării trebuie să fie pozitivă.', 'error'); return null; }
     if (!isFinite(deLa) || deLa < 0) { store.toast('Distanța de desprindere trebuie să fie nenegativă.', 'error'); return null; }
+    if (hasCost && (!isFinite(cost) || cost < 0)) { store.toast('Costul lucrării noi trebuie să fie nenegativ.', 'error'); return null; }
     var branch = {
-      id: S.uid('ramura'), nume: nume, parentId: '', deLa: deLa, L: L, IL: '',
-      costManual: false, tipLinie: values.tipLinie || '', conductor: values.conductor || '',
+      id: S.uid('ramura'), nume: nume, parentId: '', deLa: deLa, L: L,
+      IL: hasCost ? cost : '', costManual: hasCost,
+      tipLinie: values.tipLinie || '', conductor: values.conductor || '',
       sectiune: values.sectiune || '', observatii: values.observatii || '', finantatorId: ''
     };
     var next;
@@ -480,11 +509,19 @@
       store.toast('Linia are tronsoane manuale. Treci întâi la distanțe, apoi adaugă derivarea.', 'error');
       return null;
     }
+    if (hasCost) next.IL = (Number(next.IL) || 0) + cost;
     var errors = global.AppTree.analyze(next).errors;
     if (errors.length) { store.toast(errors.join(' '), 'error'); return null; }
     mutate(function (p) { p.linii[p.linii.indexOf(line)] = next; }, { undo: true, noFocus: true });
-    store.toast('Derivarea „' + nume + '” a fost adăugată' +
-      (line.mod === 'distante' ? '. Linia a trecut la rețea cu ramuri.' : '.'), 'info');
+    var message = 'Derivarea „' + nume + '” a fost adăugată' +
+      (line.mod === 'distante' ? '. Linia a trecut la rețea cu ramuri.' : '.');
+    if (hasCost) {
+      message += cost > 0
+        ? ' Investiția totală a crescut cu ' + cost.toLocaleString('ro-RO', { maximumFractionDigits: 2 }) +
+          ' lei; partea inițială nu se redistribuie.'
+        : ' Costul lucrării noi este 0; partea inițială rămâne neschimbată. Completează costul în Detalii dacă este cazul.';
+    }
+    store.toast(message, 'info');
     return branch.id;
   };
 
@@ -513,7 +550,7 @@
     var ok = store.editTree(lineId, function (l) {
       var parent = byId(l.ramuri, parentId);
       l.ramuri.push({ id: id, nume: 'Ramura ' + (l.ramuri.length + 1), parentId: parentId,
-        deLa: parent ? Number(parent.L) : 0, L: 100, IL: '', costManual: false });
+        deLa: parent ? Number(parent.L) : 0, L: 100, IL: 0, costManual: true });
     });
     return ok ? id : null;
   };
@@ -670,6 +707,7 @@
 
   function loadProject(next) {
     store.state = next;
+    store.redoStack = [];
     store.projectSeq++;
     C.deriveAll(store.state);
     store.results = null;
@@ -684,6 +722,7 @@
 
   store.setProject = function (p) {   // folosit de teste și de import
     store.state = S.migrate(p);
+    store.redoStack = [];
     store.projectSeq++;
     C.deriveAll(store.state);
     store.results = null;

@@ -298,8 +298,13 @@
         <li><strong>un tronson</strong> — adaugi un utilizator la distanța clickului,
           o derivare sau împarți tronsonul printr-o limită tehnică.</li>
       </ul>
+      <p>Canvasul are <strong>Încadrează linia</strong> (implicit, fără derulare orizontală)
+        și <strong>Mărime reală</strong>, un <strong>tur rapid</strong> de trei pași la prima
+        folosire și un <strong>panou contextual</strong> la click pe nod sau tronson.
+        Butonul <strong>Refă</strong> din antet (sau Ctrl+Y) reface ultima anulare; o
+        modificare nouă golește istoricul de refacere.</p>
       <p>Dialogul apare direct peste schemă, cu ramura și distanța deja completate;
-        scrii doar numele, lungimea și tipul. Tronsoanele folosite de utilizatorii cu
+        scrii numele, lungimea, costul lucrării noi și tipul. Tronsoanele folosite de utilizatorii cu
         rol <strong>Nou</strong> sunt marcate cu roșu, inclusiv pe derivări; o derivare
         tocmai adăugată primește eticheta <strong>„nou”</strong>. Restul formularelor
         (lista exactă de distanțe, tabelul de tronsoane, editorul tehnic, planșa și
@@ -314,10 +319,12 @@
       <p>Pentru un tronson fizic nou care continuă linia, alege
         <strong>Prelungește linia (tronson nou)</strong> din meniul nodului.</p>
       <p>Dacă linia este încă pe distanțe, aplicația o trece automat la rețea cu ramuri
-        în aceeași acțiune, păstrând racordările existente. Investiția totală
-        <code>I_L</code> rămâne neschimbată; derivarea primește cost automat din
-        <code>b_L</code>. Dacă derivarea aduce investiție nouă, crește <code>I_L</code>
-        după salvare. Lista ramurilor arată ierarhia și punctul de desprindere.</p>
+        în aceeași acțiune, păstrând racordările existente. Formularul cere și
+        <strong>costul lucrării noi</strong>: acesta se adaugă la investiția totală
+        <code>I_L</code>, iar partea inițială și <code>b_L</code> rămân neschimbate.
+        Cu cost <code>0</code>, derivarea nu aduce investiție nouă și nu modifică
+        prețul inițial. Lista ramurilor arată ierarhia, punctul de desprindere și
+        costul propriu.</p>
 
       <h3>Planșă cu noduri — opțiune avansată</h3>
       <p>În <strong>Instalație → Detalii → Opțiuni avansate → Planșă cu noduri + tabel</strong>,
