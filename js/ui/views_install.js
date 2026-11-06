@@ -15,11 +15,13 @@
   var money = K.money;
   var useState = global.preactHooks.useState;
   var useRef = global.preactHooks.useRef;
+  var useEffect = global.preactHooks.useEffect;
 
   function users() { return store.state.utilizatori; }
   function uName(u) { return u.nume || u.codPA || 'fără nume'; }
   function reportUserLabel(id) {
-    return 'U' + (users().map(function (u) { return u.id; }).indexOf(id) + 1);
+    var index = users().map(function (u) { return u.id; }).indexOf(id);
+    return index >= 0 ? 'U' + (index + 1) : 'U?';
   }
 
   /* ----------------------- prevederi tranzitorii (art. 17–18) ----------------------- */
@@ -509,24 +511,140 @@
       }} />`;
   }
 
+  function recOf(l, userId) {
+    return (l.racordari || []).filter(function (r) { return r.userId === userId; })[0];
+  }
+
+  // Pasul 2 al liniei: o singură listă clară, cu toți utilizatorii proiectului.
+  // Distanța goală înseamnă „nu folosește această linie”.
   function DistEditor(props) {
     var l = props.l;
     var us = users();
-    if (!us.length) return html`<p class="muted">Adaugă mai întâi utilizatori în pasul „2 · Utilizatori”.</p>`;
-    return html`<div class="dist-editor">
-      <p class="hint">Setează <strong>distanța de la punctul de racordare (PR) în metri</strong> pentru fiecare utilizator. Tronsoanele și costurile se generează automat.
-        Gol = utilizatorul nu e racordat pe această linie.</p>
-      <div class="dist-rows">
-        ${us.map(function (u) {
-          return html`<label class="dist-row" key=${u.id}>
-            <span class="dist-name"><span class=${'dot rol-' + u.rol}></span>${uName(u)} <span class="muted">(${V.ROL_LABEL[u.rol]})</span></span>
-            <span class="dist-input">
-              <${RacordareInput} l=${l} userId=${u.id} /> <span class="muted">m</span>
-            </span>
-          </label>`;
-        })}
+    var L = Number(l.L) || 0;
+    var connected = us.filter(function (u) { return !!recOf(l, u.id); }).length;
+    var head = html`<div class="line-section-head">
+      <div>
+        <h3>2 · Racordările utilizatorilor</h3>
+        <p class="hint">Scrie <strong>distanța de la punctul de racordare (PR), în metri</strong>.
+          Lasă gol dacă utilizatorul nu folosește această linie. Tronsoanele și costurile se calculează automat.</p>
+      </div>
+      <div class="toolbar">
+        <button type="button" class="btn tiny" onClick=${store.addUser}>+ Adaugă utilizator</button>
+        <button type="button" class="btn tiny ghost" onClick=${function () { store.setTab('utilizatori'); }}>Nume și roluri →</button>
       </div>
     </div>`;
+    if (!us.length) {
+      return html`<section class="line-users">
+        ${head}
+        <p class="line-empty">Nu există utilizatori în proiect. Adaugă primul utilizator, apoi scrie distanța lui pe linie.</p>
+      </section>`;
+    }
+    return html`<section class="line-users">
+      ${head}
+      <div class="dist-rows">
+        ${us.map(function (u) {
+          var rec = recOf(l, u.id);
+          var d = rec ? Number(rec.distanta) : null;
+          var invalid = !!rec && (d <= 0 || (L > 0 && d > L));
+          return html`<div class=${'dist-row' + (rec ? ' connected' : '') + (invalid ? ' invalid' : '')} key=${u.id}>
+            <span class="dist-name"><span class=${'dot rol-' + u.rol}></span>
+              <span><strong>${uName(u)}</strong> <span class="muted">${V.ROL_LABEL[u.rol]}</span></span>
+            </span>
+            <span class="dist-input">
+              <${RacordareInput} l=${l} userId=${u.id} />
+              <span class="muted">m</span>
+              ${rec ? html`<button type="button" class="linkish" title="Scoate utilizatorul de pe această linie"
+                onClick=${function () { store.pushUndo(); store.setRacordare(l.id, u.id, ''); }}>deconectează</button>` : null}
+            </span>
+          </div>`;
+        })}
+      </div>
+      <p class="hint">${connected} din ${us.length} utilizatori sunt racordați pe linie.
+        ${L > 0 ? ' Lungimea liniei este ' + money(L) + ' m.' : ' Completează mai întâi lungimea totală L.'}</p>
+    </section>`;
+  }
+
+  // Pasul 3: schița se actualizează singură din date; cercurile pot fi trase.
+  function LineOverview(props) {
+    var l = props.l;
+    return html`<section class="line-overview">
+      <h3>3 · Cum arată linia</h3>
+      ${Number(l.L) > 0
+        ? html`<${LineDiagram} l=${l} />
+          <${LineLegend} />
+          <p class="hint">Schiță orientativă, nu la scară. Poți trage cercurile utilizatorilor pentru a le muta;
+            distanța exactă rămâne cea scrisă mai sus.</p>`
+        : html`<p class="line-empty">Completează lungimea totală L și distanțele utilizatorilor pentru a vedea schița liniei.</p>`}
+    </section>`;
+  }
+
+  // Pasul 4: rezumatul derivat, ca să se vadă imediat ce iese din date.
+  function LineDerived(props) {
+    var l = props.l;
+    var trs = (l.tronsoane || []).filter(function (t) { return t.tip !== 'stalpi'; });
+    var totalLength = trs.reduce(function (s, t) { return s + (Number(t.lungime) || 0); }, 0);
+    var totalCost = trs.reduce(function (s, t) { return s + C.tronsonCost(l, t); }, 0);
+    var IL = Number(l.IL) || 0;
+    var ok = Math.abs(totalCost - IL) < 0.5;
+    return html`<section class="line-derived">
+      <h3>4 · Ce se calculează</h3>
+      <ul class="line-stats">
+        <li><strong>${trs.length}</strong> tronsoane</li>
+        <li><strong>${K.fmtNum(totalLength)}</strong> m însumați</li>
+        <li><strong>${money(totalCost)}</strong> lei cost total</li>
+        <li class=${ok ? 'ok' : 'warn'}>${ok ? '✓ suma tronsoanelor = I_L' : '⚠ diferență față de I_L: ' + money(IL - totalCost) + ' lei'}</li>
+      </ul>
+      ${trs.length ? html`<details class="advanced line-derived-table">
+        <summary>Tabel tronsoane derivate (${trs.length})</summary>
+        <${TronsonTable} l=${l} />
+      </details>` : null}
+      <p class="hint">Tronsoanele apar automat între PR, distanțele scrise și capătul liniei.
+        Costul fiecăruia = lungime × b_L. <${K.RefChip} id="art12.1" /></p>
+    </section>`;
+  }
+
+  // Liniile vechi, cu tronsoane și bifări manuale, rămân complet editabile.
+  function LineLegacy(props) {
+    var l = props.l;
+    return html`<section class="line-legacy">
+      <div class="line-legacy-note">
+        <h3>Linie cu tronsoane introduse manual</h3>
+        <p>Această linie folosește modul vechi: tronsoanele au lungimi proprii, iar utilizatorii se bifează pe fiecare.
+          Poți continua cu tabelul de mai jos sau poți trece la introducerea pe distanțe, care generează tronsoanele automat.</p>
+        <button type="button" class="btn" onClick=${function () {
+          if (!global.confirm('Trecerea la distanțe regenerează tronsoanele și costurile automate. Alocările manuale pot fi schimbate. Continui? Poți reveni cu „Anulează”.')) return;
+          store.pushUndo();
+          store.convertLine(l.id);
+        }}>→ Trecere la distanțe (recomandat)</button>
+      </div>
+      <div class="toolbar">
+        <strong>Tronsoane și utilizatori</strong>
+        <button type="button" class="btn tiny" data-guide=${'btn:add-tronson:' + l.id} onClick=${function () { store.addTronson(l.id); }}>+ Tronson</button>
+        <button type="button" class="btn tiny" title="Art. 15 alin. 1: al doilea circuit pe stâlpii unei linii aeriene existente" onClick=${function () { store.addStalpi(l.id); }}>+ Circuit pe stâlpi existenți</button>
+        <button type="button" class="btn tiny ghost" onClick=${function () { store.autoAllTronsoane(l.id); }}>↺ Recalculează toate</button>
+      </div>
+      <${AllocMatrix} l=${l} />
+      <p class="hint">Costul fiecărui tronson = lungime × b_L, dacă nu este fixat manual.
+        Bifează utilizatorii care folosesc fiecare tronson. <${K.RefChip} id="art12.1" /></p>
+    </section>`;
+  }
+
+  // Rețelele convertite la ramuri au propriul editor; păstrăm un rezumat lizibil.
+  function LineBranches(props) {
+    var l = props.l;
+    var a = global.AppTree.analyze(l);
+    var plan = store.state.meta.model === 'line';
+    return html`<section class="line-branches">
+      <h3>Rețea cu ramuri</h3>
+      <p class="hint">Lungimea totală este <strong>${K.fmtNum(l.L)} m</strong>, investiția <strong>${money(l.IL)} lei</strong>,
+        iar ${a.routes.length} utilizatori au traseu calculat de la PR.</p>
+      ${a.errors.length ? html`<div class="warn" role="alert">${a.errors.map(function (text) { return html`<p>${text}</p>`; })}</div>` : null}
+      ${plan ? html`<${V.PlanEditor} l=${l} tableMode=${true} />` : null}
+      <details class="advanced">
+        <summary>Proprietăți tehnice, alocări speciale și detaliu de calcul</summary>
+        <${V.TreeEditor} l=${l} hideDiagram=${true} />
+      </details>
+    </section>`;
   }
 
   function LineScheme(props) {
@@ -943,22 +1061,70 @@
     var l = props.l;
     var p = store.state;
     var id = l.id;
+    var k = 'line.' + id + '.';
     var bL = C.lineBl(l);
     var complex = p.meta.model === 'complex';
-    var mode = useState(!!props.initialScheme);
-    var plan = useState(false);
-    var scheme = (p.meta.model === 'line' || complex) && mode[0];
+    var viewState = useState(props.initialScheme ? 'schema' : 'simplu');
+    var view = viewState[0], setView = viewState[1];
+    // La schimbarea proiectului nu păstrăm modul grafic al liniei anterioare
+    // (undo-ul aceluiași proiect nu resetează vizualizarea). Prima montare
+    // păstrează modul cerut de context, ca navigarea ghidului să poată comuta.
+    var seqRef = useRef(store.projectSeq);
+    useEffect(function () {
+      if (seqRef.current === store.projectSeq) return;
+      seqRef.current = store.projectSeq;
+      setView(props.initialScheme ? 'schema' : 'simplu');
+    }, [store.projectSeq]);
+    var canScheme = (p.meta.model === 'line' || complex) && l.mod !== 'ramuri';
+    var canPlan = p.meta.model === 'line';
+    var isPlan = canPlan && view === 'plan';
+    var isScheme = canScheme && view === 'schema';
+
+    // Ghidul poate cere un câmp din formular; comutăm automat pe formular.
     K.useRevealTarget(function (key) {
-      if (['line.' + id + '.', 'pr.' + id + '.', 'zona.' + id + '.', 'dist:' + id + ':',
-        'tronson.' + id + '.', 'cell:' + id + ':'].some(function (prefix) { return key.indexOf(prefix) === 0; }) ||
-        key === 'tree:' + id || key === 'btn:add-tronson:' + id) plan[1](false);
-      if (['dist:' + id + ':', 'tronson.' + id + '.', 'cell:' + id + ':'].some(function (prefix) { return key.indexOf(prefix) === 0; }) ||
-        key === 'btn:add-tronson:' + id) mode[1](false);
+      var prefixes = [k, 'pr.' + id + '.', 'zona.' + id + '.', 'dist:' + id + ':',
+        'tronson.' + id + '.', 'cell:' + id + ':', 'tree:' + id];
+      if (prefixes.some(function (prefix) { return key.indexOf(prefix) === 0; }) ||
+        key === 'btn:add-tronson:' + id) setView('simplu');
     });
+
     var role = p.complexConfig.liniiIds.indexOf(id) >= 0 ? 'u1' : (p.complexConfig.liniiU2Ids.indexOf(id) >= 0 ? 'u2' : '');
+
+    function modeBar() {
+      if (!canScheme) return null;
+      return html`<div class="toolbar scheme-mode line-view-mode" role="group" aria-label="Mod de afișare a liniei">
+        <button type="button" class="btn tiny" aria-pressed=${!isScheme && !isPlan} onClick=${function () { setView('simplu'); }}>Formular / tabel</button>
+        <button type="button" class="btn tiny" aria-pressed=${isScheme} onClick=${function () { setView('schema'); }}>Schemă</button>
+      </div>`;
+    }
+
+    var advanced = [];
+    if (canPlan) advanced.push('planșă cu noduri');
+    if (l.mod === 'distante') advanced.push('circuite pe stâlpi', 'rețea ramificată');
+
+    var content;
+    if (isPlan) {
+      content = html`<div class="toolbar line-plan-bar">
+        <button type="button" class="btn tiny" onClick=${function () { setView('simplu'); }}>Formular avansat</button>
+        <span class="hint">Planșa nu modifică singură datele: salvezi fiecare rând.</span>
+      </div>
+      <${V.PlanEditor} l=${l} tableMode=${true} />`;
+    } else if (isScheme) {
+      content = html`${modeBar()}<${LineScheme} l=${l} />`;
+    } else {
+      content = html`${modeBar()}
+        ${l.mod === 'ramuri' ? html`<${LineBranches} l=${l} />`
+          : l.mod === 'distante' ? html`<${global.preact.Fragment}>
+              <${DistEditor} l=${l} />
+              <${LineOverview} l=${l} />
+              <${LineDerived} l=${l} />
+            <//>`
+          : html`<${LineLegacy} l=${l} />`}`;
+    }
+
     return html`<div class="card line-card" key=${id}>
       <div class="card-head">
-        <${K.TextInput} path=${'line.' + id + '.nume'} label="Denumire linie" ph="Denumire linie" />
+        <${K.TextInput} path=${k + 'nume'} label="Denumire linie" ph="Denumire linie" />
         ${complex ? html`<select aria-label="Rol în instalația complexă" data-guide=${'role:' + id}
           onChange=${function (e) { store.setLineRole(id, e.target.value); }}>
           <option value="" selected=${role === ''}>Neinclusă</option>
@@ -967,17 +1133,15 @@
         </select>` : null}
         <button type="button" class="btn tiny danger" onClick=${function () { store.delLine(id); }}>Șterge linia</button>
       </div>
-      ${p.meta.model === 'line' ? html`<div class="toolbar plan-mode" role="group" aria-label="Editor de rețea">
-        <button type="button" class="btn tiny" aria-pressed=${plan[0]} onClick=${function () { plan[1](true); }}>Planșă cu noduri + tabel</button>
-        <button type="button" class="btn tiny" aria-pressed=${!plan[0]} onClick=${function () { plan[1](false); }}>Formular avansat</button>
-      </div>` : null}
-      ${plan[0] && p.meta.model === 'line' ? html`<${V.PlanEditor} l=${l} tableMode=${true} />` : html`<${global.preact.Fragment}>
+      <p class="hint line-intro">Completează de sus în jos: <strong>costul lucrării</strong>,
+        <strong>lungimea</strong>, apoi <strong>distanța fiecărui utilizator</strong>.
+        Tronsoanele și compensațiile se calculează automat.</p>
       <div class="row3">
-        <${K.Field} label="① Cost lucrări I_L (lei)" path=${'line.' + id + '.IL'} info="line.IL"><${K.NumInput} path=${'line.' + id + '.IL'} /><//>
-        <${K.Field} label="② Lungime totală L (m)" path=${'line.' + id + '.L'} info="line.L">${l.mod === 'ramuri'
-          ? html`<output>${l.L} m — suma ramurilor</output>` : html`<${K.NumInput} path=${'line.' + id + '.L'} />`}<//>
-        <${K.Field} label="③ Cost specific b_L (lei/m)" path=${'line.' + id + '.bL'} info="line.bL">
-          ${l.mod === 'ramuri' ? html`<output>${money(bL)} lei/m — ramuri automate</output>` : html`<${K.NumInput} path=${'line.' + id + '.bL'} />`}
+        <${K.Field} label="① Cost lucrări I_L (lei)" path=${k + 'IL'} info="line.IL"><${K.NumInput} path=${k + 'IL'} /><//>
+        <${K.Field} label="② Lungime totală L (m)" path=${k + 'L'} info="line.L">${l.mod === 'ramuri'
+          ? html`<output>${l.L} m — suma ramurilor</output>` : html`<${K.NumInput} path=${k + 'L'} />`}<//>
+        <${K.Field} label="③ Cost specific b_L (lei/m)" path=${k + 'bL'} info="line.bL">
+          ${l.mod === 'ramuri' ? html`<output>${money(bL)} lei/m — ramuri automate</output>` : html`<${K.NumInput} path=${k + 'bL'} />`}
           <button type="button" class="linkish bL-auto" hidden=${!l.bLManual} onClick=${function () { store.setLineBlAuto(id); }}>↺ automat = I_L / L</button>
         <//>
       </div>
@@ -985,38 +1149,20 @@
         <strong> <span data-line-bl=${id}>${money(bL)}</span> lei/m</strong>. <${K.RefChip} id="art12.1" />
         <span data-line-status=${id}>${lineStatus(l)}</span></p>
       <${TranzDetails} kind="line" x=${l} />
+      ${content}
       <${LineTechnicalEditor} l=${l} />
-      ${(p.meta.model === 'line' || complex) && l.mod === 'distante' ? html`<div class="toolbar">
-        <button type="button" class="btn tiny" onClick=${function () {
-          if (global.confirm('Transformi linia într-o rețea cu ramuri și subramuri, fără bucle? Racordările și limitele existente se păstrează pe linia principală. Poți reveni cu „Anulează”.')) store.convertTree(id);
-        }}>→ Rețea cu ramuri</button>
-      </div>` : null}
-      ${(p.meta.model === 'line' || complex) && l.mod !== 'ramuri' ? html`<div class="toolbar scheme-mode" role="group" aria-label="Mod de introducere">
-        <button type="button" class="btn tiny" aria-pressed=${!scheme} onClick=${function () { mode[1](false); }}>Formular / tabel</button>
-        <button type="button" class="btn tiny" aria-pressed=${scheme} onClick=${function () { mode[1](true); }}>Schemă</button>
-      </div>` : null}
-      ${l.mod === 'ramuri' ? p.meta.model === 'line' ? html`
-        <${V.PlanEditor} l=${l} tableMode=${true} />
-        <details class="advanced"><summary>Proprietăți tehnice, alocări speciale și detaliu de calcul</summary>
-          <${V.TreeEditor} l=${l} hideDiagram=${true} />
-        </details>` : html`<${V.TreeEditor} l=${l} />` : scheme ? html`<${LineScheme} l=${l} />` : html`<div>
-      ${p.meta.model === 'line' ? html`<${V.PlanEditor} l=${l} tableMode=${true} />` : html`<${LineDiagram} l=${l} />`}
-      ${l.mod === 'distante' ? html`<div>
-        ${p.meta.model === 'line' ? html`<details class="advanced"><summary>Mod avansat — tronsoane derivate (${(l.tronsoane || []).length})</summary><${TronsonTable} l=${l} /></details>`
-          : html`<div class="toolbar"><strong>Puncte de racordare</strong>
-            <button type="button" class="btn tiny" title="Art. 15 alin. 1: al doilea circuit pe stâlpii unei linii aeriene existente" onClick=${function () { store.addStalpi(id); }}>+ Circuit pe stâlpi existenți</button>
-          </div><${DistEditor} l=${l} />`}
-      </div>` : html`<div>
-        <div class="toolbar"><strong>Tronsoane și utilizatori</strong>
-          <button type="button" class="btn tiny" data-guide=${'btn:add-tronson:' + id} onClick=${function () { store.addTronson(id); }}>+ Tronson</button>
-          <button type="button" class="btn tiny" title="Art. 15 alin. 1: al doilea circuit pe stâlpii unei linii aeriene existente" onClick=${function () { store.addStalpi(id); }}>+ Circuit pe stâlpi existenți</button>
-          <button type="button" class="btn tiny ghost" onClick=${function () { store.autoAllTronsoane(id); }}>↺ Recalculează toate</button>
-          <button type="button" class="btn tiny" onClick=${function () { store.convertLine(id); }} title="Trece linia la editorul pe distanțe (puncte de racordare)">→ Editează pe distanțe</button>
+      ${canPlan || (complex && l.mod === 'distante') ? html`<details class="advanced line-advanced">
+        <summary>Opțiuni avansate — ${advanced.join(' · ')}</summary>
+        <div class="toolbar">
+          ${canPlan ? html`<button type="button" class="btn tiny" aria-pressed=${isPlan} onClick=${function () { setView('plan'); }}>Planșă cu noduri + tabel</button>` : null}
+          ${l.mod === 'distante' ? html`<button type="button" class="btn tiny" title="Art. 15 alin. 1: al doilea circuit pe stâlpii unei linii aeriene existente" onClick=${function () { store.addStalpi(id); }}>+ Circuit pe stâlpi existenți</button>` : null}
+          ${(p.meta.model === 'line' || complex) && l.mod === 'distante' ? html`<button type="button" class="btn tiny" onClick=${function () {
+            if (global.confirm('Transformi linia într-o rețea cu ramuri și subramuri, fără bucle? Racordările și limitele existente se păstrează pe linia principală. Poți reveni cu „Anulează”.')) store.convertTree(id);
+          }}>→ Rețea cu ramuri</button>` : null}
         </div>
-        <${AllocMatrix} l=${l} />
-      </div>`}
-      </div>`}
-      <//>`}
+        <p class="hint">Planșa este utilă pentru rețele cu noduri și ramificații.
+          Pentru o linie simplă, formularul de mai sus este suficient.</p>
+      </details>` : null}
     </div>`;
   }
 
@@ -1088,6 +1234,12 @@
     var k = 'stat.' + id + '.';
     var noi = S.newIds(p);
     var mode = useState(!!props.initialScheme), scheme = (p.meta.model === 'station' || complex) && mode[0];
+    var seqRef = useRef(store.projectSeq);
+    useEffect(function () {
+      if (seqRef.current === store.projectSeq) return;
+      seqRef.current = store.projectSeq;
+      mode[1](!!props.initialScheme);
+    }, [store.projectSeq]);
     return html`<div class="card station-card" key=${id}>
       <div class="card-head">
         <${K.TextInput} path=${k + 'nume'} label="Denumire stație / PT" ph="Denumire stație / PT" />
@@ -1102,18 +1254,21 @@
         datele transformatorului se păstrează pentru celelalte variante, dar nu intră în calcul.</p>` : null}
       ${scheme ? (complex && Number(p.complexConfig.varianta) === 2
         ? html`<${V.EquipmentInspector} s=${s} embedded=${true} />` : html`<${V.StationScheme} s=${s} />`) : html`<div>
+      <p class="hint line-intro">Completează transformatorul (capacitate și cost), apoi bifează utilizatorii racordați.
+        Echipamentele comune se introduc separat, ca să nu fie numărate de două ori în costul transformatorului.</p>
       <div class="row3">
-        <${K.Field} label="Capacitate nominală S_n (kVA)" path=${k + 'Sn'} info="stat.Sn"><${K.NumInput} path=${k + 'Sn'} /><//>
-        <${K.Field} label="Transformator de rezervă N-1 (kVA)" path=${k + 'SnRezerva'} info="stat.SnRezerva"><${K.NumInput} path=${k + 'SnRezerva'} /><//>
-        <${K.Field} label="Cost lucrări I_T (lei)" path=${k + 'IT'} info="stat.IT"><${K.NumInput} path=${k + 'IT'} /><//>
+        <${K.Field} label="① Capacitate nominală S_n (kVA)" path=${k + 'Sn'} info="stat.Sn"><${K.NumInput} path=${k + 'Sn'} /><//>
+        <${K.Field} label="② Transformator de rezervă N-1 (kVA)" path=${k + 'SnRezerva'} info="stat.SnRezerva"><${K.NumInput} path=${k + 'SnRezerva'} /><//>
+        <${K.Field} label="③ Cost lucrări I_T — transformator (lei)" path=${k + 'IT'} info="stat.IT"><${K.NumInput} path=${k + 'IT'} /><//>
       </div>
       <div class="row2">
-        <${K.Field} label="Echipamente comune, altele decât transformatoare (lei)" path=${k + 'elementeComune'} info="stat.elementeComune"><${K.NumInput} path=${k + 'elementeComune'} /><//>
-        <${K.Field} label="Întărire post" info="stat.intarire" id=${'f-' + id + '-int'}><${K.CheckInput} path=${k + 'intarire'} label="Transformator înlocuit / al doilea transformator" /><//>
+        <${K.Field} label="④ Echipamente comune, altele decât transformatoare (lei)" path=${k + 'elementeComune'} info="stat.elementeComune"><${K.NumInput} path=${k + 'elementeComune'} /><//>
+        <${K.Field} label="⑤ Întărire post" info="stat.intarire" id=${'f-' + id + '-int'}><${K.CheckInput} path=${k + 'intarire'} label="Transformator înlocuit / al doilea transformator" /><//>
       </div>
       <${StationDiagram} s=${s} />
       <${TranzDetails} kind="stat" x=${s} />
-      <div class="toolbar"><strong>Utilizatori racordați la stație</strong></div>
+      <div class="toolbar"><strong>Utilizatori racordați la stație</strong>
+        <span class="hint">${(s.utilizatori || []).length} bifați din ${users().length}</span></div>
       <div class="list-chk" data-guide=${'alloc:' + id}>
         ${users().length ? users().map(function (u) {
           var on = (s.utilizatori || []).indexOf(u.id) >= 0;
@@ -1357,7 +1512,8 @@
   function LineView() {
     return html`<${V.Panel} k="instalatie-line" title="Anexa 1 — linie electrică" help=${HELP.STEPS.instalatie.line}>
       <div class="toolbar"><button type="button" class="btn" data-guide="btn:add-line" onClick=${function () { store.addLine(); }}>+ Adaugă linie</button>
-        <span class="hint">Pe fiecare tronson costul se împarte în cote egale între utilizatorii care îl folosesc. <${K.RefChip} id="art12.1" /></span></div>
+        <span class="hint">Adaugă linia, completează costul și lungimea, apoi scrie distanța fiecărui utilizator.
+          Tronsoanele, costurile și compensațiile se calculează automat. <${K.RefChip} id="art12.1" /></span></div>
       <${LinesEditor} />
     <//>`;
   }

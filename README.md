@@ -68,20 +68,43 @@ opționali, opri mutarea automată a focusului sau ascunde ghidul (meniul „Pro
 2. **Utilizatori** — fiecare utilizator are **un singur rol**: *prim utilizator* (finanțator,
    primește), *nou* (plătește), *existent* sau *operator de rețea* (art. 6 alin. 5). Primul
    adăugat devine prim, al doilea nou. Contract/avize (art. 7, 17–18) într-un rând extensibil.
-3. **Instalație** — pentru Anexa 1, **Planșă cu noduri + tabel** afișează schema generată
-   de tabelul tronsoanelor și racordărilor. Se pot introduce ramificații alegând nodul
-   de început și lungimea locală; stațiile/PT, instalația complexă, vechea metodologie
-   și rețeaua de dezvoltator păstrează formularele lor.
+3. **Instalație** — pentru Anexa 1, formularul simplu cere **costul lucrării**, **lungimea**
+   și **distanța fiecărui utilizator față de PR**; schema, tronsoanele și costurile apar
+   automat. Planșa cu noduri, rețeaua cu ramuri și limitele tehnice sunt opțiuni avansate.
+   Stațiile/PT, instalația complexă, vechea metodologie și rețeaua de dezvoltator
+   păstrează formularele lor.
 4. **Rezultate** — stare (probleme cu link „Mergi la câmp”), rezumat (totaluri), centralizator cu
    **„Cum s-a calculat”** pe fiecare sumă (formulă + articol), condițiile art. 8 (restrânse când
    sunt îndeplinite), export CSV, print.
 
 ### Introducere grafică — Anexa 1
 
-#### Planșă cu noduri + tabel
+#### Formularul simplu (recomandat)
 
-În pasul **Instalație**, deschide **Planșă cu noduri + tabel**. Schema este deasupra
-tabelelor; definițiile din tabel generează nodurile și tronsoanele din desen.
+În pasul **Instalație**, fiecare linie se completează de sus în jos, fără să alegi
+mai întâi un editor:
+
+1. **Datele liniei** — costul lucrărilor `I_L`, lungimea totală `L` și, automat,
+   costul specific `b_L = I_L / L`.
+2. **Racordările utilizatorilor** — o singură listă cu toți utilizatorii proiectului.
+   Scrie distanța de la punctul de racordare (PR), în metri; lasă gol dacă utilizatorul
+   nu folosește linia. Butonul **+ Adaugă utilizator** creează imediat o persoană nouă.
+3. **Schița liniei** — se desenează automat din lungime și distanțe. Cercurile pot fi
+   trase pentru ajustare rapidă, iar distanța exactă rămâne cea scrisă în listă.
+4. **Rezumatul** — numărul de tronsoane, lungimea însumată, costul total și verificarea
+   `sumă tronsoane = I_L`. Tabelul detaliat se deschide dintr-un singur click.
+
+Tronsoanele se regenerează la fiecare modificare; nu se editează manual în acest flux.
+Opțiunile pentru rețele ramificate, planșă cu noduri, limite tehnice și conversia
+liniilor vechi sunt grupate la **Opțiuni avansate**, ca să nu încarce introducerea
+obișnuită. Liniile importate cu tronsoane manuale rămân complet editabile în tabelul
+lor, cu un buton explicit de trecere la distanțe.
+
+#### Planșă cu noduri + tabel (opțiune avansată)
+
+În pasul **Instalație → Opțiuni avansate**, deschide **Planșă cu noduri + tabel**.
+Schema este deasupra tabelelor; definițiile din tabel generează nodurile și
+tronsoanele din desen.
 
 - În **Tronsoane și nodurile dintre ele**, fiecare rând definește o porțiune:
   denumire, nod de început, lungime, cost, tip LEA/LES și finanțator documentat.
@@ -92,7 +115,11 @@ tabelelor; definițiile din tabel generează nodurile și tronsoanele din desen.
   (3x35+16–3x240+120 mm²), NFA2X (50+3x50–50+3x95 mm²) și NA2XS(F)2Y
   monopolar, 20 kV, 150 mm². Sunt opțiuni descriptive și nu modifică formulele
   sau costurile de calcul; aceeași listă este disponibilă în editorii tehnici
-  pentru zone și ramuri.
+  pentru zone, ramuri și tronsoane manuale. Tipul, conductorul/cablul și secțiunea
+  se păstrează pe porțiune și se transmit tronsoanelor derivate; secțiunile compuse
+  sunt păstrate ca text (de exemplu `3x35+16`), nu validate ca valori numerice.
+  La conversia unei linii existente, presetul selectat se aplică și zonei tehnice
+  care începe la 0 m. Nu este necesară migrarea proiectelor salvate.
 - În tabelul **Racordarea utilizatorilor la noduri**, alege tronsonul și distanța
   locală de la începutul lui. Astfel se poate racorda un utilizator și în interiorul
   unei porțiuni; nodul intermediar apare în desen și traseul de la PR se calculează.
@@ -108,8 +135,8 @@ tabelelor; definițiile din tabel generează nodurile și tronsoanele din desen.
 - LEA este desenată cu linie continuă, LES cu linie punctată. Culorile folosesc
   tokenii locali E.ON Storybook. Desenul este orientativ: poziția nodurilor nu
   stabilește metri, costuri sau racordări.
-- **Formular avansat** rămâne disponibil pentru limite tehnice, alocări speciale și
-  detaliul de calcul.
+- **Opțiunile avansate** rămân disponibile pentru limite tehnice, alocări speciale și
+  detaliul de calcul. Butonul **Formular avansat** revine din planșă la formularul simplu.
 
 #### Schemă simplă și unelte grafice
 
@@ -163,8 +190,9 @@ selecția vizuală nu sunt salvate în proiect.
 
 #### Planșă cu noduri
 
-În **Instalație → Planșă cu noduri + tabel**, desenul SVG este deasupra tabelelor de
-porțiuni și racordări. **Extinde planșa** oferă mai mult spațiu desenului în aceeași
+După conversia explicită la ramuri, în **Instalație → Opțiuni avansate → Planșă cu
+noduri + tabel**, desenul SVG este deasupra tabelelor de porțiuni și racordări.
+**Extinde planșa** oferă mai mult spațiu desenului în aceeași
 pagină; butonul de revenire sau Escape închide modul extins. Totul funcționează
 offline, fără biblioteci sau servicii noi.
 
@@ -193,7 +221,7 @@ offline, fără biblioteci sau servicii noi.
   nodurile libere, fără a elimina porțiuni, utilizatori sau limite tehnice.
 - Formularele păstrează drafturile fără salvare la fiecare tastă; confirmarea
   se face cu butonul formularului/Enter, iar Escape anulează draftul.
-  **Formular avansat** păstrează limitele tehnice, alocările speciale și toate
+  **Opțiunile avansate** păstrează limitele tehnice, alocările speciale și toate
   controalele existente. Conversia datelor vechi în rețea radială este explicită.
 
 #### Formularul avansat existent

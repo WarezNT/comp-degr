@@ -289,9 +289,19 @@
           pe ramuri și în PDF; culorile provin din paleta E.ON, disponibilă local.</li>
       </ul>
 
-      <h3>Planșă cu noduri — introducere simplificată</h3>
-      <p>În <strong>Instalație → Planșă cu noduri + tabel</strong>, schema este deasupra
-        tabelului. Rândurile tabelului definesc porțiunile, iar nodurile și tronsoanele
+      <h3>Formularul simplu (recomandat)</h3>
+      <p>În <strong>Instalație</strong>, fiecare linie se completează liniar, fără să alegi
+        mai întâi un editor: <strong>1)</strong> costul lucrării și lungimea totală,
+        <strong>2)</strong> distanța fiecărui utilizator față de PR (gol = nu folosește linia),
+        <strong>3)</strong> schița se desenează automat, <strong>4)</strong> rezumatul arată
+        tronsoanele, costul total și verificarea <code>sumă = I_L</code>. Butonul
+        <strong>+ Adaugă utilizator</strong> creează imediat o persoană nouă, iar
+        <strong>Nume și roluri</strong> duce la pasul Utilizatori. Planșa, ramurile și
+        limitele tehnice sunt grupate la <strong>Opțiuni avansate</strong>.</p>
+
+      <h3>Planșă cu noduri — opțiune avansată</h3>
+      <p>În <strong>Instalație → Opțiuni avansate → Planșă cu noduri + tabel</strong>,
+        schema este deasupra tabelului. Rândurile tabelului definesc porțiunile, iar nodurile și tronsoanele
         se generează din ele. Pentru prima porțiune, originea este PR; pentru o
         continuare, alegi nodul de început, apoi introduci lungimea locală și costul.
         Nodul de sfârșit se calculează automat. În tabelul de racordări alegi tronsonul
@@ -303,7 +313,9 @@
         (3x35+16–3x240+120 mm²), NFA2X (50+3x50–50+3x95 mm²) și NA2XS(F)2Y
         monopolar, 20 kV, 150 mm². Materialele sunt descriptive: nu schimbă costurile
         ori formulele compensației. Lista este disponibilă și în editorii tehnici
-        pentru zone și ramuri.</p>
+        pentru zone, ramuri și tronsoane manuale. Secțiunile compuse se păstrează ca
+        text, iar la conversia unei linii existente materialul ales se aplică și zonei
+        tehnice de la 0 m.</p>
       <p>Exemplu: 400 m / 40.000 lei cu U1 la capăt, apoi o continuare de
         500 m / 50.000 lei cu U2 la capăt. Rețeaua are 900 m și 90.000 lei;
         cu U1 prim și U2 nou, fără reduceri, compensația existentă este
@@ -323,14 +335,14 @@
       <p>Rândurile se salvează explicit, nu la fiecare tastă; Escape anulează
         draftul editat. O linie existentă pe distanțe se convertește la prima
         salvare în tabel, păstrând racordările și limitele tehnice; operația se poate
-        anula. Alocările manuale nu sunt convertite automat. Formularul avansat
-        rămâne disponibil pentru detaliile tehnice și alocările speciale.</p>
+        anula. Alocările manuale nu sunt convertite automat. Opțiunile avansate
+        rămân disponibile pentru detaliile tehnice și alocările speciale.</p>
       <p>Desenul nu este la scară: tragerea nodurilor sau Shift + săgeți schimbă
         numai aranjarea, nu metri/costuri. Enter/Spațiu selectează un nod.
         Ai zoom, derulare și <strong>Extinde planșa</strong> în aceeași pagină
         (Escape revine). Confirmă formularele cu butonul/Enter; Escape anulează
-        draftul. <strong>Formular avansat</strong> rămâne disponibil, iar datele
-        vechi nu sunt convertite automat.</p>
+        draftul. Butonul <strong>Formular avansat</strong> revine din planșă la
+        formularul simplu, iar datele vechi nu sunt convertite automat.</p>
 
       <h3 id="anexa1-ex1">4.1 Exemplu: doi utilizatori</h3>
       <div class="m-card">
@@ -514,8 +526,9 @@
       <h3>De ce nu pot edita tronsoanele?</h3>
       <p>În modul simplu pe distanțe, tronsoanele se generează automat din racordări.
         Pentru o rețea definită pe porțiuni și noduri, folosește
-        <strong>Planșă cu noduri + tabel</strong>; acolo fiecare rând de tronson se poate
-        introduce sau edita explicit. Alocările și detaliile tehnice rămân în formularul avansat.</p>
+        <strong>Opțiuni avansate → Planșă cu noduri + tabel</strong>; acolo fiecare rând
+        de tronson se poate introduce sau edita explicit. Alocările și detaliile tehnice
+        rămân în aceleași opțiuni avansate.</p>
       <h3>De ce diagrama nu e proporțională?</h3>
       <p>Ca să rămână lizibilă și la kilometri, segmentele scurte au o lățime minimă; apare mențiunea
         „Schemă orientativă — nu este la scară”.</p>

@@ -38,6 +38,7 @@
     saveStatus: 'ok',     // 'ok' | 'pending' | 'failed'
     lastSavedAt: readLastSaved(),   // momentul ultimei salvări reușite
     undoStack: [],
+    projectSeq: 0,        // crește la încărcarea unui alt proiect (nu la undo)
     norma: null,          // id-ul regulii afișate în fereastra cu textul normei
     render: function () {},
     ready: Promise.resolve(null)
@@ -589,6 +590,7 @@
 
   function loadProject(next) {
     store.state = next;
+    store.projectSeq++;
     C.deriveAll(store.state);
     store.results = null;
     store.tab = 'date';
@@ -602,6 +604,7 @@
 
   store.setProject = function (p) {   // folosit de teste și de import
     store.state = S.migrate(p);
+    store.projectSeq++;
     C.deriveAll(store.state);
     store.results = null;
     saveNow();

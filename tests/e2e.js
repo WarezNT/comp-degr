@@ -87,9 +87,8 @@ const focusedKey = (page) => page.evaluate(() => {
     } else if (/\.L$/.test(key)) {
       await page.click(A); await page.keyboard.type('200'); await page.keyboard.press('Tab');
     } else if (key.startsWith('dist:')) {
-      await page.locator(A).locator('xpath=ancestor::tr').locator('select[name="branch"]').selectOption('plan-linear');
       await page.fill(A, String(10 * guard));
-      await page.locator(A).evaluate((el) => el.form.requestSubmit());
+      await page.keyboard.press('Tab');
     } else if (/\.lungime$/.test(key)) {
       await page.click(A); await page.keyboard.type('100'); await page.keyboard.press('Tab');
     } else {
@@ -325,7 +324,7 @@ const focusedKey = (page) => page.evaluate(() => {
   await page.getByRole('button', { name: 'Formular / tabel', exact: true }).click();
   const formDistance = await page.locator('[data-guide="dist:linie:nou"]').inputValue();
   await page.locator('[data-guide="dist:linie:nou"]').fill('301');
-  await page.locator('[data-guide="dist:linie:nou"]').evaluate((el) => el.form.requestSubmit());
+  await page.keyboard.press('Tab');
   const formTotal = await page.evaluate(() => window.AppUI.calculate().central.totalFaraTVA);
   check('tabelul vede aceeași distanță și același calcul', await page.locator('[data-guide="dist:linie:nou"]').inputValue() === '301' && formTotal === 4515, formDistance + ' / ' + formTotal);
   await page.getByRole('button', { name: 'Schemă', exact: true }).click();
@@ -953,6 +952,7 @@ const focusedKey = (page) => page.evaluate(() => {
     path.join(__dirname, '..', 'exemple', 'teste-prezentare', 'anexa-1-editor-grafic.json'));
   await page.waitForFunction(() => window.AppUI.getState().linii[0].mod === 'distante');
   await page.click('#tab-instalatie');
+  await page.locator('.line-card details.line-advanced').first().evaluate((el) => { el.open = true; });
   await page.getByRole('button', { name: '→ Rețea cu ramuri', exact: true }).click();
   check('conversia din UI păstrează cele 7 tronsoane, descrierile și calculul liniar', await page.evaluate(() => {
     const p = window.AppUI.getState(), l = p.linii[0];
@@ -1487,6 +1487,7 @@ const focusedKey = (page) => page.evaluate(() => {
   });
   const planEntry = () => page.getByRole('button', { name: 'Planșă cu noduri + tabel', exact: true });
   const enterPlan = async () => {
+    await page.locator('.line-card details.line-advanced').first().evaluate((el) => { el.open = true; });
     if (await planEntry().first().getAttribute('aria-pressed') !== 'true') await planEntry().first().click();
   };
   await enterPlan();

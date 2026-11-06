@@ -1036,6 +1036,40 @@
         if (Math.abs(r.payments[u2.id][u1.id] - 2500) > 0.01) throw new Error('U2->U1=' + r.payments[u2.id][u1.id]);
       });
 
+      test('Anexa 1: formularul simplu arată distanțele, schița și rezumatul; planșa e opțională', function () {
+        var p = emptyOk(); p.meta.model = 'line';
+        var u1 = window.AppState.addUser(p, { id: 'u1', nume: 'U1', rol: 'prim' });
+        var u2 = window.AppState.addUser(p, { id: 'u2', nume: 'U2', rol: 'nou' });
+        p.linii.push({ id: 'Lsimplu', nume: 'Linie simplă', IL: 10000, L: 100, mod: 'distante', tronsoane: [],
+          racordari: [{ userId: u1.id, distanta: 100 }, { userId: u2.id, distanta: 30 }] });
+        window.AppUI.setProject(p);
+        window.AppUI.store.guide.on = false;
+        window.AppUI.render();
+        window.AppUI.setTab('instalatie');
+        if (!document.querySelector('.line-users')) {
+          throw new Error('lipsește lista de racordări; tab=' + window.AppUI.store.tab +
+            '; card=' + !!document.querySelector('.line-card') +
+            '; panel=' + (document.querySelector('.panel-main') ? document.querySelector('.panel-main').textContent.slice(0, 120) : '—'));
+        }
+        if (!document.querySelector('.line-overview svg.diagram')) throw new Error('lipsește schița');
+        if (!document.querySelector('.line-stats')) throw new Error('lipsește rezumatul');
+        var plan = byText('button', 'Planșă cu noduri + tabel');
+        if (!plan || !plan.closest('details.line-advanced') || document.querySelector('.plan-editor')) {
+          throw new Error('planșa nu este opțională sau e afișată implicit');
+        }
+        var input = document.querySelector('[data-guide="dist:Lsimplu:' + u2.id + '"]');
+        if (!input) throw new Error('lipsește câmpul de distanță');
+        input.value = '50'; input.dispatchEvent(new Event('change', { bubbles: true }));
+        window.AppUI.render();
+        var line = window.AppUI.getState().linii[0];
+        if (line.racordari.filter(function (r) { return r.userId === u2.id; })[0].distanta !== 50) {
+          throw new Error('distanța nu s-a salvat');
+        }
+        var stats = document.querySelector('.line-stats');
+        if (!stats) throw new Error('rezumatul lipsește după salvare');
+        if (!/2 tronsoane/.test(stats.textContent)) throw new Error('rezumatul nu s-a actualizat: ' + stats.textContent);
+      });
+
       test('Linie pe distanțe — U3 la 30 m plătește 500 + 500', function () {
         var p = emptyOk(); p.meta.model = 'line';
         var u1 = window.AppState.addUser(p, { nume: 'U1', rol: 'prim' });
