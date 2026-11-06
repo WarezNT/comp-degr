@@ -17,17 +17,31 @@
       ${store.state.utilizatori.map(function (u) { return html`<option value=${u.id} key=${u.id} selected=${props.value === u.id}>${userName(u.id)}</option>`; })}
     </select></label>`;
   }
+  function fillMaterial(select, material, formId) {
+    var form = select.form || global.document.getElementById(formId);
+    if (!form) { store.toast('Nu s-au putut completa câmpurile materialului selectat.', 'error'); return; }
+    var missing = [];
+    [['type', material.tipLinie], ['conductor', material.conductor], ['sectiune', material.sectiune]].forEach(function (field) {
+      var input = form.elements.namedItem(field[0]);
+      if (input) input.value = field[1];
+      else missing.push(field[0]);
+    });
+    if (missing.length) store.toast('Lipsesc câmpuri pentru materialul selectat: ' + missing.join(', ') + '.', 'error');
+  }
   function PortionForm(props) {
     var b = props.branch, isEdit = !!b;
     return html`<form class="plan-form" onSubmit=${props.onSubmit}>
       <h4>${isEdit ? 'Proprietățile porțiunii' : 'Porțiune nouă de linie'}</h4>
       <${DraftField} name="name" label="Denumire porțiune" value=${b ? b.nume : ''} required=${true} />
+      <${K.MaterialSelect} onSelect=${function (material, select) { fillMaterial(select, material); }} />
       <label>Tip linie<select name="type" required>
         <option value="" selected=${!b || !b.tipLinie}>Alege tipul</option>
         <option value="LES" selected=${b && b.tipLinie === 'LES'}>LES — punctată</option>
         <option value="LEA" selected=${b && b.tipLinie === 'LEA'}>LEA — continuă</option>
         <option value="altul" selected=${b && b.tipLinie === 'altul'}>Alt tip</option>
       </select></label>
+      <${DraftField} name="conductor" label="Conductor / cablu" value=${b ? b.conductor : ''} />
+      <${DraftField} name="sectiune" label="Secțiune / configurație (mm²)" value=${b ? b.sectiune : ''} />
       <${DraftField} name="length" label="Lungime fizică (m)" value=${b ? b.L : ''} numeric=${true} required=${true} />
       <${DraftField} name="cost" label="Costul acestei porțiuni (lei)" value=${b ? props.cost : ''} numeric=${true} required=${true} />
       <${Financier} value=${b && b.finantatorId} />
@@ -78,7 +92,8 @@
       if (store.savePlanPortion(l.id, { id: id, nume: String(data.get('name') || '').trim(),
         parentId: start && !start.origin ? start.branchId : '', deLa: start && !start.origin ? start.distance : 0,
         L: length, IL: amount,
-        tipLinie: String(data.get('type') || ''), finantatorId: String(data.get('financier') || '') })) {
+        tipLinie: String(data.get('type') || ''), conductor: String(data.get('conductor') || ''),
+        sectiune: String(data.get('sectiune') || ''), finantatorId: String(data.get('financier') || '') })) {
         version[1](version[0] + 1); props.onSelect('branch:' + id);
       }
     }
@@ -117,6 +132,9 @@
         <option value="" selected=${!b || !b.tipLinie}>Alege</option>
         ${['LEA', 'LES', 'altul'].map(function (type) { return html`<option value=${type} key=${type} selected=${b && b.tipLinie === type}>${type}</option>`; })}
       </select></td>
+      <td class="plan-technical-cell"><${K.MaterialSelect} onSelect=${function (material, select) { fillMaterial(select, material, form); }} />
+        <${TableInput} form=${form} name="conductor" label="Conductor / cablu" value=${b ? b.conductor : ''} /></td>
+      <td><${TableInput} form=${form} name="sectiune" label="Secțiune / configurație (mm²)" value=${b ? b.sectiune : ''} /></td>
       <td><select form=${form} name="financier" aria-label="Finanțator documentat">
         <option value="" selected=${!b || !b.finantatorId}>Necunoscut / de verificat</option>
         ${store.state.utilizatori.map(function (u) {
@@ -177,7 +195,8 @@
       var technical = (l.zoneTehnice || []).filter(function (z) { return Number(z.deLa) === 0; })[0] || {};
       branches = [{ id: 'plan-linear', parentId: '', deLa: 0, L: l.L, nume: l.nume || 'Linia principală',
         IL: l.bLManual ? l.IL : '', costManual: !!l.bLManual,
-        tipLinie: technical.tipLinie || '', finantatorId: '' }];
+        tipLinie: technical.tipLinie || '', conductor: technical.conductor || '',
+        sectiune: technical.sectiune || '', finantatorId: '' }];
     }
     return html`<section class="plan-tables" aria-label="Introducere tabelară a rețelei">
       <h3>Porțiuni de rețea</h3>
@@ -197,9 +216,11 @@
       <div class="table-wrap"><table class="plan-portions"><caption>Tronsoane și nodurile dintre ele</caption>
         <colgroup><col class="plan-col-name" /><col class="plan-col-start" /><col class="plan-col-node" />
           <col class="plan-col-length" /><col class="plan-col-cost" />
-          <col class="plan-col-type" /><col class="plan-col-financier" /><col class="plan-col-actions" /></colgroup>
+          <col class="plan-col-type" /><col class="plan-col-material" /><col class="plan-col-section" />
+          <col class="plan-col-financier" /><col class="plan-col-actions" /></colgroup>
         <thead><tr><th>Tronson / denumire</th><th>Nod de început</th><th>Nod de sfârșit</th><th>Lungime (m)</th>
-          <th>Cost (lei)</th><th>Tip linie</th><th>Finanțator documentat</th><th>Acțiuni</th></tr></thead>
+          <th>Cost (lei)</th><th>Tip linie</th><th>Material uzual / conductor</th><th>Secțiune (mm²)</th>
+          <th>Finanțator documentat</th><th>Acțiuni</th></tr></thead>
         <tbody>${branches.map(function (b, index) {
           return html`<${PortionRow} key=${b.id + JSON.stringify(b) + (tree ? tree.rate : '')}
             l=${l} graph=${graph} branch=${b} index=${index} selection=${props.selection} onSelect=${props.onSelect} />`;
@@ -250,6 +271,7 @@
       var financier = String(data.get('financier') || ''), id = selectedBranch ? selectedBranch.id : S.uid('ramura');
       if (l.mod === 'ramuri' && !selectedBranch && !selectedNode) { report('Selectează nodul de plecare al porțiunii.'); return; }
       if (!store.savePlanPortion(l.id, { id: id, nume: name, L: length, IL: cost, tipLinie: type,
+        conductor: String(data.get('conductor') || ''), sectiune: String(data.get('sectiune') || ''),
         finantatorId: financier, parentId: selectedBranch ? selectedBranch.parentId : selectedNode ? selectedNode.branchId : '',
         deLa: selectedBranch ? Number(selectedBranch.deLa) || 0 : selectedNode ? selectedNode.distance : 0 })) return;
       selection[1](selectedBranch ? 'branch:' + id : P.nodeKey(id, length)); action[1]('');

@@ -433,8 +433,13 @@ const focusedKey = (page) => page.evaluate(() => {
   await page.getByRole('button', { name: '+ Zonă tehnică', exact: true }).click();
   await page.locator('.technical-zone').nth(1).locator('[data-bind$=".deLa"]').fill('100');
   await page.locator('.technical-zone').nth(1).locator('[data-bind$=".deLa"]').press('Tab');
-  await page.locator('.technical-zone').nth(1).locator('[data-bind$=".tipLinie"]').selectOption('LEA');
+  await page.locator('.technical-zone').nth(1).getByLabel('Material uzual').selectOption('lea-70');
+  check('materialul uzual completează tipul, conductorul și secțiunea tehnică', await page.evaluate(() => {
+    const z = window.AppUI.getState().linii[0].zoneTehnice[1];
+    return z.tipLinie === 'LEA' && z.conductor === 'NFA2X' && z.sectiune === '50+3x70';
+  }), '');
   await page.locator('.technical-zone').nth(1).locator('[data-bind$=".conductor"]').fill('AAC 70');
+  await page.locator('.technical-zone').nth(1).locator('[data-bind$=".sectiune"]').fill('50+3x70 modificat');
   await page.locator('.technical-zone').nth(1).locator('[data-bind$=".conductor"]').press('Tab');
   await page.getByRole('button', { name: 'Schemă', exact: true }).click();
   check('PR descris și limita tehnică apar în schemă', /PT 123/.test(await page.locator('.scheme-canvas').innerText()) && await page.locator('.scheme-canvas .dl-seg').count() === 3, '');
@@ -543,6 +548,7 @@ const focusedKey = (page) => page.evaluate(() => {
     const l = window.AppUI.getState().linii[0];
     return l.punctRacordare.denumire === 'PT 123' && Number(l.punctRacordare.tensiune) === 0.4 &&
       l.zoneTehnice.length === 3 && l.zoneTehnice[0].conductor === 'ACYY' &&
+      l.zoneTehnice[1].sectiune === '50+3x70 modificat' &&
       l.zoneTehnice.some((z) => Number(z.deLa) === 330.3);
   });
   check('PR și limitele tehnice editate persistă după reîncărcare', technicalSaved, '');
@@ -1505,6 +1511,13 @@ const focusedKey = (page) => page.evaluate(() => {
     await page.evaluate((snapshot) => JSON.stringify(window.AppUI.getState()) === snapshot, emptySnapshot), '');
   await newPortion().getByLabel('Lungime porțiune (m)').press('Escape');
   check('Escape anulează draftul fără a schimba proiectul', await newPortion().getByLabel('Lungime porțiune (m)').inputValue() === '', '');
+  await newPortion().getByLabel('Material uzual').selectOption('les-jt-35');
+  check('presetul LES completează tipul și câmpurile de material editabile',
+    await newPortion().getByLabel('Tip linie').inputValue() === 'LES' &&
+    await newPortion().getByLabel('Conductor / cablu').inputValue() === 'NA2XABY' &&
+    await newPortion().getByLabel('Secțiune / configurație (mm²)').inputValue() === '3x35+16', '');
+  check('catalogul planșei conține presetul LES MT de 20 kV',
+    /20 kV/.test(await newPortion().getByLabel('Material uzual').locator('option[value="les-mt-150"]').textContent()), '');
   await newPortion().getByLabel('Denumire porțiune').fill('Porțiune inițială');
   await newPortion().getByLabel('Tip linie').selectOption('LES');
   await newPortion().getByLabel('Lungime porțiune (m)').fill('400');
@@ -1519,7 +1532,8 @@ const focusedKey = (page) => page.evaluate(() => {
     await plan.locator('.plan-node').count() === 2 &&
     await page.evaluate(() => {
       const l = window.AppUI.getState().linii[0];
-      return l.mod === 'ramuri' && l.L === 400 && l.IL === 40000 && l.ramuri[0].costManual;
+      return l.mod === 'ramuri' && l.L === 400 && l.IL === 40000 && l.ramuri[0].costManual &&
+        l.ramuri[0].conductor === 'NA2XABY' && l.ramuri[0].sectiune === '3x35+16';
     }), '');
   const rootId = await page.evaluate(() => window.AppUI.getState().linii[0].ramuri[0].id);
   await connection('u1').getByLabel('Tronson utilizator').selectOption(rootId);
@@ -1539,7 +1553,9 @@ const focusedKey = (page) => page.evaluate(() => {
     }), '');
   await newPortion().getByLabel('Denumire porțiune').fill('Extindere');
   await newPortion().getByLabel('Nod de început').selectOption(rootId + ':400');
-  await newPortion().getByLabel('Tip linie').selectOption('LES');
+  await newPortion().getByLabel('Material uzual').selectOption('lea-70');
+  await newPortion().getByLabel('Conductor / cablu').fill('NFA2X modificat manual');
+  await newPortion().getByLabel('Secțiune / configurație (mm²)').fill('50+3x70 special');
   await newPortion().getByLabel('Lungime porțiune (m)').fill('500');
   await newPortion().getByLabel('Cost porțiune (lei)').fill('50.000');
   await newPortion().getByRole('button', { name: 'Adaugă porțiunea', exact: true }).click();
@@ -1557,7 +1573,9 @@ const focusedKey = (page) => page.evaluate(() => {
     await page.evaluate(() => {
       const p = window.AppUI.getState(), l = p.linii[0], r = window.AppCalc.runCalculation(p);
       return l.L === 900 && l.IL === 90000 && l.ramuri[0].IL === 40000 && l.ramuri[1].IL === 50000 &&
-        l.ramuri[1].deLa === 400 && window.AppTree.analyze(l).routes[1].distance === 900 &&
+        l.ramuri[1].deLa === 400 && l.ramuri[1].tipLinie === 'LEA' &&
+        l.ramuri[1].conductor === 'NFA2X modificat manual' && l.ramuri[1].sectiune === '50+3x70 special' &&
+        window.AppTree.analyze(l).routes[1].distance === 900 &&
         !r.error && r.central.totalFaraTVA === 20000;
     }), '');
   await portion(planIds.extension).getByLabel('Finanțator documentat').selectOption(planIds.u2);

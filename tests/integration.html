@@ -1310,6 +1310,39 @@
         if (!window.AppTree.analyze(l).errors.length) throw new Error('limită la capăt acceptată');
       });
 
+      test('Materiale uzuale: catalogul este complet și secțiunile descriptive nu schimbă calculul', function () {
+        var catalog = window.AppMaterials.catalog;
+        var sections = catalog.map(function (material) { return material.sectiune; });
+        var expected = ['3x35+16', '3x50+25', '3x70+35', '3x95+50', '3x120+70',
+          '3x150+70', '3x185+95', '3x240+120', '50+3x50', '50+3x70', '50+3x95', '150'];
+        if (sections.join('|') !== expected.join('|') || !/20 kV/.test(catalog[11].label) ||
+          catalog[11].conductor.indexOf('NA2XS(F)2Y') < 0 || catalog[11].tipLinie !== 'LES') {
+          throw new Error('catalog incomplet sau material MT incorect');
+        }
+        var p = treeProject(), l = p.linii[0], before = window.AppCalc.runCalculation(p).central.totalFaraTVA;
+        l.ramuri[0].sectiune = '3x35+16';
+        l.ramuri[1].sectiune = '50+3x70';
+        l.zoneTehnice = [{ id: 'z', branchId: 'a', deLa: 15, tipLinie: 'LES',
+          conductor: 'NA2XABY', sectiune: '3x95+50' }];
+        window.AppCalc.deriveAll(p);
+        if (window.AppTree.analyze(l).errors.length ||
+          window.AppCalc.runCalculation(p).central.totalFaraTVA !== before ||
+          !l.tronsoane.some(function (t) { return t.sectiune === '3x95+50'; })) {
+          throw new Error('secțiunea descriptivă a fost respinsă sau a modificat calculul');
+        }
+        l.zoneTehnice.push({ id: 'z0', branchId: l.ramuri[0].id, deLa: 0,
+          tipLinie: 'LES', conductor: 'cablu vechi', sectiune: '150' });
+        var root = l.ramuri[0];
+        window.AppPlan.setPortion(l, { id: root.id, nume: root.nume, L: root.L,
+          IL: Number(root.L) * window.AppTree.analyze(l).rate,
+          tipLinie: 'LES', conductor: 'NA2XABY', sectiune: '3x35+16' });
+        window.AppCalc.deriveAll(p);
+        if (l.zoneTehnice[1].conductor !== 'NA2XABY' ||
+          !l.tronsoane.some(function (t) { return t.branchId === root.id && t.sectiune === '3x35+16'; })) {
+          throw new Error('materialul de la 0 m nu a fost sincronizat la conversia tabelară');
+        }
+      });
+
       test('Ramuri: migrare JSON remapează părinți, racordări și limite; import invalid rămâne invalid', function () {
         var p = treeProject(), l = p.linii[0];
         l.ramuri[0].id = 'root spațiu';

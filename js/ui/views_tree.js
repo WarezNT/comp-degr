@@ -132,14 +132,15 @@
 
   function Technical(props) {
     var value = props.value;
-    return html`<div class="row2">
+    return html`<div class="row2 technical-fields">
+      <${K.MaterialSelect} onSelect=${props.setMaterial} />
       <label>Tip linie<select aria-label="Tip linie ramură / zonă" value=${value.tipLinie || ''}
         onChange=${function (e) { if (props.set('tipLinie', e.target.value) === false) e.target.value = value.tipLinie || ''; }}>
         <option value="">Nespecificat</option><option value="LEA">LEA — aeriană</option>
         <option value="LES">LES — subterană</option><option value="altul">Altul</option>
       </select></label>
       ${[['conductor', 'Conductor / cablu'], ['sectiune', 'Secțiune (mm²)'], ['observatii', 'Observații']].map(function (field) {
-        return html`<label key=${field[0]}>${field[1]}<${Draft} value=${value[field[0]]} label=${field[1]} numeric=${field[0] === 'sectiune'}
+        return html`<label key=${field[0]}>${field[1]}<${Draft} value=${value[field[0]]} label=${field[1]}
           onCommit=${function (v) { return props.set(field[0], v); }} /></label>`;
       })}
     </div>`;
@@ -164,6 +165,14 @@
     function edit(fn) { return store.editTree(l.id, fn); }
     function setBranch(field, value) {
       return edit(function (next) { next.ramuri.filter(function (x) { return x.id === b.id; })[0][field] = value; });
+    }
+    function setBranchMaterial(material) {
+      return edit(function (next) {
+        var branch = next.ramuri.filter(function (x) { return x.id === b.id; })[0];
+        branch.tipLinie = material.tipLinie;
+        branch.conductor = material.conductor;
+        branch.sectiune = material.sectiune;
+      });
     }
     function connect(branchId, distance) {
       return edit(function (next) {
@@ -243,17 +252,25 @@
         </div>
         <${K.InputNote} path=${'ramura.' + l.id + '.' + b.id + '.L'} />
         ${b.costManual ? html`<${K.InputNote} path=${'ramura.' + l.id + '.' + b.id + '.IL'} />` : null}
-        <${Technical} value=${b} set=${setBranch} />
+        <${Technical} value=${b} set=${setBranch} setMaterial=${setBranchMaterial} />
         <details class="advanced"><summary>Limite tehnice pe această ramură</summary>
           <p class="hint">Caracteristicile ramurii se aplică până la prima limită. Fiecare zonă continuă până la limita următoare sau la capăt.</p>
           ${(l.zoneTehnice || []).filter(function (z) { return z.branchId === b.id; }).map(function (z) {
             function setZone(field, value) {
               return edit(function (next) { next.zoneTehnice.filter(function (x) { return x.id === z.id; })[0][field] = value; });
             }
+            function setZoneMaterial(material) {
+              return edit(function (next) {
+                var zone = next.zoneTehnice.filter(function (x) { return x.id === z.id; })[0];
+                zone.tipLinie = material.tipLinie;
+                zone.conductor = material.conductor;
+                zone.sectiune = material.sectiune;
+              });
+            }
             return html`<div class="technical-zone" key=${z.id}>
               <label>Început zonă local (m)<${Draft} label="Început zonă local (m)" value=${z.deLa} numeric=${true}
                 onCommit=${function (v) { return setZone('deLa', v); }} /></label>
-              <${Technical} value=${z} set=${setZone} />
+              <${Technical} value=${z} set=${setZone} setMaterial=${setZoneMaterial} />
               <button type="button" class="btn tiny danger" onClick=${function () {
                 edit(function (next) { next.zoneTehnice = next.zoneTehnice.filter(function (x) { return x.id !== z.id; }); });
               }}>Șterge limita tehnică</button>

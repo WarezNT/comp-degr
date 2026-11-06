@@ -26,7 +26,6 @@
         if (!number(b.IL) || Number(b.IL) < 0) error('Ramura „' + b.nume + '”: cost propriu invalid.');
         else fixed += Number(b.IL);
       }
-      if (b.sectiune !== '' && b.sectiune !== undefined && (!number(b.sectiune) || Number(b.sectiune) < 0)) error('Secțiune invalidă pe ramura „' + b.nume + '”.');
     });
     if (roots.length !== 1) error('Rețeaua trebuie să aibă exact o ramură de origine la PR.');
     if (!isFinite(length)) error('Lungimea fizică totală depășește domeniul numeric acceptat.');
@@ -61,7 +60,6 @@
       if (!b || !number(z.deLa) || Number(z.deLa) < 0 || Number(z.deLa) >= Number(b.L)) error('Limită tehnică în afara ramurii.');
       if (zoneSeen[key]) error('Limite tehnice duplicate pe aceeași ramură.');
       zoneSeen[key] = true;
-      if (z.sectiune !== '' && z.sectiune !== undefined && (!number(z.sectiune) || Number(z.sectiune) < 0)) error('Secțiune invalidă într-o zonă tehnică.');
     });
     var planSeen = Object.create(null);
     (line.noduriPlan || []).forEach(function (n) {

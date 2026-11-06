@@ -89,6 +89,16 @@
     if (financial) explicitCosts(line);
     var target = previous || { id: values.id, costManual: true, IL: values.IL };
     ['nume', 'L', 'tipLinie', 'finantatorId', 'parentId', 'deLa'].forEach(function (field) { target[field] = values[field]; });
+    ['conductor', 'sectiune'].forEach(function (field) {
+      if (values[field] !== undefined) target[field] = values[field];
+      else if (target[field] === undefined) target[field] = '';
+    });
+    (line.zoneTehnice || []).forEach(function (zone) {
+      if (zone.branchId !== target.id || Number(zone.deLa) !== 0) return;
+      ['tipLinie', 'conductor', 'sectiune'].forEach(function (field) {
+        if (values[field] !== undefined) zone[field] = values[field];
+      });
+    });
     if (financial) target.IL = values.IL;
     if (!previous) line.ramuri.push(target);
     if (financial) budget(line);

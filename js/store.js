@@ -161,6 +161,32 @@
     store.render();
   };
 
+  store.setTechnicalMaterial = function (path, material) {
+    if (!store.state) return false;
+    var seg = path.split('.'), target;
+    if (seg[0] === 'zona') {
+      var line = byId(store.state.linii, seg[1]);
+      target = line && byId(line.zoneTehnice, seg[2]);
+    } else if (seg[0] === 'tronson') {
+      var tronsonLine = byId(store.state.linii, seg[1]);
+      target = tronsonLine && byId(tronsonLine.tronsoane, seg[2]);
+    }
+    if (!target || !material || ['LEA', 'LES', 'altul'].indexOf(material.tipLinie) < 0 ||
+      typeof material.conductor !== 'string' || typeof material.sectiune !== 'string') {
+      store.toast('Materialul selectat nu poate fi aplicat acestei instalații.', 'error');
+      return false;
+    }
+    mutate(function (p) {
+      var item = seg[0] === 'zona'
+        ? byId(byId(p.linii, seg[1]).zoneTehnice, seg[2])
+        : byId(byId(p.linii, seg[1]).tronsoane, seg[2]);
+      item.tipLinie = material.tipLinie;
+      item.conductor = material.conductor;
+      item.sectiune = material.sectiune;
+    }, { undo: true, noFocus: true });
+    return true;
+  };
+
   // Finalizarea unei modificări (blur / change / click): aici avansează ghidul.
   store.commit = function (opts) {
     saveNow();
@@ -425,7 +451,8 @@
       mutate(function (p) {
         var target = byId(p.linii, lineId);
         target.mod = 'ramuri'; target.bLManual = false; target.noduriPlan = [];
-        target.ramuri = [Object.assign({}, values, { costManual: true })]; target.IL = values.IL;
+        target.ramuri = [Object.assign({}, values, { conductor: values.conductor || '',
+          sectiune: values.sectiune || '', costManual: true })]; target.IL = values.IL;
       }, { undo: true, noFocus: true });
       return true;
     }

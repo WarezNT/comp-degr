@@ -782,23 +782,28 @@ details.advanced > summary { cursor: pointer; font-weight: 600; }
 .plan-tables table { width: 100%; table-layout: fixed; }
 .plan-portions { min-width: 1200px; }
 .plan-connections { min-width: 980px; }
-.plan-col-name { width: 18%; }
-.plan-col-start { width: 12%; }
-.plan-col-node { width: 11%; }
-.plan-col-length { width: 10%; }
-.plan-col-cost { width: 13%; }
-.plan-col-type { width: 9%; }
-.plan-col-financier { width: 15%; }
+.plan-col-name { width: 16%; }
+.plan-col-start { width: 10%; }
+.plan-col-node { width: 9%; }
+.plan-col-length { width: 8%; }
+.plan-col-cost { width: 10%; }
+.plan-col-type { width: 7%; }
+.plan-col-material { width: 14%; }
+.plan-col-section { width: 8%; }
+.plan-col-financier { width: 10%; }
 .plan-col-user { width: 18%; }
 .plan-col-connection { width: 22%; }
 .plan-col-distance { width: 15%; }
 .plan-col-node-output { width: 15%; }
 .plan-col-route { width: 13%; }
-.plan-col-actions { width: 12%; }
+.plan-col-actions { width: 8%; }
 .plan-col-connection-actions { width: 17%; }
 .plan-tables th, .plan-tables td { padding: 6px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
 .plan-tables th { font-size: 13px; }
 .plan-tables input, .plan-tables select { width: 100%; min-width: 0; }
+.plan-technical-cell { display: flex; flex-direction: column; gap: 6px; }
+.material-preset { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.material-preset select { min-width: 0; }
 .plan-portion-name { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .plan-tables td:last-child { min-width: 0; }
 .plan-tables td .btn { display: block; width: 100%; margin-bottom: 6px; white-space: normal; }

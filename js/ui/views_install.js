@@ -82,11 +82,12 @@
 
   function TechnicalFields(props) {
     var k = props.path;
-    return html`<div class="row2">
+    return html`<div class="row2 technical-fields">
+      <${K.MaterialSelect} onSelect=${function (material) { store.setTechnicalMaterial(k, material); }} />
       <${K.Field} label="Tip linie" path=${k + 'tipLinie'}><${K.SelectInput} path=${k + 'tipLinie'}
         options=${[['', 'Nespecificat'], ['LEA', 'LEA — aeriană'], ['LES', 'LES — subterană'], ['altul', 'Altul']]} /><//>
       <${K.Field} label="Conductor / cablu" path=${k + 'conductor'}><${K.TextInput} path=${k + 'conductor'} /><//>
-      <${K.Field} label="Secțiune (mm²)" path=${k + 'sectiune'}><${K.NumInput} path=${k + 'sectiune'} /><//>
+      <${K.Field} label="Secțiune / configurație" path=${k + 'sectiune'}><${K.TextInput} path=${k + 'sectiune'} /><//>
       <${K.Field} label="Observații" path=${k + 'observatii'}><${K.TextInput} path=${k + 'observatii'} /><//>
     </div>`;
   }

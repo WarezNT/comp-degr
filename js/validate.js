@@ -115,7 +115,6 @@
           err(null, 'Linia „' + nm + '”: două zone tehnice nu pot începe la aceeași distanță.', 'instalatie', target);
         }
         limits[d] = true;
-        nonNeg('Secțiunea conductorului', z.sectiune, 'instalatie', 'zona.' + l.id + '.' + z.id + '.sectiune');
       });
       if (n(l.compVeche) > n(l.IL) && n(l.IL) > 0) {
         err('art18.1a', 'Linia „' + nm + '”: compensațiile primite sub vechea metodologie (' + n(l.compVeche) + ' lei) depășesc I_L (' + n(l.IL) + ' lei).', 'instalatie', 'line.' + l.id + '.compVeche');
@@ -123,7 +122,6 @@
       (l.tronsoane || []).forEach(function (t) {
         var tn = '„' + nm + ' · ' + (t.nume || t.id) + '”';
         nonNeg('Lungimea tronsonului ' + tn, t.lungime, 'instalatie', 'tronson.' + l.id + '.' + t.id + '.lungime');
-        nonNeg('Secțiunea conductorului ' + tn, t.sectiune, 'instalatie', 'tronson.' + l.id + '.' + t.id + '.sectiune');
         if (t.costManual) nonNeg('Costul tronsonului ' + tn, t.cost, 'instalatie', 'tronson.' + l.id + '.' + t.id + '.cost');
         if (t.tip === 'stalpi' && !(n(t.cost) > 0)) {
           warn('art15.1', 'Circuitul pe stâlpi existenți ' + tn + ' are costul stâlpilor 0; nu va genera compensație.', 'instalatie', 'tronson.' + l.id + '.' + t.id + '.cost');

@@ -14,6 +14,23 @@
   var R = global.AppRules;
   var HELP = global.AppHelp;
   var store = global.AppStore;
+  var MATERIALS = [
+    { id: 'les-jt-35', label: 'LES JT — NA2XABY · 3x35+16 mm²', tipLinie: 'LES', conductor: 'NA2XABY', sectiune: '3x35+16' },
+    { id: 'les-jt-50', label: 'LES JT — NA2XABY · 3x50+25 mm²', tipLinie: 'LES', conductor: 'NA2XABY', sectiune: '3x50+25' },
+    { id: 'les-jt-70', label: 'LES JT — NA2XABY · 3x70+35 mm²', tipLinie: 'LES', conductor: 'NA2XABY', sectiune: '3x70+35' },
+    { id: 'les-jt-95', label: 'LES JT — NA2XABY · 3x95+50 mm²', tipLinie: 'LES', conductor: 'NA2XABY', sectiune: '3x95+50' },
+    { id: 'les-jt-120', label: 'LES JT — NA2XABY · 3x120+70 mm²', tipLinie: 'LES', conductor: 'NA2XABY', sectiune: '3x120+70' },
+    { id: 'les-jt-150', label: 'LES JT — NA2XABY · 3x150+70 mm²', tipLinie: 'LES', conductor: 'NA2XABY', sectiune: '3x150+70' },
+    { id: 'les-jt-185', label: 'LES JT — NA2XABY · 3x185+95 mm²', tipLinie: 'LES', conductor: 'NA2XABY', sectiune: '3x185+95' },
+    { id: 'les-jt-240', label: 'LES JT — NA2XABY · 3x240+120 mm²', tipLinie: 'LES', conductor: 'NA2XABY', sectiune: '3x240+120' },
+    { id: 'lea-50', label: 'LEA — NFA2X · 50+3x50 mm²', tipLinie: 'LEA', conductor: 'NFA2X', sectiune: '50+3x50' },
+    { id: 'lea-70', label: 'LEA — NFA2X · 50+3x70 mm²', tipLinie: 'LEA', conductor: 'NFA2X', sectiune: '50+3x70' },
+    { id: 'lea-95', label: 'LEA — NFA2X · 50+3x95 mm²', tipLinie: 'LEA', conductor: 'NFA2X', sectiune: '50+3x95' },
+    { id: 'les-mt-150', label: 'LES MT — NA2XS(F)2Y · 20 kV · monopolar 150 mm²',
+      tipLinie: 'LES', conductor: 'NA2XS(F)2Y, 20 kV, monopolar', sectiune: '150' }
+  ];
+
+  global.AppMaterials = { catalog: MATERIALS };
 
   /* ----------------------- formatări și parsare ----------------------- */
 
@@ -126,6 +143,20 @@
       onChange=${function (e) { store.set(path, e.target.value); }}
       onBlur=${blurCommit}
       onKeyDown=${function (e) { if (e.key === 'Enter') e.target.blur(); }} />`;
+  }
+
+  function MaterialSelect(props) {
+    return html`<label class="material-preset">${props.label || 'Material uzual'}
+      <select aria-label=${props.label || 'Material uzual'} value="" onChange=${function (e) {
+        var select = e.currentTarget, id = select.value;
+        select.value = '';
+        var material = MATERIALS.filter(function (item) { return item.id === id; })[0];
+        if (material) props.onSelect(material, select);
+      }}>
+        <option value="">Alege material uzual</option>
+        ${MATERIALS.map(function (item) { return html`<option value=${item.id} key=${item.id}>${item.label}</option>`; })}
+      </select>
+    </label>`;
   }
 
   function DateInput(props) {
@@ -249,6 +280,7 @@
     money: money, fmtNum: fmtNum, fmtEdit: fmtEdit, fmtShow: fmtShow, parseNum: parseNum,
     RefChip: RefChip, Info: Info, Abbr: Abbr, Field: Field,
     TextInput: TextInput, DateInput: DateInput, NumInput: NumInput, SelectInput: SelectInput, CheckInput: CheckInput,
+    MaterialSelect: MaterialSelect,
     Card: Card, NormaModal: NormaModal, Toast: Toast, IssueList: IssueList,
     blurCommit: blurCommit, useRevealTarget: useRevealTarget, InputNote: InputNote
   };

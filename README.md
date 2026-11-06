@@ -87,6 +87,12 @@ tabelelor; definițiile din tabel generează nodurile și tronsoanele din desen.
   denumire, nod de început, lungime, cost, tip LEA/LES și finanțator documentat.
   La prima porțiune, originea este PR; la următoarea, alege nodul la care începe
   extinderea. Nodul de sfârșit se calculează automat din lungimea introdusă.
+- Pentru **material uzual**, selectorul completează tipul liniei, conductorul/cablul
+  și secțiunea; toate câmpurile rămân editabile manual. Catalogul include NA2XABY
+  (3x35+16–3x240+120 mm²), NFA2X (50+3x50–50+3x95 mm²) și NA2XS(F)2Y
+  monopolar, 20 kV, 150 mm². Sunt opțiuni descriptive și nu modifică formulele
+  sau costurile de calcul; aceeași listă este disponibilă în editorii tehnici
+  pentru zone și ramuri.
 - În tabelul **Racordarea utilizatorilor la noduri**, alege tronsonul și distanța
   locală de la începutul lui. Astfel se poate racorda un utilizator și în interiorul
   unei porțiuni; nodul intermediar apare în desen și traseul de la PR se calculează.
