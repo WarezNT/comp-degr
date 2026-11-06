@@ -2057,7 +2057,7 @@
         window.AppUI.setProject(treeProject()); window.AppUI.setTab('instalatie');
         var before = JSON.stringify(window.AppUI.getState()), undo = window.AppUI.store.undoStack.length;
         byText('button', 'Planșă cu noduri').click(); window.AppUI.store.render();
-        if (!document.querySelector('.plan-sidebar') || !document.querySelector('.plan-svg')) throw new Error('planșă absentă');
+        if (!document.querySelector('.plan-tables') || !document.querySelector('.plan-svg')) throw new Error('planșă și tabel absente');
         document.querySelector('.plan-node').dispatchEvent(new MouseEvent('click', { bubbles: true })); window.AppUI.store.render();
         byText('button', 'Extinde planșa').click(); window.AppUI.store.render();
         if (!document.querySelector('.plan-expanded')) throw new Error('mod extins absent');

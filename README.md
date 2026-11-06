@@ -68,18 +68,44 @@ opționali, opri mutarea automată a focusului sau ascunde ghidul (meniul „Pro
 2. **Utilizatori** — fiecare utilizator are **un singur rol**: *prim utilizator* (finanțator,
    primește), *nou* (plătește), *existent* sau *operator de rețea* (art. 6 alin. 5). Primul
    adăugat devine prim, al doilea nou. Contract/avize (art. 7, 17–18) într-un rând extensibil.
-3. **Instalație** — linii cu **diagramă** (PR → capăt) și **puncte de racordare**: scrii distanța de la
-   PR pentru fiecare utilizator, iar tronsoanele și costurile se generează automat (matricea
-   „tronsoane × utilizatori" rămâne la „Mod avansat"); stații/PT, instalație complexă (rol per
-   linie: l_U1 / l_U2), vechea metodologie, rețea de dezvoltator.
+3. **Instalație** — pentru Anexa 1, **Planșă cu noduri + tabel** afișează schema generată
+   de tabelul tronsoanelor și racordărilor. Se pot introduce ramificații alegând nodul
+   de început și lungimea locală; stațiile/PT, instalația complexă, vechea metodologie
+   și rețeaua de dezvoltator păstrează formularele lor.
 4. **Rezultate** — stare (probleme cu link „Mergi la câmp”), rezumat (totaluri), centralizator cu
    **„Cum s-a calculat”** pe fiecare sumă (formulă + articol), condițiile art. 8 (restrânse când
    sunt îndeplinite), export CSV, print.
 
 ### Introducere grafică — Anexa 1
 
-În pasul **Instalație**, fiecare linie are opțiunile **Formular / tabel** și **Schemă**.
-Formularul rămâne modul inițial. În „Schemă”:
+#### Planșă cu noduri + tabel
+
+În pasul **Instalație**, deschide **Planșă cu noduri + tabel**. Schema este deasupra
+tabelelor; definițiile din tabel generează nodurile și tronsoanele din desen.
+
+- În **Tronsoane și nodurile dintre ele**, fiecare rând definește o porțiune:
+  denumire, nod de început, lungime, cost, tip LEA/LES și finanțator documentat.
+  La prima porțiune, originea este PR; la următoarea, alege nodul la care începe
+  extinderea. Nodul de sfârșit se calculează automat din lungimea introdusă.
+- În tabelul **Racordarea utilizatorilor la noduri**, alege tronsonul și distanța
+  locală de la începutul lui. Astfel se poate racorda un utilizator și în interiorul
+  unei porțiuni; nodul intermediar apare în desen și traseul de la PR se calculează.
+- Exemplu: Tronsonul 1, PR → Nod 1, **400 m / 40.000 lei**; U1 la 400 m.
+  Tronsonul 2, Nod 1 → Nod 2, **500 m / 50.000 lei**; U2 la 500 m pe Tronsonul 2.
+  Rețeaua are 900 m și 90.000 lei, iar distanța lui U2 de la PR este 900 m.
+  Pentru U3 la 300 m pe Tronsonul 2, introdu 300 m în rândul lui U3: schema
+  generează nodul intermediar la 700 m de PR.
+- Tronsoanele și racordările se salvează la confirmarea explicită a fiecărui rând,
+  nu la fiecare tastă. Escape anulează draftul. O linie existentă pe distanțe se
+  transformă la prima salvare tabelară; racordările și limitele tehnice se păstrează,
+  iar conversia se poate anula. Alocările manuale nu sunt convertite automat.
+- LEA este desenată cu linie continuă, LES cu linie punctată. Culorile folosesc
+  tokenii locali E.ON Storybook. Desenul este orientativ: poziția nodurilor nu
+  stabilește metri, costuri sau racordări.
+- **Formular avansat** rămâne disponibil pentru limite tehnice, alocări speciale și
+  detaliul de calcul.
+
+#### Schemă simplă și unelte grafice
 
 - Selectează un utilizator din stânga (sau adaugă unul): se activează acțiunea
   **Racordează utilizator**. Apasă pe linie pentru a-l racorda; lungimea totală trebuie
@@ -131,22 +157,20 @@ selecția vizuală nu sunt salvate în proiect.
 
 #### Planșă cu noduri
 
-În **Instalație → Planșă cu noduri**, instrumentele și proprietățile sunt în
-stânga, desenul SVG în dreapta. **Extinde planșa** oferă mai mult spațiu în aceeași
+În **Instalație → Planșă cu noduri + tabel**, desenul SVG este deasupra tabelelor de
+porțiuni și racordări. **Extinde planșa** oferă mai mult spațiu desenului în aceeași
 pagină; butonul de revenire sau Escape închide modul extins. Totul funcționează
 offline, fără biblioteci sau servicii noi.
 
-- Pe o linie goală introduci prima porțiune: denumire, LEA/LES, lungime și cost.
-  PR și nodul de capăt apar automat; selectezi capătul pentru **Atașează utilizator**
-  sau **Continuă / ramifică de aici**. Un consumator este atașat unui nod electric,
-  nu este el însuși o ramură.
+- Tabelul este fluxul principal de introducere: o porțiune începe la un nod ales și
+  se termină la nodul rezultat din lungimea locală. Un consumator se racordează la
+  o porțiune și distanță locală, nu este el însuși o ramură.
 - Exemplu: porțiune inițială LES **400 m / 40.000 lei**, U1 în nodul de la 400 m;
   continuare **500 m / 50.000 lei**, U2 în nodul de la 900 m. Total: **900 m și
   90.000 lei**. Cu U1 prim utilizator și U2 nou, fără reduceri/excluderi,
   motorul existent calculează **20.000 lei fără TVA** pe porțiunea comună.
-- Pentru U3 pe extindere, selectează porțiunea și **Adaugă nod pe porțiune** la
-  distanța locală, de exemplu **300 m**: nodul este la **700 m de la PR**.
-  Atașează U3 acolo. Nodul singur nu schimbă lungimea, costul sau calculul.
+- Pentru U3 pe extindere, alege Tronsonul 2 și distanța locală **300 m** în tabelul
+  racordărilor: schema generează nodul la **700 m de la PR**.
 - Costul introdus este **costul porțiunii**, fără bifă separată de activare.
   La adăugare sau modificare de lungime/cost, costurile automate existente se
   fixează la valorile curente, apoi se actualizează investiția totală.
@@ -158,8 +182,8 @@ offline, fără biblioteci sau servicii noi.
   drepturile și documentele. Proiectele vechi nu primesc finanțatori presupuşi.
 - Trage nodurile sau folosește **Shift + săgeți** pentru aranjare; Enter/Spațiu
   selectează. Zoomul și derularea ajută navigarea. Pozițiile se salvează, dar nu
-  stabilesc metri, costuri sau racordări. Selectoarele din stânga oferă o
-  alternativă la clickurile pe desen. **Resetează planșa** elimină aranjarea și
+  stabilesc metri, costuri sau racordări. Acțiunile din tabel pot selecta rândul în
+  desen. **Resetează planșa** elimină aranjarea și
   nodurile libere, fără a elimina porțiuni, utilizatori sau limite tehnice.
 - Formularele păstrează drafturile fără salvare la fiecare tastă; confirmarea
   se face cu butonul formularului/Enter, iar Escape anulează draftul.

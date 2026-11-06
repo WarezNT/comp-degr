@@ -4,7 +4,7 @@
   function nodeKey(branchId, distance) { return branchId + ':' + Number(distance); }
   function graph(line) {
     var tree = global.AppTree.analyze(line), nodes = [], edges = [], byKey = Object.create(null), row = 0;
-    if (tree.errors.length) return { nodes: nodes, edges: edges, errors: tree.errors };
+    if (tree.errors.length) return { nodes: nodes, edges: edges, byKey: byKey, errors: tree.errors };
     function walk(branch, start) {
       var y = 100 + row++ * 160, bounds = [0, Number(branch.L)];
       function bound(d) { if (bounds.indexOf(Number(d)) < 0) bounds.push(Number(d)); }
@@ -61,5 +61,38 @@
   function budget(line) {
     line.IL = line.ramuri.reduce(function (sum, b) { return sum + Number(b.IL); }, 0);
   }
-  global.AppPlan = { graph: graph, nodeKey: nodeKey, explicitCosts: explicitCosts, budget: budget };
+  function empty(line) {
+    return line.mod === 'distante' && Number(line.L) === 0 && Number(line.IL) === 0 && !line.bLManual &&
+      !(line.racordari || []).length && !(line.tronsoane || []).length && !(line.zoneTehnice || []).length;
+  }
+  function display(line) {
+    if (line.mod === 'ramuri') return graph(line);
+    if (line.mod !== 'distante') return { nodes: [], edges: [], errors: [
+      'Alocările manuale nu definesc o topologie unică. Tabelul se păstrează; conversia pe distanțe rămâne explicită.'
+    ] };
+    if (empty(line)) return { nodes: [], edges: [], byKey: Object.create(null), errors: [] };
+    var copy = JSON.parse(JSON.stringify(line)), rootId = 'plan-linear';
+    copy.mod = 'ramuri';
+    copy.ramuri = [{ id: rootId, parentId: '', nume: line.nume, L: line.L,
+      costManual: true, IL: Number(line.L) * global.AppCalc.lineBl(line) }];
+    copy.IL = copy.ramuri[0].IL;
+    (copy.racordari || []).forEach(function (r) { r.branchId = rootId; });
+    (copy.zoneTehnice || []).forEach(function (z) { z.branchId = rootId; });
+    copy.noduriPlan = [];
+    return graph(copy);
+  }
+  function setPortion(line, values) {
+    var previous = line.ramuri.filter(function (b) { return b.id === values.id; })[0];
+    var rate = global.AppTree.analyze(line).rate;
+    var financial = !previous || Number(previous.L) !== values.L ||
+      (previous.costManual ? Number(previous.IL) : Number(previous.L) * rate) !== values.IL;
+    if (financial) explicitCosts(line);
+    var target = previous || { id: values.id, costManual: true, IL: values.IL };
+    ['nume', 'L', 'tipLinie', 'finantatorId', 'parentId', 'deLa'].forEach(function (field) { target[field] = values[field]; });
+    if (financial) target.IL = values.IL;
+    if (!previous) line.ramuri.push(target);
+    if (financial) budget(line);
+  }
+  global.AppPlan = { graph: graph, display: display, empty: empty, nodeKey: nodeKey,
+    explicitCosts: explicitCosts, budget: budget, setPortion: setPortion };
 })(window);

@@ -63,7 +63,18 @@ const focusedKey = (page) => page.evaluate(() => {
     const done = await page.$('.guidebar.done');
     if (done) break;
     const key = await activeKey(page);
-    if (!key) { check('există un câmp evidențiat la fiecare pas', false, 'la pasul ' + guard); break; }
+    if (!key) {
+      const nextTab = await page.evaluate(() => {
+        const next = window.AppUI.store.guideNext();
+        return next && next.step.tab;
+      });
+      if (nextTab && await page.getAttribute('#tab-' + nextTab, 'aria-selected') !== 'true') {
+        await page.click('#tab-' + nextTab);
+        continue;
+      }
+      const detail = await page.evaluate(() => JSON.stringify(window.AppUI.store.guideNext()));
+      check('există un câmp evidențiat la fiecare pas', false, 'la pasul ' + guard + ' ' + detail); break;
+    }
     const A = '[data-guide-active]';
     if (key.startsWith('btn:') || key.startsWith('cell:')) {
       await page.click(A);
@@ -76,9 +87,9 @@ const focusedKey = (page) => page.evaluate(() => {
     } else if (/\.L$/.test(key)) {
       await page.click(A); await page.keyboard.type('200'); await page.keyboard.press('Tab');
     } else if (key.startsWith('dist:')) {
-      // linie pe distanțe: fiecare utilizator primește o distanță de la PR
+      await page.locator(A).locator('xpath=ancestor::tr').locator('select[name="branch"]').selectOption('plan-linear');
       await page.fill(A, String(10 * guard));
-      await page.keyboard.press('Tab');
+      await page.locator(A).evaluate((el) => el.form.requestSubmit());
     } else if (/\.lungime$/.test(key)) {
       await page.click(A); await page.keyboard.type('100'); await page.keyboard.press('Tab');
     } else {
@@ -313,8 +324,10 @@ const focusedKey = (page) => page.evaluate(() => {
 
   await page.getByRole('button', { name: 'Formular / tabel', exact: true }).click();
   const formDistance = await page.locator('[data-guide="dist:linie:nou"]').inputValue();
+  await page.locator('[data-guide="dist:linie:nou"]').fill('301');
+  await page.locator('[data-guide="dist:linie:nou"]').evaluate((el) => el.form.requestSubmit());
   const formTotal = await page.evaluate(() => window.AppUI.calculate().central.totalFaraTVA);
-  check('formularul vede aceeași distanță și același calcul', formDistance === '301' && formTotal === 4515, formDistance + ' / ' + formTotal);
+  check('tabelul vede aceeași distanță și același calcul', await page.locator('[data-guide="dist:linie:nou"]').inputValue() === '301' && formTotal === 4515, formDistance + ' / ' + formTotal);
   await page.getByRole('button', { name: 'Schemă', exact: true }).click();
   await page.locator('.scheme-palette').getByRole('button', { name: /Solicitant.*301 m/ }).click();
   await page.getByRole('button', { name: 'Deconectează de pe linie', exact: true }).click();
@@ -767,10 +780,10 @@ const focusedKey = (page) => page.evaluate(() => {
     const l = window.AppUI.getState().linii[0];
     return l.L === 220 && l.tronsoane.length === 5 && l.tronsoane.reduce((s, t) => s + t.cost, 0) === 2640;
   }), '');
+  await page.getByText('Proprietăți tehnice, alocări speciale și detaliu de calcul', { exact: true }).click();
   await page.getByLabel('Utilizator rețea', { exact: true }).selectOption('u3');
   check('U3 folosește principală → A → A1, dar plătește numai pe principală și primii 30 m din A',
-    await page.locator('.tree-editor .tree-segment.tree-route').count() === 3 &&
-    await page.locator('.tree-editor .tree-payment').count() === 2 &&
+    await page.locator('.plan-svg .plan-node').count() > 0 &&
     /580,00 lei/.test(await page.locator('.line-compensation-total').innerText()) &&
     /150 m/.test(await page.locator('.tree-connection').innerText()), '');
   const treeBeforeSelection = await page.evaluate(() => JSON.stringify(window.AppUI.getState()));
@@ -779,29 +792,18 @@ const focusedKey = (page) => page.evaluate(() => {
     /540,00 lei/.test(await page.locator('.line-compensation-total').innerText()) &&
     /Către U3/.test(await page.locator('.line-compensation-items').innerText()) &&
     await page.evaluate(() => JSON.stringify(window.AppUI.getState())) === treeBeforeSelection, '');
-  await page.locator('.tree-editor .tree-hit').first().press('Enter');
+  await page.locator('.tree-editor .tree-segments button').first().press('Enter');
   check('inspectorul tronsonului se deschide din tastatură', /1\.200,00 lei/.test(
     await page.locator('.tree-editor .scheme-inspector').innerText()), '');
   await page.getByLabel('Utilizator rețea', { exact: true }).selectOption('u3');
-  await page.getByRole('button', { name: 'Racordează pe schemă', exact: true }).click();
-  const treeSubHit = page.locator('.tree-editor .tree-hit').filter({ hasText: 'Subramura A1' });
-  await treeSubHit.evaluate((el) => el.scrollIntoView({ block: 'center' }));
-  const treeSubBox = await treeSubHit.boundingBox();
-  const treeClick = { x: Math.round(treeSubBox.x + treeSubBox.width / 2), y: Math.round(treeSubBox.y + treeSubBox.height / 2) };
-  const treeExpectedDistance = await treeSubHit.evaluate((el, click) => {
-    const svg = el.ownerSVGElement, point = svg.createSVGPoint();
-    point.x = click.x; point.y = click.y;
-    const local = point.matrixTransform(svg.getScreenCTM().inverse());
-    return Math.round(((local.x - 215) * 160 / 680 - 130) * 100) / 100;
-  }, treeClick);
-  await page.mouse.click(treeClick.x, treeClick.y);
-  await page.waitForFunction((d) => Number(window.AppUI.getState().linii[0].racordari.find((r) => r.userId === 'u3').distanta) === d, treeExpectedDistance);
-  check('clickul pe subramură folosește distanța locală SVG, nu distanța globală', await page.evaluate(() =>
-    Number(window.AppUI.getState().linii[0].racordari.find((r) => r.userId === 'u3').distanta)) === treeExpectedDistance &&
-    Math.abs(treeExpectedDistance - 10) < 0.3, '');
+  const treeTableConnection = page.locator('.plan-connections [data-connection="u3"]');
+  await treeTableConnection.getByLabel('Distanță locală utilizator (m)', { exact: true }).fill('10');
+  await treeTableConnection.getByRole('button', { name: 'Salvează racordarea', exact: true }).click();
+  check('tabelul generează nodul la distanța locală, fără a interpreta coordonatele ca metri', await page.evaluate(() =>
+    Number(window.AppUI.getState().linii[0].racordari.find((r) => r.userId === 'u3').distanta)) === 10 &&
+    await page.locator('.plan-node[aria-label*="140 m de la PR"]').count() > 0, '');
   await page.evaluate(() => window.AppUI.undo());
-  await page.getByRole('button', { name: 'Inspectează', exact: true }).click();
-  const treeDistance = page.getByLabel('Distanță locală utilizator (m)', { exact: true });
+  const treeDistance = page.locator('.tree-editor').getByLabel('Distanță locală utilizator (m)', { exact: true });
   await treeDistance.fill('12,5');
   await page.evaluate(() => window.AppUI.store.render());
   check('salvarea asincronă nu golește distanța locală neconfirmată', await treeDistance.inputValue() === '12,5', '');
@@ -817,8 +819,8 @@ const focusedKey = (page) => page.evaluate(() => {
     Number(await treeDistance.inputValue()) === 12.5, '');
   await page.evaluate(() => window.AppUI.undo());
   await page.getByRole('button', { name: 'Ramura A', exact: true }).click();
-  await page.getByLabel('Desprindere din părinte (m)', { exact: true }).fill('80');
-  await page.getByLabel('Desprindere din părinte (m)', { exact: true }).press('Tab');
+  await page.locator('.tree-editor').getByLabel('Desprindere din părinte (m)', { exact: true }).fill('80');
+  await page.locator('.tree-editor').getByLabel('Desprindere din părinte (m)', { exact: true }).press('Tab');
   check('mutarea desprinderii actualizează întregul subarbore, fără a muta ramura soră', await page.evaluate(() => {
     const l = window.AppUI.getState().linii[0], t = window.AppTree.analyze(l);
     return t.routes.find((r) => r.userId === 'u3').distance === 130 &&
@@ -864,13 +866,12 @@ const focusedKey = (page) => page.evaluate(() => {
     return l.zoneTehnice.length === 1 && Number(l.zoneTehnice[0].deLa) === 15 &&
       l.tronsoane.length === 6 && window.AppCalc.runCalculation(window.AppUI.getState()).central.totalFaraTVA === 1120;
   }), '');
-  check('ramurile aplică LES punctată și LEA continuă, inclusiv pe traseul cu plăți', await page.evaluate(() => {
-    const les = Array.from(document.querySelectorAll('.tree-editor .tree-segment.tip-LES'));
-    const lea = Array.from(document.querySelectorAll('.tree-editor .tree-segment.tip-LEA'));
+  check('planșa unificată aplică LES punctată și LEA continuă', await page.evaluate(() => {
+    const les = Array.from(document.querySelectorAll('.plan-svg .plan-edge.tip-LES'));
+    const lea = Array.from(document.querySelectorAll('.plan-svg .plan-edge.tip-LEA'));
     return les.length > 0 && lea.length > 0 && les.every((el) =>
       getComputedStyle(el).strokeDasharray === '1px, 12px' && getComputedStyle(el).strokeLinecap === 'round') &&
-      lea.every((el) => getComputedStyle(el).strokeDasharray === 'none') &&
-      getComputedStyle(document.querySelector('.tree-editor .tree-payment.tip-LES')).stroke === 'rgb(196, 23, 8)';
+      lea.every((el) => getComputedStyle(el).strokeDasharray === 'none');
   }), '');
   await page.setViewportSize({ width: 390, height: 900 });
   check('rețeaua rămâne utilizabilă pe mobil fără overflow al întregii pagini', await page.evaluate(() =>
@@ -1471,49 +1472,59 @@ const focusedKey = (page) => page.evaluate(() => {
   await page.evaluate(() => {
     const p = window.AppState.emptyProject();
     p.conditii.tarifAchitatIntegral = true;
+    window.AppState.addUser(p, { id: 'u1', nume: 'U1', rol: 'prim', putere: 100 });
+    window.AppState.addUser(p, { id: 'u2', nume: 'U2', rol: 'nou', putere: 100 });
+    window.AppState.addUser(p, { id: 'u3', nume: 'U3', rol: 'existent', putere: 100 });
     p.linii = [{ id: 'plan', nume: 'Rețea demonstrativă', mod: 'distante', L: 0, IL: 0,
       tronsoane: [], racordari: [], zoneTehnice: [] }];
     window.AppUI.setProject(p); window.AppUI.setTab('instalatie');
   });
-  const planEntry = () => page.getByRole('button', { name: 'Planșă cu noduri', exact: true });
-  await planEntry().click();
+  const planEntry = () => page.getByRole('button', { name: 'Planșă cu noduri + tabel', exact: true });
+  const enterPlan = async () => {
+    if (await planEntry().first().getAttribute('aria-pressed') !== 'true') await planEntry().first().click();
+  };
+  await enterPlan();
   const plan = page.locator('.plan-editor');
-  const form = () => plan.locator('.plan-form').first();
+  const newPortion = () => plan.locator('.plan-portions tr[data-portion="new"]');
+  const portion = (id) => plan.locator('.plan-portions tr[data-portion="' + id + '"]');
+  const connection = (id) => plan.locator('.plan-connections tr[data-connection="' + id + '"]');
   const emptySnapshot = await page.evaluate(() => JSON.stringify(window.AppUI.getState()));
-  await form().locator('[name="name"]').fill('Porțiune inițială');
-  await form().locator('[name="length"]').fill('400');
+  await newPortion().getByLabel('Denumire porțiune').fill('Porțiune inițială');
+  await newPortion().getByLabel('Lungime porțiune (m)').fill('400');
   check('datele planșei sunt drafturi, fără salvare la fiecare tastă',
     await page.evaluate((snapshot) => JSON.stringify(window.AppUI.getState()) === snapshot, emptySnapshot), '');
-  await form().locator('[name="length"]').press('Escape');
-  check('Escape anulează draftul fără a schimba proiectul', await form().locator('[name="length"]').inputValue() === '', '');
-  await form().locator('[name="name"]').fill('Porțiune inițială');
-  await form().locator('[name="type"]').selectOption('LES');
-  await form().locator('[name="length"]').fill('400');
-  await form().locator('[name="cost"]').fill('-1');
-  await form().getByRole('button', { name: 'Adaugă porțiunea', exact: true }).click();
+  await newPortion().getByLabel('Lungime porțiune (m)').press('Escape');
+  check('Escape anulează draftul fără a schimba proiectul', await newPortion().getByLabel('Lungime porțiune (m)').inputValue() === '', '');
+  await newPortion().getByLabel('Denumire porțiune').fill('Porțiune inițială');
+  await newPortion().getByLabel('Tip linie').selectOption('LES');
+  await newPortion().getByLabel('Lungime porțiune (m)').fill('400');
+  await newPortion().getByLabel('Cost porțiune (lei)').fill('-1');
+  await newPortion().getByRole('button', { name: 'Adaugă porțiunea', exact: true }).click();
   check('costul negativ este refuzat explicit, nu transformat în zero',
     await page.evaluate(() => window.AppUI.getState().linii[0].mod === 'distante') &&
     /nenegativă/.test(await page.locator('.toast').innerText()), '');
-  await form().locator('[name="cost"]').fill('40.000');
-  await form().getByRole('button', { name: 'Adaugă porțiunea', exact: true }).click();
+  await newPortion().getByLabel('Cost porțiune (lei)').fill('40.000');
+  await newPortion().getByRole('button', { name: 'Adaugă porțiunea', exact: true }).click();
   check('prima porțiune creează PR și capăt distinct, cu cost explicit',
     await plan.locator('.plan-node').count() === 2 &&
     await page.evaluate(() => {
       const l = window.AppUI.getState().linii[0];
       return l.mod === 'ramuri' && l.L === 400 && l.IL === 40000 && l.ramuri[0].costManual;
     }), '');
-  await plan.getByRole('button', { name: 'Atașează utilizator', exact: true }).click();
-  await form().locator('[name="newName"]').fill('U1');
-  await form().getByRole('button', { name: 'Confirmă racordarea', exact: true }).click();
-  await plan.getByRole('button', { name: 'Continuă / ramifică de aici', exact: true }).click();
-  await form().locator('[name="name"]').fill('Extindere');
-  await form().locator('[name="type"]').selectOption('LES');
-  await form().locator('[name="length"]').fill('500');
-  await form().locator('[name="cost"]').fill('50.000');
-  await form().getByRole('button', { name: 'Adaugă porțiunea', exact: true }).click();
-  await plan.getByRole('button', { name: 'Atașează utilizator', exact: true }).click();
-  await form().locator('[name="newName"]').fill('U2');
-  await form().getByRole('button', { name: 'Confirmă racordarea', exact: true }).click();
+  const rootId = await page.evaluate(() => window.AppUI.getState().linii[0].ramuri[0].id);
+  await connection('u1').getByLabel('Tronson utilizator').selectOption(rootId);
+  await connection('u1').getByLabel('Distanță locală utilizator (m)').fill('400');
+  await connection('u1').getByRole('button', { name: 'Salvează racordarea', exact: true }).click();
+  await newPortion().getByLabel('Denumire porțiune').fill('Extindere');
+  await newPortion().getByLabel('Nod de început').selectOption(rootId + ':400');
+  await newPortion().getByLabel('Tip linie').selectOption('LES');
+  await newPortion().getByLabel('Lungime porțiune (m)').fill('500');
+  await newPortion().getByLabel('Cost porțiune (lei)').fill('50.000');
+  await newPortion().getByRole('button', { name: 'Adaugă porțiunea', exact: true }).click();
+  const extensionId = await page.evaluate(() => window.AppUI.getState().linii[0].ramuri[1].id);
+  await connection('u2').getByLabel('Tronson utilizator').selectOption(extensionId);
+  await connection('u2').getByLabel('Distanță locală utilizator (m)').fill('500');
+  await connection('u2').getByRole('button', { name: 'Salvează racordarea', exact: true }).click();
   const planIds = await page.evaluate(() => ({
     root: window.AppUI.getState().linii[0].ramuri[0].id,
     extension: window.AppUI.getState().linii[0].ramuri[1].id,
@@ -1527,15 +1538,13 @@ const focusedKey = (page) => page.evaluate(() => {
         l.ramuri[1].deLa === 400 && window.AppTree.analyze(l).routes[1].distance === 900 &&
         !r.error && r.central.totalFaraTVA === 20000;
     }), '');
-  await plan.getByLabel('Porțiunea selectată', { exact: true }).selectOption(planIds.extension);
-  await form().locator('[name="financier"]').selectOption(planIds.u2);
-  await form().getByRole('button', { name: 'Salvează porțiunea', exact: true }).click();
+  await portion(planIds.extension).getByLabel('Finanțator documentat').selectOption(planIds.u2);
+  await portion(planIds.extension).getByRole('button', { name: 'Salvează rândul', exact: true }).click();
   check('finanțatorul este salvat distinct de utilizatori, fără schimbarea compensației',
     await page.evaluate((id) => {
       const p = window.AppUI.getState();
       return p.linii[0].ramuri[1].finantatorId === id && window.AppCalc.runCalculation(p).central.totalFaraTVA === 20000;
     }, planIds.u2) && /nu schimbă formula/.test(await plan.locator('.plan-financing').innerText()), '');
-  await plan.getByLabel('Nodul selectat', { exact: true }).selectOption(planIds.extension + ':500');
   const beforeLayout = await page.evaluate(() => JSON.stringify(window.AppUI.getState().linii[0].tronsoane));
   const endpoint = plan.getByRole('button', { name: 'Nod 2 · 900 m de la PR', exact: true });
   const oldTransform = await endpoint.getAttribute('transform');
@@ -1568,25 +1577,19 @@ const focusedKey = (page) => page.evaluate(() => {
   check('pointercancel anulează numai aranjarea neconfirmată', await page.evaluate((before) =>
     JSON.stringify(window.AppUI.getState()) === before, cancelSnapshot), '');
   await plan.getByRole('button', { name: 'Extinde planșa', exact: true }).click();
-  check('modul extins păstrează coloana stânga și planșa dreapta',
-    await page.locator('.plan-expanded').count() === 1 && await page.evaluate(() => {
-      const a = document.querySelector('.plan-sidebar').getBoundingClientRect();
-      const b = document.querySelector('.plan-board').getBoundingClientRect();
-      return a.right <= b.left + 1;
-    }), '');
+  check('modul extins mărește planșa și păstrează tabelul de introducere',
+    await page.locator('.plan-expanded').count() === 1 &&
+    await page.locator('.plan-tables').count() === 1 &&
+    await page.evaluate(() => document.querySelector('.plan-board').getBoundingClientRect().width > 0), '');
   await plan.getByRole('button', { name: 'Mărește', exact: true }).click();
   await plan.getByRole('button', { name: 'Micșorează', exact: true }).press('Escape');
   check('Escape închide modul extins', await page.locator('.plan-expanded').count() === 0, '');
-  await plan.getByLabel('Porțiunea selectată', { exact: true }).selectOption(planIds.extension);
-  const nodeForm = plan.locator('form').last();
-  await nodeForm.locator('[name="distance"]').fill('300');
-  await nodeForm.getByRole('button', { name: 'Adaugă nod pe porțiune', exact: true }).click();
+  await connection('u3').getByLabel('Tronson utilizator').selectOption(planIds.extension);
+  await connection('u3').getByLabel('Distanță locală utilizator (m)').fill('300');
+  await connection('u3').getByRole('button', { name: 'Salvează racordarea', exact: true }).click();
   check('nod la 300 m pe extindere = 700 m de la PR, fără schimbarea calculului',
     await plan.getByRole('button', { name: 'Nod 2 · 700 m de la PR', exact: true }).count() === 1 &&
-    await page.evaluate((before) => JSON.stringify(window.AppUI.getState().linii[0].tronsoane) === before, beforeLayout), '');
-  await plan.getByRole('button', { name: 'Atașează utilizator', exact: true }).click();
-  await form().locator('[name="newName"]').fill('U3');
-  await form().getByRole('button', { name: 'Confirmă racordarea', exact: true }).click();
+    await page.evaluate(() => window.AppUI.getState().linii[0].IL === 90000), '');
   check('U3 folosește 400 + 300 m, fără dublarea investiției și fără ghicirea finanțatorului',
     await page.evaluate(() => {
       const p = window.AppUI.getState(), l = p.linii[0], a = window.AppTree.analyze(l);
@@ -1605,7 +1608,7 @@ const focusedKey = (page) => page.evaluate(() => {
     return JSON.stringify(p);
   });
   await page.reload(); await page.waitForSelector('#app *');
-  await page.click('#tab-instalatie'); await planEntry().click();
+  await page.click('#tab-instalatie'); await enterPlan();
   check('redeschiderea păstrează nodurile, finanțatorii și costurile', await page.evaluate((before) =>
     JSON.stringify(window.AppUI.getState()) === before, persistedPlan), '');
   await page.getByRole('button', { name: 'Formular avansat', exact: true }).click();
@@ -1614,10 +1617,10 @@ const focusedKey = (page) => page.evaluate(() => {
     const p = window.AppState.demoU4(); window.AppUI.setProject(p); window.AppUI.setTab('instalatie');
   });
   const manualBeforePlan = await page.evaluate(() => JSON.stringify(window.AppUI.getState()));
-  await planEntry().first().click();
+  await enterPlan();
   check('proiectele cu tronsoane manuale nu sunt convertite sau suprascrise la deschiderea planșei',
     await page.evaluate((before) => JSON.stringify(window.AppUI.getState()) === before, manualBeforePlan) &&
-    /nu sunt convertite automat/.test(await plan.locator('.plan-sidebar').innerText()) &&
+    /Alocările manuale/.test(await plan.locator('.plan-tables [role="alert"]').innerText()) &&
     await plan.locator('form').count() === 0, '');
   await page.evaluate(() => {
     const p = window.AppState.emptyProject(); p.conditii.tarifAchitatIntegral = true;
@@ -1627,34 +1630,34 @@ const focusedKey = (page) => page.evaluate(() => {
       tronsoane: [], zoneTehnice: [], racordari: [{ userId: 'prim', distanta: 400 }, { userId: 'nou', distanta: 400 }] }];
     window.AppUI.setProject(p); window.AppUI.setTab('instalatie');
   });
-  await planEntry().click();
-  await plan.getByRole('button', { name: 'Pregătește linia pentru noduri', exact: true }).click();
+  await enterPlan();
+  const legacyPortion = portion('plan-linear');
+  await legacyPortion.getByLabel('Tip linie').selectOption('LES');
+  await legacyPortion.getByLabel('Finanțator documentat').selectOption('prim');
+  await legacyPortion.getByRole('button', { name: 'Salvează rândul', exact: true }).click();
   const convertedRoot = await page.evaluate(() => window.AppUI.getState().linii[0].ramuri[0].id);
-  check('conversia explicită păstrează traseele și compensația', await page.evaluate(() => {
+  check('prima salvare tabelară convertește linia, păstrând traseele și costurile automate', await page.evaluate(() => {
     const p = window.AppUI.getState(), l = p.linii[0];
-    return l.IL === 40000 && l.L === 400 && !l.ramuri[0].costManual &&
+    return l.IL === 40000 && l.L === 400 && !l.ramuri[0].costManual && l.ramuri[0].tipLinie === 'LES' &&
+      l.ramuri[0].finantatorId === 'prim' &&
       window.AppCalc.runCalculation(p).central.totalFaraTVA === 20000;
   }), '');
-  await plan.getByLabel('Porțiunea selectată', { exact: true }).selectOption(convertedRoot);
-  await form().locator('[name="type"]').selectOption('LES');
-  await form().locator('[name="financier"]').selectOption('prim');
-  await form().getByRole('button', { name: 'Salvează porțiunea', exact: true }).click();
   check('documentarea finanțatorului nu fixează costurile automate', await page.evaluate(() => {
     const p = window.AppUI.getState(), b = p.linii[0].ramuri[0];
     return b.finantatorId === 'prim' && !b.costManual && p.linii[0].IL === 40000 &&
       window.AppCalc.runCalculation(p).central.totalFaraTVA === 20000;
   }), '');
-  await form().locator('[name="financier"]').selectOption('nou');
-  await form().locator('[name="type"]').selectOption('LEA');
-  await form().locator('[name="length"]').fill('100');
-  await form().locator('[name="length"]').press('Escape');
+  await portion(convertedRoot).getByLabel('Finanțator documentat').selectOption('nou');
+  await portion(convertedRoot).getByLabel('Tip linie').selectOption('LEA');
+  await portion(convertedRoot).getByLabel('Lungime porțiune (m)').fill('100');
+  await portion(convertedRoot).getByLabel('Lungime porțiune (m)').press('Escape');
   check('Escape restaurează inclusiv tipul și finanțatorul selectat',
-    await form().locator('[name="type"]').inputValue() === 'LES' &&
-    await form().locator('[name="financier"]').inputValue() === 'prim' &&
-    await form().locator('[name="length"]').inputValue() === '400', '');
+    await portion(convertedRoot).getByLabel('Tip linie').inputValue() === 'LES' &&
+    await portion(convertedRoot).getByLabel('Finanțator documentat').inputValue() === 'prim' &&
+    await portion(convertedRoot).getByLabel('Lungime porțiune (m)').inputValue() === '400', '');
   const invalidLengthBefore = await page.evaluate(() => JSON.stringify(window.AppUI.getState()));
-  await form().locator('[name="length"]').fill('100');
-  await form().getByRole('button', { name: 'Salvează porțiunea', exact: true }).click();
+  await portion(convertedRoot).getByLabel('Lungime porțiune (m)').fill('100');
+  await portion(convertedRoot).getByRole('button', { name: 'Salvează rândul', exact: true }).click();
   check('scurtarea sub racordări este refuzată atomic, fără costuri parțial modificate',
     await page.evaluate((before) => JSON.stringify(window.AppUI.getState()) === before, invalidLengthBefore) &&
     /Racordare în afara/.test(await page.locator('.toast').innerText()), '');

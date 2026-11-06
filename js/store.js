@@ -351,17 +351,15 @@
     }, { undo: true });
   };
 
-  store.convertTree = function (lineId) {
-    var l = byId(store.state.linii, lineId);
+  function treeCandidate(l, rootId) {
     if (!l || l.mod !== 'distante' || !(Number(l.L) > 0)) {
       store.toast('Conversia necesită o linie pe distanțe, cu lungime pozitivă și date valide.', 'error');
-      return false;
+      return null;
     }
     if (l.bLManual && (!isFinite(Number(l.bL)) || l.bL === '' || Math.abs(C.lineBl(l) * Number(l.L) - Number(l.IL)) > 1e-6)) {
       store.toast('Înainte de conversie, costul specific trebuie să corespundă investiției I_L / L.', 'error');
-      return false;
+      return null;
     }
-    var rootId = S.uid('ramura');
     var next = JSON.parse(JSON.stringify(l));
     next.mod = 'ramuri';
     next.ramuri = [{ id: rootId, nume: 'Linia principală', parentId: '', deLa: 0, L: l.L, IL: '', costManual: false }];
@@ -369,11 +367,17 @@
     next.zoneTehnice = next.zoneTehnice || [];
     next.racordari.forEach(function (r) { r.branchId = rootId; });
     next.zoneTehnice.forEach(function (z) { z.branchId = rootId; });
+    return next;
+  }
+
+  store.convertTree = function (lineId) {
+    var l = byId(store.state.linii, lineId);
+    if (!l) return false;
+    var next = treeCandidate(l, S.uid('ramura'));
+    if (!next) return false;
     var errors = global.AppTree.analyze(next).errors;
     if (errors.length) { store.toast(errors.join(' '), 'error'); return false; }
-    mutate(function (p) {
-      p.linii[p.linii.indexOf(l)] = next;
-    }, { undo: true });
+    mutate(function (p) { p.linii[p.linii.indexOf(l)] = next; }, { undo: true });
     return true;
   };
 
@@ -405,6 +409,68 @@
         deLa: parent ? Number(parent.L) : 0, L: 100, IL: '', costManual: false });
     });
     return ok ? id : null;
+  };
+
+  store.savePlanPortion = function (lineId, values) {
+    var line = byId(store.state.linii, lineId), plan = global.AppPlan;
+    if (!line || !values.nume.trim() || !(values.L > 0) || !isFinite(values.L) ||
+      values.IL < 0 || !isFinite(values.IL) || values.deLa < 0 || !isFinite(values.deLa) ||
+      ['LEA', 'LES', 'altul'].indexOf(values.tipLinie) < 0 ||
+      (values.finantatorId && !S.findUser(store.state, values.finantatorId))) {
+      store.toast('Porțiune invalidă: verifică denumirea, tipul, lungimea, costul și finanțatorul.', 'error');
+      return false;
+    }
+    if (plan.empty(line)) {
+      if (values.parentId) { store.toast('Prima porțiune trebuie să înceapă la PR.', 'error'); return false; }
+      mutate(function (p) {
+        var target = byId(p.linii, lineId);
+        target.mod = 'ramuri'; target.bLManual = false; target.noduriPlan = [];
+        target.ramuri = [Object.assign({}, values, { costManual: true })]; target.IL = values.IL;
+      }, { undo: true, noFocus: true });
+      return true;
+    }
+    if (line.mod === 'distante') {
+      var converted = treeCandidate(line, values.id);
+      if (!converted) return false;
+      plan.setPortion(converted, values);
+      var conversionErrors = global.AppTree.analyze(converted).errors;
+      if (conversionErrors.length) { store.toast(conversionErrors.join(' '), 'error'); return false; }
+      mutate(function (p) { p.linii[p.linii.indexOf(line)] = converted; }, { undo: true, noFocus: true });
+      return true;
+    }
+    if (line.mod !== 'ramuri' || global.AppTree.analyze(line).errors.length) {
+      store.toast('Corectează rețeaua sau efectuează conversia explicită înainte de a edita porțiunile.', 'error');
+      return false;
+    }
+    return store.editTree(lineId, function (next) { plan.setPortion(next, values); }, { noFocus: true });
+  };
+
+  store.savePlanConnection = function (lineId, userId, branchId, distance) {
+    var line = byId(store.state.linii, lineId);
+    if (!line || !S.findUser(store.state, userId) || !isFinite(distance) || distance < 0) {
+      store.toast('Racordare invalidă: verifică utilizatorul, nodul și distanța.', 'error');
+      return false;
+    }
+    if (line.mod === 'distante') {
+      if (branchId && branchId !== 'plan-linear') {
+        store.toast('Nodul selectat nu aparține liniei. Reîncarcă tabelul și încearcă din nou.', 'error');
+        return false;
+      }
+      if (branchId && distance > Number(line.L)) {
+        store.toast('Distanța racordării depășește lungimea liniei.', 'error');
+        return false;
+      }
+      mutate(function (p) {
+        var target = byId(p.linii, lineId);
+        target.racordari = target.racordari.filter(function (r) { return r.userId !== userId; });
+        if (branchId) target.racordari.push({ userId: userId, distanta: distance });
+      }, { undo: true, noFocus: true });
+      return true;
+    }
+    return store.editTree(lineId, function (target) {
+      target.racordari = target.racordari.filter(function (r) { return r.userId !== userId; });
+      if (branchId) target.racordari.push({ userId: userId, branchId: branchId, distanta: distance });
+    }, { noFocus: true });
   };
 
   store.delBranch = function (lineId, branchId, keepCosts) {

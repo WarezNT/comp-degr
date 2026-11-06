@@ -38,8 +38,190 @@
       <button type="submit" class="btn primary">${isEdit ? 'Salvează porțiunea' : 'Adaugă porțiunea'}</button>
     </form>`;
   }
+  function TableInput(props) {
+    var value = props.value == null ? '' : props.value;
+    if (props.numeric && value !== '') value = String(value).replace('.', ',');
+    return html`<input form=${props.form} name=${props.name} aria-label=${props.label}
+      inputmode=${props.numeric ? 'decimal' : undefined} defaultValue=${value} required=${!!props.required} autocomplete="off" />`;
+  }
+  function readNumber(data, name, label, positive) {
+    var value = K.parseNum(data.get(name));
+    if (value === '' || value === null || (positive ? value <= 0 : value < 0)) {
+      store.toast(label + ' : introdu o valoare ' + (positive ? 'pozitivă.' : 'nenegativă.'), 'error');
+      return null;
+    }
+    return value;
+  }
+  function nodeLabel(graph, node) {
+    if (!node) return '—';
+    return node.origin ? 'PR' : 'Nod ' + graph.nodes.indexOf(node) + ' · ' + node.total + ' m';
+  }
+  function branchStart(graph, branch) {
+    return branch.parentId
+      ? graph.byKey[P.nodeKey(branch.parentId, branch.deLa)]
+      : graph.byKey[P.nodeKey(branch.id, 0)];
+  }
+  function PortionRow(props) {
+    var l = props.l, b = props.branch, graph = props.graph, version = useState(0);
+    var lineBranches = l.ramuri || [];
+    var form = 'portion-' + l.id + '-' + (b ? b.id : 'new');
+    var rate = l.mod === 'ramuri' ? global.AppTree.analyze(l).rate : global.AppCalc.lineBl(l);
+    var cost = b ? b.costManual ? b.IL : Number(b.L) * rate : '';
+    function submit(event) {
+      event.preventDefault();
+      var data = new global.FormData(event.currentTarget);
+      var length = readNumber(data, 'length', 'Lungime', true), amount = readNumber(data, 'cost', 'Cost', false);
+      if (length === null || amount === null) return;
+      var start = b && !b.parentId ? branchStart(graph, b) : graph.byKey[String(data.get('start') || '')];
+      if (!start && !P.empty(l)) { store.toast('Alege nodul de început al porțiunii.', 'error'); return; }
+      var id = b ? b.id : S.uid('ramura');
+      if (store.savePlanPortion(l.id, { id: id, nume: String(data.get('name') || '').trim(),
+        parentId: start && !start.origin ? start.branchId : '', deLa: start && !start.origin ? start.distance : 0,
+        L: length, IL: amount,
+        tipLinie: String(data.get('type') || ''), finantatorId: String(data.get('financier') || '') })) {
+        version[1](version[0] + 1); props.onSelect('branch:' + id);
+      }
+    }
+    var start = b && graph.byKey ? branchStart(graph, b) : null;
+    var end = b && graph.byKey ? graph.byKey[P.nodeKey(b.id, b.L)] : null;
+    var startValue = start ? start.key : '';
+    var defaultStart = graph.nodes.length ? graph.nodes[graph.nodes.length - 1].key : '';
+    if (b && !b.parentId) defaultStart = startValue;
+    if (!b && props.selection && graph.byKey[props.selection]) defaultStart = props.selection;
+    return html`<tr key=${version[0]} data-portion=${b ? b.id : 'new'}
+      class=${b && props.selection === 'branch:' + b.id ? 'plan-table-selected' : ''}
+      onKeyDown=${function (e) { if (e.key === 'Escape') { e.stopPropagation(); version[1](version[0] + 1); } }}>
+      <th scope="row">Tronson ${props.index + 1}<small>${b ? b.nume : 'Porțiune nouă'}</small>
+        <${TableInput} form=${form} name="name" label="Denumire porțiune" value=${b ? b.nume : 'Tronson ' + (props.index + 1)} required=${true} /></th>
+      <td><select form=${form} name="start" aria-label="Nod de început" value=${b ? startValue : defaultStart}
+        disabled=${!!(b && !b.parentId)}>
+        ${graph.nodes.map(function (node) {
+          var isDescendant = b && (function () {
+            var branch = lineBranches.filter(function (x) { return x.id === node.branchId; })[0];
+            while (branch && branch.parentId) {
+              if (branch.parentId === b.id) return true;
+              branch = lineBranches.filter(function (x) { return x.id === branch.parentId; })[0];
+            }
+            return branch && branch.id === b.id && !branch.parentId;
+          })();
+          return html`<option value=${node.key} key=${node.key} disabled=${!!isDescendant}>
+            ${nodeLabel(graph, node)}${node.users.length ? ' · ' + node.users.map(userName).join(', ') : ''}</option>`;
+        })}
+        ${!graph.nodes.length ? html`<option value="" selected>Nodul PR</option>` : null}
+      </select></td>
+      <td class="plan-node-output">${b ? nodeLabel(graph, start) : 'Se generează după salvare'}</td>
+      <td class="plan-node-output">${b ? nodeLabel(graph, end) : 'Nod nou după salvare'}</td>
+      <td><${TableInput} form=${form} name="length" label="Lungime porțiune (m)" numeric=${true} value=${b ? b.L : ''} required=${true} /></td>
+      <td><${TableInput} form=${form} name="cost" label="Cost porțiune (lei)" numeric=${true} value=${cost} required=${true} />
+        ${b ? html`<small>${b.costManual ? 'Cost explicit' : 'Cost automat curent'}</small>` : null}</td>
+      <td><select form=${form} name="type" aria-label="Tip linie" required>
+        <option value="" selected=${!b || !b.tipLinie}>Alege</option>
+        ${['LEA', 'LES', 'altul'].map(function (type) { return html`<option value=${type} key=${type} selected=${b && b.tipLinie === type}>${type}</option>`; })}
+      </select></td>
+      <td><select form=${form} name="financier" aria-label="Finanțator documentat">
+        <option value="" selected=${!b || !b.finantatorId}>Necunoscut / de verificat</option>
+        ${store.state.utilizatori.map(function (u) {
+          return html`<option value=${u.id} key=${u.id} selected=${b && b.finantatorId === u.id}>${userName(u.id)}</option>`;
+        })}
+      </select></td>
+      <td><form id=${form} onSubmit=${submit}><button type="submit" class="btn tiny">${b ? 'Salvează rândul' : 'Adaugă porțiunea'}</button></form>
+        ${b ? html`<button type="button" class="btn tiny ghost" onClick=${function () { props.onSelect('branch:' + b.id); }}>Selectează în planșă</button>` : null}
+        ${b && b.parentId ? html`<button type="button" class="btn tiny danger" onClick=${function () {
+          if (global.confirm('Ștergi porțiunea și continuările ei, deducând costurile eliminate? Utilizatorii rămân în proiect. Poți anula.')) {
+            if (store.delBranch(l.id, b.id, true)) props.onSelect('');
+          }
+        }}>Șterge</button>` : null}
+      </td>
+    </tr>`;
+  }
+  function ConnectionRow(props) {
+    var l = props.l, u = props.user, graph = props.graph, r = l.racordari.filter(function (x) { return x.userId === u.id; })[0];
+    var version = useState(0), form = 'connection-' + l.id + '-' + u.id;
+    function submit(event) {
+      event.preventDefault();
+      save(new global.FormData(event.currentTarget));
+    }
+    function save(data) {
+      var branch = String(data.get('branch') || '');
+      var distance = branch ? readNumber(data, 'distance', 'Distanța locală', false) : 0;
+      if (distance === null) return;
+      if (store.savePlanConnection(l.id, u.id, branch, distance)) {
+        version[1](version[0] + 1);
+        var node = branch && graph.byKey[P.nodeKey(branch, distance)];
+        props.onSelect(node ? node.key : '');
+      }
+    }
+    var branchId = r && (r.branchId || graph.nodes[0] && graph.nodes[0].branchId);
+    var currentNode = r && graph.byKey[P.nodeKey(branchId, r.distanta)];
+    var tree = l.mod === 'ramuri' ? global.AppTree.analyze(l) : null;
+    var route = tree && tree.routes.filter(function (x) { return x.userId === u.id; })[0];
+    var branches = l.mod === 'ramuri' ? l.ramuri : [{ id: 'plan-linear', nume: l.nume || 'Linia principală' }];
+    return html`<tr key=${version[0]} data-connection=${u.id}
+      onKeyDown=${function (e) { if (e.key === 'Escape') { e.stopPropagation(); version[1](version[0] + 1); } }}>
+      <th scope="row">${userName(u.id)}</th>
+      <td><form id=${form} onSubmit=${submit}>
+        <select name="branch" aria-label="Tronson utilizator" form=${form}>
+          <option value="" selected=${!r}>Neracordat</option>
+          ${branches.map(function (b) { return html`<option key=${b.id} value=${b.id} selected=${branchId === b.id}>${b.nume}</option>`; })}
+        </select>
+        <input form=${form} name="distance" type="text" inputmode="decimal"
+          aria-label="Distanță locală utilizator (m)" data-guide=${l.mod === 'distante' ? 'dist:' + l.id + ':' + u.id : undefined}
+          defaultValue=${r ? String(r.distanta).replace('.', ',') : ''} autocomplete="off" />
+        <button type="submit" class="btn tiny">Salvează racordarea</button>
+      </form></td>
+      <td>${currentNode ? nodeLabel(graph, currentNode) : 'Se generează după salvare'}</td>
+      <td>${route ? route.distance + ' m' : '—'}</td>
+    </tr>`;
+  }
+  function PlanTables(props) {
+    var l = props.l, tree = l.mod === 'ramuri' ? global.AppTree.analyze(l) : null;
+    var graph = P.display(l), branches = (l.ramuri || []).slice();
+    if (l.mod === 'distante' && Number(l.L) > 0) {
+      var technical = (l.zoneTehnice || []).filter(function (z) { return Number(z.deLa) === 0; })[0] || {};
+      branches = [{ id: 'plan-linear', parentId: '', deLa: 0, L: l.L, nume: l.nume || 'Linia principală',
+        IL: l.bLManual ? l.IL : '', costManual: !!l.bLManual,
+        tipLinie: technical.tipLinie || '', finantatorId: '' }];
+    }
+    return html`<section class="plan-tables" aria-label="Introducere tabelară a rețelei">
+      <h3>Porțiuni de rețea</h3>
+      <p class="hint">Fiecare rând definește un tronson între nodul de început și nodul de sfârșit.
+        Alege unde începe, apoi introdu lungimea: nodul următor se generează automat.
+        Distanțele sunt măsurate local pe porțiunea părinte. Escape anulează draftul rândului.</p>
+      <p class="warn plan-financing">Finanțatorul este documentat, dar nu schimbă formula.
+        Costurile sunt cele ale porțiunilor, nu totalul rețelei. O lungime/un cost modificat sau o porțiune nouă
+        fixează costurile automate la valorile lor curente și actualizează totalul I_L. Poți anula modificarea.</p>
+      ${l.mod === 'distante' && !P.empty(l) ? html`<p class="hint">Linia existentă se va transforma în rețea cu noduri numai la confirmarea primei editări tabelare; racordările și limitele tehnice se păstrează. Poți anula conversia.</p>` : null}
+      ${graph.errors.length ? html`<div class="warn" role="alert">${graph.errors.map(function (text) { return html`<p>${text}</p>`; })}</div>` : null}
+      ${l.mod === 'ramuri' && (l.noduriPlan || []).length ? html`<button type="button" class="btn tiny ghost" onClick=${function () {
+        if (global.confirm('Resetezi aranjarea și elimini nodurile libere? Porțiunile, racordările și limitele tehnice rămân neschimbate. Poți anula.')) {
+          if (store.editTree(l.id, function (next) { next.noduriPlan = []; }, { noFocus: true })) props.onSelect('');
+        }
+      }}>Resetează planșa</button>` : null}
+      <div class="table-wrap"><table class="plan-portions"><caption>Tronsoane și nodurile dintre ele</caption>
+        <thead><tr><th>Tronson</th><th>Nod de început</th><th>Nod de sfârșit</th><th>Lungime (m)</th>
+          <th>Cost (lei)</th><th>Tip linie</th><th>Finanțator documentat</th><th>Acțiuni</th></tr></thead>
+        <tbody>${branches.map(function (b, index) {
+          return html`<${PortionRow} key=${b.id + JSON.stringify(b) + (tree ? tree.rate : '')}
+            l=${l} graph=${graph} branch=${b} index=${index} selection=${props.selection} onSelect=${props.onSelect} />`;
+        })}
+          ${l.mod === 'ramuri' || P.empty(l) ? html`<${PortionRow} key=${'new:' + l.mod}
+            l=${l} graph=${graph} index=${branches.length} selection=${props.selection} onSelect=${props.onSelect} />` : null}
+        </tbody>
+      </table></div>
+      ${l.mod === 'ramuri' || l.mod === 'distante' && Number(l.L) > 0 ? html`<h3>Racordarea utilizatorilor la noduri</h3>
+        <p class="hint">Alege direct nodul din listă. Nodurile se generează din capetele tronsoanelor, ramificații și limite existente.</p>
+        <div class="table-wrap"><table class="plan-connections"><caption>Racordările utilizatorilor</caption>
+          <thead><tr><th>Utilizator</th><th>Tronson și distanță locală (m)</th><th>Nod generat</th><th>Traseu de la PR (m)</th></tr></thead>
+          <tbody>${store.state.utilizatori.map(function (u) {
+            var r = l.racordari.filter(function (x) { return x.userId === u.id; })[0];
+            return html`<${ConnectionRow} key=${u.id + JSON.stringify(r)} l=${l} graph=${graph} user=${u} onSelect=${props.onSelect} />`;
+          })}</tbody>
+        </table></div>` : null}
+    </section>`;
+  }
   function PlanEditor(props) {
-    var l = props.l, graph = l.mod === 'ramuri' ? P.graph(l) : { nodes: [], edges: [], errors: [] };
+    var l = props.l, graph = props.tableMode ? P.display(l) :
+      l.mod === 'ramuri' ? P.graph(l) : { nodes: [], edges: [], errors: [] };
     var selection = useState(''), action = useState(''), expanded = useState(false), zoom = useState(1);
     var draftVersion = useState(0);
     var drag = useRef(null), canvasRef = useRef(null);
@@ -63,32 +245,10 @@
       var name = String(data.get('name') || '').trim(), type = String(data.get('type') || '');
       if (!name || !type) { report('Completează denumirea și tipul porțiunii.'); return; }
       var financier = String(data.get('financier') || ''), id = selectedBranch ? selectedBranch.id : S.uid('ramura');
-      if (l.mod !== 'ramuri') {
-        var root = { id: id, nume: name, parentId: '', deLa: 0, L: length, IL: cost, costManual: true,
-          tipLinie: type, finantatorId: financier };
-        store.mutate(function (p) {
-          var line = p.linii.filter(function (x) { return x.id === l.id; })[0];
-          line.mod = 'ramuri'; line.ramuri = [root]; line.racordari = []; line.zoneTehnice = [];
-          line.noduriPlan = []; line.IL = cost; line.bLManual = false;
-        }, { undo: true, noFocus: true });
-      } else {
-        if (!selectedBranch && !selectedNode) { report('Selectează nodul de plecare al porțiunii.'); return; }
-        var ok = editPlan(function (next) {
-          var previousCost = selectedBranch && (selectedBranch.costManual ? Number(selectedBranch.IL) : Number(selectedBranch.L) * tree.rate);
-          var financial = !selectedBranch || length !== Number(selectedBranch.L) || cost !== previousCost;
-          if (financial) P.explicitCosts(next);
-          if (selectedBranch) {
-            var target = next.ramuri.filter(function (b) { return b.id === id; })[0];
-            target.nume = name; target.tipLinie = type; target.L = length; target.finantatorId = financier;
-            if (financial) target.IL = cost;
-          } else {
-            next.ramuri.push({ id: id, nume: name, parentId: selectedNode.branchId, deLa: selectedNode.distance,
-              L: length, IL: cost, costManual: true, tipLinie: type, finantatorId: financier });
-          }
-          if (financial) P.budget(next);
-        });
-        if (!ok) return;
-      }
+      if (l.mod === 'ramuri' && !selectedBranch && !selectedNode) { report('Selectează nodul de plecare al porțiunii.'); return; }
+      if (!store.savePlanPortion(l.id, { id: id, nume: name, L: length, IL: cost, tipLinie: type,
+        finantatorId: financier, parentId: selectedBranch ? selectedBranch.parentId : selectedNode ? selectedNode.branchId : '',
+        deLa: selectedBranch ? Number(selectedBranch.deLa) || 0 : selectedNode ? selectedNode.distance : 0 })) return;
       selection[1](selectedBranch ? 'branch:' + id : P.nodeKey(id, length)); action[1]('');
     }
     function addNode(event) {
@@ -126,6 +286,7 @@
       action[1]('');
     }
     function savePosition(node, x, y) {
+      if (l.mod !== 'ramuri') return;
       editPlan(function (next) {
         var list = next.noduriPlan || [], found = list.filter(function (n) {
           return n.branchId === node.branchId && Number(n.distanta) === node.distance;
@@ -142,6 +303,7 @@
       return p.matrixTransform(matrix.inverse());
     }
     function pointerDown(event, node) {
+      if (l.mod !== 'ramuri') return;
       if (event.button !== 0) return;
       var p = point(event); if (!p) return;
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -173,10 +335,9 @@
     var maxX = Math.max.apply(null, [850].concat(graph.nodes.map(function (n) { return n.x + 180; })));
     var maxY = Math.max.apply(null, [480].concat(graph.nodes.map(function (n) { return n.y + 110 + n.users.length * 24; })));
     var tree = l.mod === 'ramuri' ? global.AppTree.analyze(l) : null;
-    var canStart = l.mod === 'distante' && Number(l.L) === 0 && Number(l.IL) === 0 && !l.bLManual &&
-      !(l.racordari || []).length && !(l.tronsoane || []).length && !(l.zoneTehnice || []).length;
+    var canStart = P.empty(l);
     var automatic = (l.ramuri || []).some(function (b) { return !b.costManual; });
-    return html`<section class=${'plan-editor' + (expanded[0] ? ' plan-expanded' : '')} aria-label="Editor cu noduri"
+    return html`<section class=${'plan-editor' + (props.tableMode ? ' plan-tabular' : '') + (expanded[0] ? ' plan-expanded' : '')} aria-label="Editor cu noduri"
       onKeyDown=${function (e) {
         if (e.key !== 'Escape') return;
         if (expanded[0]) { expanded[1](false); e.preventDefault(); }
@@ -188,7 +349,7 @@
           ${expanded[0] ? 'Revino în pagină' : 'Extinde planșa'}</button>
       </header>
       <div class="plan-workspace">
-        <aside class="plan-sidebar" aria-label="Instrumente și proprietăți">
+        ${!props.tableMode ? html`<aside class="plan-sidebar" aria-label="Instrumente și proprietăți">
           <h3>Construiește rețeaua</h3>
           <p>1. Adaugă o porțiune. 2. Selectează nodul de la capăt. 3. Atașează un utilizator sau continuă linia.</p>
           <p class="warn plan-financing">Finanțatorul este documentat pe porțiune, dar nu schimbă formula.
@@ -265,7 +426,7 @@
               }}>Șterge porțiunea și continuările</button>` : null}`
             : html`<p>Selectează un nod pentru continuare/racordare sau o porțiune pentru lungime, cost și finanțator.</p>`}
           `}
-        </aside>
+        </aside>` : null}
         <div class="plan-board">
           <div class="toolbar plan-navigation" role="group" aria-label="Navigare planșă">
             <button type="button" class="btn tiny" disabled=${zoom[0] <= 0.5} onClick=${function () { zoom[1](Math.max(0.5, zoom[0] - 0.25)); }}>Micșorează</button>
@@ -273,8 +434,11 @@
             <button type="button" class="btn tiny" disabled=${zoom[0] >= 2} onClick=${function () { zoom[1](Math.min(2, zoom[0] + 0.25)); }}>Mărește</button>
             <button type="button" class="btn tiny ghost" onClick=${function () { zoom[1](1); }}>Scară inițială</button>
           </div>
-          <p class="hint">Desen orientativ, nu la scară. Trage nodurile pentru aranjare; lungimile nu se modifică.
-            Din tastatură: Enter selectează, Shift + săgeți mută nodul. Derulează planșa pentru deplasare.</p>
+          <p class="hint">Desen orientativ, nu la scară. ${l.mod === 'ramuri'
+            ? 'Trage nodurile pentru aranjare; lungimile nu se modifică. Din tastatură: Enter selectează, Shift + săgeți mută nodul.'
+            : 'Datele din tabel generează automat nodurile, fără conversia proiectului.'}
+            Derulează planșa pentru deplasare.</p>
+          ${props.tableMode && graph.errors.length ? html`<div class="warn" role="alert">${graph.errors.map(function (text) { return html`<p>${text}</p>`; })}</div>` : null}
           <div class="plan-scroll" tabindex="0" role="region" aria-label="Planșă derulabilă">
             <svg ref=${canvasRef} class="plan-svg" width=${maxX * zoom[0]} height=${maxY * zoom[0]}
               viewBox=${'0 0 ' + maxX + ' ' + maxY} role="group" aria-label="Noduri și porțiuni de rețea"
@@ -311,12 +475,14 @@
           <${V.LineLegend} />
           <details class="plan-summary"><summary>Verifică traseele utilizatorilor</summary>
             <ul>${(l.racordari || []).map(function (r) {
-              var route = tree && tree.routes.filter(function (x) { return x.userId === r.userId; })[0];
+              var route = tree ? tree.routes.filter(function (x) { return x.userId === r.userId; })[0] :
+                graph.nodes.filter(function (n) { return n.users.indexOf(r.userId) >= 0; }).map(function (n) { return { distance: n.total }; })[0];
               return html`<li key=${r.userId}>${userName(r.userId)}: ${route ? route.distance + ' m de la PR' : 'Traseu indisponibil — verifică rețeaua'}.</li>`;
             })}</ul>
           </details>
         </div>
       </div>
+      ${props.tableMode ? html`<${PlanTables} l=${l} selection=${selection[0]} onSelect=${choose} />` : null}
     </section>`;
   }
   V.PlanEditor = PlanEditor;

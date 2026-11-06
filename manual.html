@@ -290,18 +290,19 @@
       </ul>
 
       <h3>Planșă cu noduri — introducere simplificată</h3>
-      <p>În <strong>Instalație → Planșă cu noduri</strong> ai instrumentele în stânga
-        și desenul în dreapta. Pe o linie goală adaugi prima porțiune cu
-        <strong>lungime și cost explicit</strong>; PR și capătul apar automat.
-        Selectează un nod pentru <strong>Atașează utilizator</strong> sau
-        <strong>Continuă / ramifică de aici</strong>. Poți crea utilizatorul direct aici;
-        verifică apoi rolul, contractele și datele ATR/TR în pasul Utilizatori.</p>
+      <p>În <strong>Instalație → Planșă cu noduri + tabel</strong>, schema este deasupra
+        tabelului. Rândurile tabelului definesc porțiunile, iar nodurile și tronsoanele
+        se generează din ele. Pentru prima porțiune, originea este PR; pentru o
+        continuare, alegi nodul de început, apoi introduci lungimea locală și costul.
+        Nodul de sfârșit se calculează automat. În tabelul de racordări alegi tronsonul
+        și distanța locală a utilizatorului; la salvare apare nodul corespunzător și
+        traseul de la PR. Utilizatorii se adaugă în pasul Utilizatori.</p>
       <p>Exemplu: 400 m / 40.000 lei cu U1 la capăt, apoi o continuare de
         500 m / 50.000 lei cu U2 la capăt. Rețeaua are 900 m și 90.000 lei;
         cu U1 prim și U2 nou, fără reduceri, compensația existentă este
         20.000 lei fără TVA pe cei 400 m comuni. Pentru U3 la 700 m de PR,
-        selectează extinderea și adaugă un nod la <strong>300 m de la începutul ei</strong>,
-        apoi atașează utilizatorul.</p>
+        alege continuarea și introdu <strong>300 m de la începutul ei</strong>
+        în rândul de racordare al lui U3.</p>
       <p>Costul introdus se aplică fără o bifă suplimentară. La adăugare sau
         modificare de lungime/cost, costurile automate existente se fixează la
         valorile curente și totalul investiției se actualizează; operația are undo.
@@ -312,6 +313,11 @@
         Pentru investiții succesive U1 → U2 → U3 verifică separat drepturile
         financiare și documentele; aplicația nu reconstituie automat istoricul
         finanțărilor.</div>
+      <p>Rândurile se salvează explicit, nu la fiecare tastă; Escape anulează
+        draftul editat. O linie existentă pe distanțe se convertește la prima
+        salvare în tabel, păstrând racordările și limitele tehnice; operația se poate
+        anula. Alocările manuale nu sunt convertite automat. Formularul avansat
+        rămâne disponibil pentru detaliile tehnice și alocările speciale.</p>
       <p>Desenul nu este la scară: tragerea nodurilor sau Shift + săgeți schimbă
         numai aranjarea, nu metri/costuri. Enter/Spațiu selectează un nod.
         Ai zoom, derulare și <strong>Extinde planșa</strong> în aceeași pagină
@@ -499,7 +505,10 @@
       <p>Pe linia <code>l_U1</code>: <strong>lungimea totală L_U1</strong> (folosește toată linia). Pe <code>l_U2</code>
         (doar varianta 4): distanța reală pe JT.</p>
       <h3>De ce nu pot edita tronsoanele?</h3>
-      <p>Tronsoanele sunt <strong>generate automat</strong> din distanțe. Matricea veche e la „Mod avansat” (read-only).</p>
+      <p>În modul simplu pe distanțe, tronsoanele se generează automat din racordări.
+        Pentru o rețea definită pe porțiuni și noduri, folosește
+        <strong>Planșă cu noduri + tabel</strong>; acolo fiecare rând de tronson se poate
+        introduce sau edita explicit. Alocările și detaliile tehnice rămân în formularul avansat.</p>
       <h3>De ce diagrama nu e proporțională?</h3>
       <p>Ca să rămână lizibilă și la kilometri, segmentele scurte au o lățime minimă; apare mențiunea
         „Schemă orientativă — nu este la scară”.</p>

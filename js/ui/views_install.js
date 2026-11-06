@@ -967,10 +967,10 @@
         <button type="button" class="btn tiny danger" onClick=${function () { store.delLine(id); }}>Șterge linia</button>
       </div>
       ${p.meta.model === 'line' ? html`<div class="toolbar plan-mode" role="group" aria-label="Editor de rețea">
-        <button type="button" class="btn tiny" aria-pressed=${plan[0]} onClick=${function () { plan[1](true); }}>Planșă cu noduri</button>
+        <button type="button" class="btn tiny" aria-pressed=${plan[0]} onClick=${function () { plan[1](true); }}>Planșă cu noduri + tabel</button>
         <button type="button" class="btn tiny" aria-pressed=${!plan[0]} onClick=${function () { plan[1](false); }}>Formular avansat</button>
       </div>` : null}
-      ${plan[0] && p.meta.model === 'line' ? html`<${V.PlanEditor} l=${l} />` : html`<${global.preact.Fragment}>
+      ${plan[0] && p.meta.model === 'line' ? html`<${V.PlanEditor} l=${l} tableMode=${true} />` : html`<${global.preact.Fragment}>
       <div class="row3">
         <${K.Field} label="① Cost lucrări I_L (lei)" path=${'line.' + id + '.IL'} info="line.IL"><${K.NumInput} path=${'line.' + id + '.IL'} /><//>
         <${K.Field} label="② Lungime totală L (m)" path=${'line.' + id + '.L'} info="line.L">${l.mod === 'ramuri'
@@ -994,14 +994,17 @@
         <button type="button" class="btn tiny" aria-pressed=${!scheme} onClick=${function () { mode[1](false); }}>Formular / tabel</button>
         <button type="button" class="btn tiny" aria-pressed=${scheme} onClick=${function () { mode[1](true); }}>Schemă</button>
       </div>` : null}
-      ${l.mod === 'ramuri' ? html`<${V.TreeEditor} l=${l} />` : scheme ? html`<${LineScheme} l=${l} />` : html`<div>
-      <${LineDiagram} l=${l} />
+      ${l.mod === 'ramuri' ? p.meta.model === 'line' ? html`
+        <${V.PlanEditor} l=${l} tableMode=${true} />
+        <details class="advanced"><summary>Proprietăți tehnice, alocări speciale și detaliu de calcul</summary>
+          <${V.TreeEditor} l=${l} hideDiagram=${true} />
+        </details>` : html`<${V.TreeEditor} l=${l} />` : scheme ? html`<${LineScheme} l=${l} />` : html`<div>
+      ${p.meta.model === 'line' ? html`<${V.PlanEditor} l=${l} tableMode=${true} />` : html`<${LineDiagram} l=${l} />`}
       ${l.mod === 'distante' ? html`<div>
-        <div class="toolbar"><strong>Puncte de racordare</strong>
-          <button type="button" class="btn tiny" title="Art. 15 alin. 1: al doilea circuit pe stâlpii unei linii aeriene existente" onClick=${function () { store.addStalpi(id); }}>+ Circuit pe stâlpi existenți</button>
-        </div>
-        <${DistEditor} l=${l} />
-        <details class="advanced"><summary>Mod avansat — tronsoane derivate (${(l.tronsoane || []).length})</summary><${TronsonTable} l=${l} /></details>
+        ${p.meta.model === 'line' ? html`<details class="advanced"><summary>Mod avansat — tronsoane derivate (${(l.tronsoane || []).length})</summary><${TronsonTable} l=${l} /></details>`
+          : html`<div class="toolbar"><strong>Puncte de racordare</strong>
+            <button type="button" class="btn tiny" title="Art. 15 alin. 1: al doilea circuit pe stâlpii unei linii aeriene existente" onClick=${function () { store.addStalpi(id); }}>+ Circuit pe stâlpi existenți</button>
+          </div><${DistEditor} l=${l} />`}
       </div>` : html`<div>
         <div class="toolbar"><strong>Tronsoane și utilizatori</strong>
           <button type="button" class="btn tiny" data-guide=${'btn:add-tronson:' + id} onClick=${function () { store.addTronson(id); }}>+ Tronson</button>

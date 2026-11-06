@@ -189,18 +189,18 @@
             return html`<option value=${u.id} key=${u.id}>${userCode(u.id)} — ${userName(u.id)}</option>`;
           })}
         </select></label>
-        <button type="button" class="btn tiny" aria-pressed=${tool[0] === 'inspect'} onClick=${function () { tool[1]('inspect'); }}>Inspectează</button>
-        <button type="button" class="btn tiny" disabled=${!uid} aria-pressed=${tool[0] === 'place'}
-          onClick=${function () { tool[1]('place'); }}>Racordează pe schemă</button>
+        ${!props.hideDiagram ? html`<button type="button" class="btn tiny" aria-pressed=${tool[0] === 'inspect'} onClick=${function () { tool[1]('inspect'); }}>Inspectează</button>
+          <button type="button" class="btn tiny" disabled=${!uid} aria-pressed=${tool[0] === 'place'}
+            onClick=${function () { tool[1]('place'); }}>Racordează pe schemă</button>` : null}
       </div>
-      <${TreeDiagram} l=${l} userId=${uid} segmentId=${ss[0]} contributions=${contributions}
+      ${!props.hideDiagram ? html`<${TreeDiagram} l=${l} userId=${uid} segmentId=${ss[0]} contributions=${contributions}
         onPick=${function (branchId, segmentId, distance) {
           bs[1](branchId); ss[1](segmentId);
           if (tool[0] === 'place' && uid) connect(branchId, distance);
         }} />
       <${V.LineLegend} />
       <p class="hint">Albastru = traseu folosit; roșu = tronson cu plată („Comp.” în eticheta accesibilă).
-        Utilizatorii sunt identificați prin U1, U2 etc. Schema nu este la scară topografică.</p>
+        Utilizatorii sunt identificați prin U1, U2 etc. Schema nu este la scară topografică.</p>` : null}
       ${uid ? html`<fieldset class="tree-connection"><legend>Racordare — ${userName(uid)}</legend>
         <div class="row2">
           <label>Ramura utilizatorului<select aria-label="Ramura utilizatorului" value=${rec ? rec.branchId : ''}
