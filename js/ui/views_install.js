@@ -317,7 +317,7 @@
       group.querySelector('.dl-name').setAttribute('x', cx);
       var label = group.querySelector('.dl-m');
       label.setAttribute('x', cx);
-      label.textContent = d + ' m';
+      label.textContent = K.fmtLen(d) + ' m';
     }
 
     function onMove(ev) {
@@ -377,8 +377,8 @@
       var contribution = props.contributions && props.contributions[t.id];
       var selectedSegment = props.selectedTronsonId === t.id;
       var segName = t.nume || ('Tronson ' + (i + 1));
-      var startLabel = s.from.toLocaleString('ro-RO') + ' m';
-      var endLabel = s.to.toLocaleString('ro-RO') + ' m';
+      var startLabel = K.fmtLen(s.from) + ' m';
+      var endLabel = K.fmtLen(s.to) + ' m';
       var clickLabel = props.tool === 'place' ? 'Racordează utilizatorul selectat' :
         props.tool === 'zones' ? 'Adaugă limită tehnică' : 'Selectează tronsonul';
       return html`<g key=${'s' + i}>
@@ -409,7 +409,7 @@
         <line x1=${x1} y1=${baseY - 6} x2=${x1} y2=${baseY + 6} class="dl-tick" />
         <text x=${xm} y=${baseY - 34} class="dl-tnum">T${segmentOffset + i + 1}</text>
         ${contribution ? html`<text x=${xm} y=${baseY - 50} class="dl-compensation-label">Comp. ${money(contribution.total)} lei</text>` : null}
-        <text x=${xm} y=${baseY - 18} class="dl-lab">${money(s.len)} m · ${money(s.cost)} lei</text>
+        <text x=${xm} y=${baseY - 18} class="dl-lab">${K.fmtLen(s.len)} m · ${money(s.cost)} lei</text>
       </g>`;
     });
     var zoneMarkers = technicalZones.filter(function (zone) {
@@ -419,7 +419,7 @@
       var selectedZone = zone.id === props.selectedZoneId;
       return html`<g key=${zone.id} class=${'dl-zone-handle' + (selectedZone ? ' dl-zone-selected' : '')}
         tabindex=${props.report ? null : '0'} role=${props.report ? null : 'button'} aria-pressed=${props.report ? null : selectedZone}
-        aria-label=${'Limită tehnică la ' + zone.deLa + ' m'}
+        aria-label=${'Limită tehnică la ' + K.fmtLen(zone.deLa) + ' m'}
         onPointerDown=${function (e) { onZoneDown(e, zone); }}
         onPointerMove=${onMove} onPointerUp=${function (e) { onEnd(e, false); }}
         onPointerCancel=${function (e) { onEnd(e, true); }}
@@ -427,7 +427,7 @@
         onClick=${function (e) { e.stopPropagation(); if (props.onSelectZone) props.onSelectZone(zone.id); }}
         onKeyDown=${function (e) { onZoneKey(e, zone); }}>
         <line x1=${x} y1=${baseY - 15} x2=${x} y2=${baseY + 8} class="dl-zone-guide" />
-        <polygon points=${zonePoints(x)} class="dl-zone-marker"><title>Limită tehnică la ${zone.deLa} m</title></polygon>
+        <polygon points=${zonePoints(x)} class="dl-zone-marker"><title>Limită tehnică la ${K.fmtLen(zone.deLa)} m</title></polygon>
       </g>`;
     });
 
@@ -445,7 +445,7 @@
         <circle cx=${cx} cy=${baseY} r=${props.selectedId === r.userId ? 11 : 8}
           class=${'dl-user rol-' + roleOf(r.userId) + (props.selectedId === r.userId ? ' dl-selected' : '')}
           tabindex=${props.onSelect ? '0' : null} role=${props.onSelect ? 'button' : null}
-          aria-label=${userName(r.userId) + ', ' + d + ' m'}
+          aria-label=${userName(r.userId) + ', ' + K.fmtLen(d) + ' m'}
           aria-pressed=${props.onSelect ? props.selectedId === r.userId : null}
           onClick=${function () { if (props.onSelect) props.onSelect(r.userId); }}
           onKeyDown=${function (e) {
@@ -462,7 +462,7 @@
           onPointerCancel=${function (e) { onEnd(e, true); }}
           onLostPointerCapture=${function (e) { onEnd(e, true); }} />
         <text x=${cx} y=${y0} class="dl-name">${props.report ? reportUserLabel(r.userId) : userName(r.userId)}</text>
-        <text x=${cx} y=${y0 + 15} class="dl-m">${d} m</text>
+        <text x=${cx} y=${y0 + 15} class="dl-m">${K.fmtLen(d)} m</text>
       </g>`;
     });
     var maxStack = 1;
@@ -471,7 +471,7 @@
 
     var vlist = segsData.map(function (s, i) {
       var at = g.rec.filter(function (r) { return Number(r.distanta) === s.to; });
-      return html`<li key=${'v' + i}><strong>T${i + 1}</strong> — ${money(s.from)}–${money(s.to)} m · ${money(s.cost)} lei
+      return html`<li key=${'v' + i}><strong>T${i + 1}</strong> — ${K.fmtLen(s.from)}–${K.fmtLen(s.to)} m · ${money(s.cost)} lei
         ${s.tipLinie ? ' · ' + s.tipLinie : ''}${s.usedByNew ? html` <span class="chip-new">nou</span>` : null}${at.length ? html` · ${at.map(function (r) { return userName(r.userId); }).join(', ')}` : null}</li>`;
     });
 
@@ -483,7 +483,7 @@
           <text x="6" y=${baseY + 4} class="dl-origin-name">${(l.punctRacordare || {}).denumire || 'Origine linie'}</text>
           <text x="6" y=${baseY + 20} class="dl-origin-voltage">${(l.punctRacordare || {}).tensiune ? l.punctRacordare.tensiune + ' kV' : ''}</text>
           <${PRSymbol} x=${pad - 22} y=${baseY} data=${l.punctRacordare || {}} />` :
-          html`<text x="6" y=${baseY} class="dl-origin-label">Continuare de la ${firstDistance} m</text>`}
+          html`<text x="6" y=${baseY} class="dl-origin-label">Continuare de la ${K.fmtLen(firstDistance)} m</text>`}
         <line x1=${pad} y1=${baseY} x2=${endX} y2=${baseY} class="dl-base" />
         ${segs}
         ${zoneMarkers}
@@ -569,7 +569,7 @@
         })}
       </div>
       <p class="hint">${connected} din ${us.length} utilizatori sunt racordați pe linie.
-        ${L > 0 ? ' Lungimea liniei este ' + money(L) + ' m.' : ' Completează mai întâi lungimea totală L.'}</p>
+        ${L > 0 ? ' Lungimea liniei este ' + K.fmtLen(L) + ' m.' : ' Completează mai întâi lungimea totală L.'}</p>
     </section>`;
   }
 
@@ -585,7 +585,7 @@
       <h3>Tronsoane și costuri</h3>
       <ul class="line-stats">
         <li><strong>${trs.length}</strong> tronsoane</li>
-        <li><strong>${K.fmtNum(totalLength)}</strong> m însumați</li>
+        <li><strong>${K.fmtLen(totalLength)}</strong> m însumați</li>
         <li><strong>${money(totalCost)}</strong> lei cost total</li>
         <li class=${ok ? 'ok' : 'warn'}>${ok ? '✓ suma tronsoanelor = I_L' : '⚠ diferență față de I_L: ' + money(IL - totalCost) + ' lei'}</li>
       </ul>
@@ -689,7 +689,7 @@
           style=${{ marginLeft: (depthOf(b) * 18) + 'px' }} key=${b.id}>
           <span class="branch-glyph" aria-hidden="true">↳</span>
           <span><strong>${b.nume || b.id}</strong>${isNew ? html` <span class="chip-new">nou</span>` : null}
-            <span class="muted">· ${K.fmtNum(b.L)} m${b.parentId ? ' · desprinsă la ' + K.fmtNum(b.deLa) + ' m din ' + (parent ? parent.nume : 'ramura părinte') : ' · de la PR'}</span>
+            <span class="muted">· ${K.fmtLen(b.L)} m${b.parentId ? ' · desprinsă la ' + K.fmtLen(b.deLa) + ' m din ' + (parent ? parent.nume : 'ramura părinte') : ' · de la PR'}</span>
           </span>
         </li>`;
       })}</ul>` : html`<p class="hint">Linia este încă o singură ramură. Poți adăuga o derivare oricând.</p>`}
@@ -701,12 +701,12 @@
         <div class="row2">
           <label>Ramură părinte
             <select name="parent" value=${current.id} onChange=${function (e) { setParentId(e.target.value); }}>
-              ${options.map(function (b) { return html`<option value=${b.id} key=${b.id || 'root'}>${b.nume} · ${K.fmtNum(b.L)} m</option>`; })}
+              ${options.map(function (b) { return html`<option value=${b.id} key=${b.id || 'root'}>${b.nume} · ${K.fmtLen(b.L)} m</option>`; })}
             </select>
           </label>
           <label>Desprindere la (m)
             <input name="deLa" type="text" inputmode="decimal" max=${current.L}
-              placeholder=${'0–' + K.fmtNum(current.L)} autocomplete="off" required />
+              placeholder=${'0–' + K.fmtLen(current.L)} autocomplete="off" required />
           </label>
           <label>Lungimea derivării (m)
             <input name="L" type="text" inputmode="decimal" required autocomplete="off" />
@@ -747,7 +747,7 @@
     var plan = store.state.meta.model === 'line';
     return html`<section class="line-branches">
       <h3>Rețea cu ramuri</h3>
-      <p class="hint">Lungimea totală este <strong>${K.fmtNum(l.L)} m</strong>, investiția <strong>${money(l.IL)} lei</strong>,
+      <p class="hint">Lungimea totală este <strong>${K.fmtLen(l.L)} m</strong>, investiția <strong>${money(l.IL)} lei</strong>,
         iar ${a.routes.length} utilizatori au traseu calculat de la PR.</p>
       ${a.errors.length ? html`<div class="warn" role="alert">${a.errors.map(function (text) { return html`<p>${text}</p>`; })}</div>` : null}
       <${LineDerivations} l=${l} />
@@ -926,10 +926,10 @@
               <line class=${'plan-edge tree-segment tip-' + (edge.type || 'nespecificat') + (edgeUsedByNew(edge) ? ' plan-edge-new' : '')}
                 x1=${edge.from.x} y1=${edge.from.y} x2=${edge.to.x} y2=${edge.to.y} />
               <line class="plan-hit" x1=${edge.from.x} y1=${edge.from.y} x2=${edge.to.x} y2=${edge.to.y}
-                aria-label=${'Tronson ' + K.fmtNum(edge.length) + ' m. Click dreapta pentru acțiuni.'}
+                aria-label=${'Tronson ' + K.fmtLen(edge.length) + ' m. Click dreapta pentru acțiuni.'}
                 onContextMenu=${function (e) { openEdgeMenu(edge, e); }} />
               <text class="plan-edge-label" x=${(edge.from.x + edge.to.x) / 2} y=${(edge.from.y + edge.to.y) / 2 - 18}>
-                ${edge.type || 'Tip nespecificat'} · ${K.fmtNum(edge.length)} m · ${K.money(edge.cost)} lei</text>
+                ${edge.type || 'Tip nespecificat'} · ${K.fmtLen(edge.length)} m · ${K.money(edge.cost)} lei</text>
             </g>`;
           })}
           ${graph.nodes.map(function (node, index) {
@@ -938,14 +938,14 @@
             });
             return html`<g class=${'plan-node' + (node.origin ? ' line-canvas-origin' : '')}
               transform=${'translate(' + node.x + ' ' + node.y + ')'} tabindex="0" role="button"
-              aria-label=${(node.origin ? 'PR' : 'Nod ' + index) + ' · ' + node.total + ' m de la PR. Click dreapta pentru acțiuni.'}
+              aria-label=${(node.origin ? 'PR' : 'Nod ' + index) + ' · ' + K.fmtLen(node.total) + ' m de la PR. Click dreapta pentru acțiuni.'}
               onContextMenu=${function (e) { openNodeMenu(node, e); }}
               onKeyDown=${function (e) {
                 if (e.key === 'Enter' || e.key === ' ' || (e.shiftKey && e.key === 'F10')) openNodeMenu(node, e);
               }}>
               <circle r=${node.origin ? 18 : 16} />
               <text class="plan-node-code" y="5">${node.origin ? 'PR' : 'N' + index}</text>
-              <text class="plan-node-distance" y="-25">${K.fmtNum(node.total)} m de la PR</text>
+              <text class="plan-node-distance" y="-25">${K.fmtLen(node.total)} m de la PR</text>
               ${(node.users || []).map(function (id, i) {
                 return html`<text class="plan-node-user" key=${id} y=${38 + i * 22}>${C.nameOf(store.state, id)}</text>`;
               })}
@@ -999,7 +999,7 @@
           <//>` : html`<${global.preact.Fragment}>
             <p class="hint">${dialog.type === 'extend' ? 'Prelungire din' : 'Desprindere din'}
               ${dialog.parentName ? '„' + dialog.parentName + '”' : 'ramura părinte'} la
-              <strong>${K.fmtNum(dialog.distance)} m</strong>.</p>
+              <strong>${K.fmtLen(dialog.distance)} m</strong>.</p>
             <label>Denumire
               <input name="nume" type="text" autocomplete="off"
                 defaultValue=${dialog.type === 'extend' ? 'Tronson nou' : 'Derivare'} />
@@ -1090,7 +1090,7 @@
               select(item.id); selectTronson(''); selectZone(''); setTool('place');
             }}>
             <span class=${'dot rol-' + item.rol}></span>
-            <span><strong>${uName(item)}</strong><small>${V.ROL_LABEL[item.rol]} · ${rec[item.id] != null ? rec[item.id] + ' m' : 'neracordat'}</small></span>
+            <span><strong>${uName(item)}</strong><small>${V.ROL_LABEL[item.rol]} · ${rec[item.id] != null ? K.fmtLen(rec[item.id]) + ' m' : 'neracordat'}</small></span>
           </button>`;
         })}</div>
         ${(l.zoneTehnice || []).length ? html`<h4>Zone tehnice</h4>
@@ -1099,7 +1099,7 @@
               return html`<button type="button" class="btn tiny" key=${zone.id}
                 aria-pressed=${zone.id === selectedZoneId} onClick=${function () {
                   selectZone(zone.id); selectTronson('');
-                }}>Zona ${index + 1} · ${zone.deLa === '' ? 'distanță lipsă' : zone.deLa + ' m'}</button>`;
+                }}>Zona ${index + 1} · ${zone.deLa === '' ? 'distanță lipsă' : K.fmtLen(zone.deLa) + ' m'}</button>`;
             })}
           </div>` : null}
       </section>
@@ -1239,7 +1239,7 @@
       ${chunks.map(function (offset, index) {
         return html`<figure class="line-report-block" key=${offset}>
           <figcaption>${l.nume || l.id} · partea ${index + 1}/${chunks.length} ·
-            ${offset ? g.bounds[offset - 1] : 0}–${g.bounds[Math.min(offset + 2, g.bounds.length - 1)]} m de la PR</figcaption>
+            ${K.fmtLen(offset ? g.bounds[offset - 1] : 0)}–${K.fmtLen(g.bounds[Math.min(offset + 2, g.bounds.length - 1)])} m de la PR</figcaption>
           <${LineDiagram} l=${l} report=${true} segmentOffset=${offset} />
           <${LineLegend} />
         </figure>`;
@@ -1248,7 +1248,7 @@
       <ul class="line-report-users">${reportUsers.map(function (u) {
         var rec = g.rec.filter(function (r) { return r.userId === u.id; })[0];
         return html`<li key=${u.id}><strong>${reportUserLabel(u.id)}</strong> — ${uName(u)}
-          ${u.codPA ? ' · PA ' + u.codPA : ''} · ${V.ROL_LABEL[u.rol]}${rec ? ' · ' + rec.distanta + ' m' : ''}</li>`;
+          ${u.codPA ? ' · PA ' + u.codPA : ''} · ${V.ROL_LABEL[u.rol]}${rec ? ' · ' + K.fmtLen(rec.distanta) + ' m' : ''}</li>`;
       })}</ul>
       <table class="grid line-report-table">
         <caption>Tronsoane, caracteristici și alocări — ${l.nume || l.id}</caption>
@@ -1258,9 +1258,9 @@
           var start = from;
           if (t.tip !== 'stalpi') from += Number(t.lungime) || 0;
           return html`<tr key=${t.id}>
-            <td>${t.nume || t.id}<br />${t.tip === 'stalpi' ? 'Circuit pe stâlpi existenți' : start + '–' + from + ' m'}</td>
+            <td>${t.nume || t.id}<br />${t.tip === 'stalpi' ? 'Circuit pe stâlpi existenți' : K.fmtLen(start) + '–' + K.fmtLen(from) + ' m'}</td>
             <td>${technicalLabel(t)}${t.observatii ? html`<br />${t.observatii}` : null}</td>
-            <td>${t.tip === 'stalpi' ? '—' : money(Number(t.lungime) || 0) + ' m'}<br />${money(C.tronsonCost(l, t))} lei</td>
+            <td>${t.tip === 'stalpi' ? '—' : K.fmtLen(Number(t.lungime) || 0) + ' m'}<br />${money(C.tronsonCost(l, t))} lei</td>
             <td>${(t.utilizatori || []).map(reportUserLabel).join(', ') || 'Niciun utilizator'}</td>
           </tr>`;
         })}</tbody>
@@ -1330,9 +1330,9 @@
         <button type="button" class="btn tiny ghost" aria-label="Închide detaliile tronsonului" onClick=${props.onClose}>×</button></div>
       <strong>${t.nume || 'Tronson'}</strong>
       <dl>
-        <dt>De la PR</dt><dd>${money((l.tronsoane || []).slice(0, (l.tronsoane || []).indexOf(t))
+        <dt>De la PR</dt><dd>${K.fmtLen((l.tronsoane || []).slice(0, (l.tronsoane || []).indexOf(t))
           .reduce(function (sum, x) { return x.tip === 'stalpi' ? sum : sum + (Number(x.lungime) || 0); }, 0))} m</dd>
-        <dt>Lungime</dt><dd>${money(Number(t.lungime) || 0)} m</dd>
+        <dt>Lungime</dt><dd>${K.fmtLen(Number(t.lungime) || 0)} m</dd>
         <dt>Cost</dt><dd>${money(C.tronsonCost(l, t))} lei</dd>
         <dt>Tip linie</dt><dd>${t.tipLinie === 'LEA' ? 'LEA — aeriană' : t.tipLinie === 'LES' ? 'LES — subterană' : t.tipLinie || 'Nespecificat'}</dd>
         <dt>Conductor / cablu</dt><dd>${t.conductor || 'Nespecificat'}</dd>
@@ -1369,7 +1369,7 @@
             onClick=${function () { props.onSelect(t.id); }}>${t.nume || t.id}</button>` : t.nume || t.id}
             ${t.tip === 'stalpi' ? html` <${K.RefChip} id="art15.1" />` : null}
             <div class="hint">${technicalLabel(t)}</div>${t.observatii ? html`<div class="hint">${t.observatii}</div>` : null}</td>
-          <td class="num">${t.tip === 'stalpi' ? '—' : money(Number(t.lungime) || 0)}</td>
+          <td class="num">${t.tip === 'stalpi' ? '—' : K.fmtLen(Number(t.lungime) || 0)}</td>
           <td class="num">${money(C.tronsonCost(l, t))}
             ${contribution ? html`<div class="hint">Compensație: ${money(contribution.total)} lei</div>` : null}</td>
           <td>${(t.utilizatori || []).map(function (u) { return html`<span class="chip-s">${userName(u)}</span>`; })}</td>
@@ -1539,7 +1539,7 @@
       <div class="row3">
         <${K.Field} label="① Cost lucrări I_L (lei)" path=${k + 'IL'} info="line.IL"><${K.NumInput} path=${k + 'IL'} /><//>
         <${K.Field} label="② Lungime totală L (m)" path=${k + 'L'} info="line.L">${l.mod === 'ramuri'
-          ? html`<output>${l.L} m — suma ramurilor</output>` : html`<${K.NumInput} path=${k + 'L'} />`}<//>
+          ? html`<output>${K.fmtLen(l.L)} m — suma ramurilor</output>` : html`<${K.NumInput} path=${k + 'L'} />`}<//>
         <${K.Field} label="③ Cost specific b_L (lei/m)" path=${k + 'bL'} info="line.bL">
           ${l.mod === 'ramuri' ? html`<output>${money(bL)} lei/m — ramuri automate</output>` : html`<${K.NumInput} path=${k + 'bL'} />`}
           <button type="button" class="linkish bL-auto" hidden=${!l.bLManual} onClick=${function () { store.setLineBlAuto(id); }}>↺ automat = I_L / L</button>
@@ -1716,7 +1716,7 @@
   }
   function cxLineText(x) {
     if (!x.list.length) return 'neinclusă';
-    return K.fmtNum(x.L) + ' m · ' + money(x.IL) + ' lei';
+    return K.fmtLen(x.L) + ' m · ' + money(x.IL) + ' lei';
   }
 
   // Selectarea variantei din butoane: același efect ca selectorul existent, dar fără să

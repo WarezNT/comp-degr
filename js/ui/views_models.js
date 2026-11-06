@@ -170,16 +170,16 @@
         <${SelectBox} title="Utilizator nou" text=${'S₂ = ' + K.money(t.S2) + ' kVA'}
           active=${props.selected === 'user'} onSelect=${props.onSelect ? function () { props.onSelect('user'); } : null} />
         <div class="model-arrow" aria-hidden="true">→</div>
-        <${SelectBox} title="Traseu folosit" text=${'l₂ = ' + K.money(t.l2) + ' m din L = ' + K.money(t.L) + ' m'}
+        <${SelectBox} title="Traseu folosit" text=${'l₂ = ' + K.fmtLen(t.l2) + ' m din L = ' + K.fmtLen(t.L) + ' m'}
           active=${props.selected === 'length'} onSelect=${props.onSelect ? function () { props.onSelect('length'); } : null} />
       </div>
-      ${valid ? html`<div class="model-ratio" role="img" aria-label=${'Lungime folosită ' + K.money(t.l2) + ' din ' + K.money(t.L) + ' metri'}>
+      ${valid ? html`<div class="model-ratio" role="img" aria-label=${'Lungime folosită ' + K.fmtLen(t.l2) + ' din ' + K.fmtLen(t.L) + ' metri'}>
         <span class="model-used" style=${{ width: Number(t.l2) / Number(t.L) * 100 + '%' }}></span></div>
         <p>Porțiunea albastră reprezintă lungimea folosită: ${K.money(Number(t.l2) / Number(t.L) * 100)}% din L.
           Nu reprezintă o poziție topografică și nu adaugă ramuri.</p>
         <section class="model-formula"><h3>Explicația compensației</h3>
           <p>b = B / S = ${K.money(t.B)} / ${K.money(t.S)} = <strong>${K.money(r.b)} lei/kVA</strong></p>
-          <p>C₂ = S₂ × b × (l₂ / L) = ${K.money(t.S2)} × ${K.money(r.b)} × (${K.money(t.l2)} / ${K.money(t.L)})</p>
+          <p>C₂ = S₂ × b × (l₂ / L) = ${K.money(t.S2)} × ${K.money(r.b)} × (${K.fmtLen(t.l2)} / ${K.fmtLen(t.L)})</p>
           <p class="model-total">C₂ = <strong>${K.money(r.C2)} lei</strong></p>
           <p class="hint">Motorul păstrează precizia completă; factorii afișați sunt rotunjiți.
             Anexa 4 pct. A folosește vechea metodologie. Pct. B se tratează prin regulile tranzitorii ale Anexelor 1–3.</p>

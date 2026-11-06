@@ -68,7 +68,7 @@
   }
   function nodeLabel(graph, node) {
     if (!node) return '—';
-    return node.origin ? 'PR' : 'Nod ' + graph.nodes.indexOf(node) + ' · ' + node.total + ' m';
+    return node.origin ? 'PR' : 'Nod ' + graph.nodes.indexOf(node) + ' · ' + K.fmtLen(node.total) + ' m';
   }
   function branchStart(graph, branch) {
     return branch.parentId
@@ -184,7 +184,7 @@
         aria-label="Distanță locală utilizator (m)" data-guide=${l.mod === 'distante' ? 'dist:' + l.id + ':' + u.id : undefined}
         defaultValue=${r ? String(r.distanta).replace('.', ',') : ''} autocomplete="off" /></td>
       <td>${currentNode ? nodeLabel(graph, currentNode) : 'Se generează după salvare'}</td>
-      <td>${route ? route.distance + ' m' : '—'}</td>
+      <td>${route ? K.fmtLen(route.distance) + ' m' : '—'}</td>
       <td><form id=${form} onSubmit=${submit}><button type="submit" class="btn tiny">Salvează racordarea</button></form></td>
     </tr>`;
   }
@@ -403,20 +403,20 @@
               }}>Pregătește linia pentru noduri</button>` : html`<p>Folosește conversia explicită pe distanțe din formularul avansat înainte de planșă.</p>`}`
           : graph.errors.length ? html`<div role="alert">${graph.errors.map(function (text) { return html`<p>${text}</p>`; })}<p>Corectează rețeaua în modul avansat.</p></div>`
           : html`
-            <p><strong>${K.money(l.IL)} lei</strong> investiție totală · ${tree.length} m fizici.</p>
+            <p><strong>${K.money(l.IL)} lei</strong> investiție totală · ${K.fmtLen(tree.length)} m fizici.</p>
             <label>Selectează un nod<select aria-label="Nodul selectat" value=${selectedNode ? selectedNode.key : ''}
               onChange=${function (e) { choose(e.target.value); }}>
               <option value="">Alege nodul</option>${graph.nodes.map(function (n, index) {
-                return html`<option value=${n.key} key=${n.key}>${n.origin ? 'PR' : 'N' + index} · ${n.total} m de la PR${n.users.length ? ' · ' + n.users.map(userName).join(', ') : ''}</option>`;
+                return html`<option value=${n.key} key=${n.key}>${n.origin ? 'PR' : 'N' + index} · ${K.fmtLen(n.total)} m de la PR${n.users.length ? ' · ' + n.users.map(userName).join(', ') : ''}</option>`;
               })}
             </select></label>
             <label>Selectează o porțiune<select aria-label="Porțiunea selectată" value=${selectedBranch ? selectedBranch.id : ''}
               onChange=${function (e) { choose(e.target.value ? 'branch:' + e.target.value : ''); }}>
               <option value="">Alege porțiunea</option>${l.ramuri.map(function (b) {
-                return html`<option value=${b.id} key=${b.id}>${b.nume} · ${b.L} m</option>`;
+                return html`<option value=${b.id} key=${b.id}>${b.nume} · ${K.fmtLen(b.L)} m</option>`;
               })}
             </select></label>
-            ${selectedNode ? html`<h4>${selectedNode.origin ? 'Originea PR' : 'Nod de racordare'} · ${selectedNode.total} m de la PR</h4>
+            ${selectedNode ? html`<h4>${selectedNode.origin ? 'Originea PR' : 'Nod de racordare'} · ${K.fmtLen(selectedNode.total)} m de la PR</h4>
               <p>${selectedNode.users.length ? 'Utilizatori: ' + selectedNode.users.map(userName).join(', ') : 'Niciun utilizator atașat.'}</p>
               <div class="plan-tools">
                 <button type="button" class="btn" onClick=${function () { action[1]('extend'); }}>Continuă / ramifică de aici</button>
@@ -485,23 +485,23 @@
                   <line class=${'plan-edge tree-segment tip-' + (edge.type || 'nespecificat') +
                     (edgeUsedByNew(edge) ? ' plan-edge-new' : '') + (selected ? ' plan-edge-selected' : '')}
                     x1=${edge.from.x} y1=${edge.from.y} x2=${edge.to.x} y2=${edge.to.y} />
-                  <line class="plan-hit" tabindex="0" role="button" aria-label=${'Selectează porțiunea ' + edge.length + ' m · ' + edge.type}
+                  <line class="plan-hit" tabindex="0" role="button" aria-label=${'Selectează porțiunea ' + K.fmtLen(edge.length) + ' m · ' + edge.type}
                     x1=${edge.from.x} y1=${edge.from.y} x2=${edge.to.x} y2=${edge.to.y}
                     onClick=${function () { choose('branch:' + edge.branchId); }}
                     onKeyDown=${function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose('branch:' + edge.branchId); } }} />
                   <text class="plan-edge-label" x=${(edge.from.x + edge.to.x) / 2} y=${(edge.from.y + edge.to.y) / 2 - 18}>
-                    ${edge.type || 'Tip nespecificat'} · ${edge.length} m · ${K.money(edge.cost)} lei</text>
+                    ${edge.type || 'Tip nespecificat'} · ${K.fmtLen(edge.length)} m · ${K.money(edge.cost)} lei</text>
                 </g>`;
               })}
               ${graph.nodes.map(function (node, index) {
                 return html`<g class=${'plan-node' + (selectedNode === node ? ' plan-node-selected' : '')} key=${node.key}
                   transform=${'translate(' + node.x + ' ' + node.y + ')'} tabindex="0" role="button"
-                  aria-label=${(node.origin ? 'PR' : 'Nod ' + index) + ' · ' + node.total + ' m de la PR'}
+                  aria-label=${(node.origin ? 'PR' : 'Nod ' + index) + ' · ' + K.fmtLen(node.total) + ' m de la PR'}
                   onClick=${function () { choose(node.key); }} onKeyDown=${function (e) { keyboardNode(e, node); }}
                   onPointerDown=${function (e) { pointerDown(e, node); }}>
                   <circle r="16" /><text class="plan-node-code" y="5">${node.origin ? 'PR' : 'N' + index}</text>
                   ${node.technical ? html`<text class="plan-technical" x="27" y="5">◆</text>` : null}
-                  <text class="plan-node-distance" y="-25">${node.total} m de la PR</text>
+                  <text class="plan-node-distance" y="-25">${K.fmtLen(node.total)} m de la PR</text>
                   ${node.users.map(function (id, i) { return html`<text class="plan-node-user" key=${id} y=${38 + i * 22}>${userName(id)}</text>`; })}
                 </g>`;
               })}
@@ -513,7 +513,7 @@
             <ul>${(l.racordari || []).map(function (r) {
               var route = tree ? tree.routes.filter(function (x) { return x.userId === r.userId; })[0] :
                 graph.nodes.filter(function (n) { return n.users.indexOf(r.userId) >= 0; }).map(function (n) { return { distance: n.total }; })[0];
-              return html`<li key=${r.userId}>${userName(r.userId)}: ${route ? route.distance + ' m de la PR' : 'Traseu indisponibil — verifică rețeaua'}.</li>`;
+              return html`<li key=${r.userId}>${userName(r.userId)}: ${route ? K.fmtLen(route.distance) + ' m de la PR' : 'Traseu indisponibil — verifică rețeaua'}.</li>`;
             })}</ul>
           </details>
         </div>

@@ -785,6 +785,14 @@
         if (!document.querySelector('[data-bind="line.L.IL"]').classList.contains('invalid')) throw new Error('câmpul nu e marcat invalid');
       });
 
+      test('Formatare lungimi: fără erori de virgulă mobilă și fără zerouri inutile', function () {
+        var K = window.AppKit;
+        if (K.fmtLen(24.299999999999997) !== '24,3') throw new Error('artefact: ' + K.fmtLen(24.299999999999997));
+        if (K.fmtLen(24) !== '24') throw new Error('întreg: ' + K.fmtLen(24));
+        if (K.fmtLen(12.5) !== '12,5') throw new Error('zecimală reală: ' + K.fmtLen(12.5));
+        if (K.fmtLen(7.0000000001) !== '7') throw new Error('aproape întreg: ' + K.fmtLen(7.0000000001));
+      });
+
       test('Pașii (taburi) arată starea: probleme / pași rămași / complet', function () {
         window.AppUI.setProject(window.AppState.demoU4());
         var marks = Array.prototype.map.call(document.querySelectorAll('.tabs .tabst'), function (m) { return m.className; });

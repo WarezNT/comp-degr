@@ -256,7 +256,7 @@ async function openLineDetails(page) {
   const noSelectionPoint = await segmentPoint(0, 0.5);
   await page.mouse.click(noSelectionPoint.x, noSelectionPoint.y);
   const inspected = await page.locator('.scheme-properties').innerText();
-  check('click pe tronson îl selectează și afișează lungimea, costul și utilizatorii', /800,00 m/.test(inspected) &&
+  check('click pe tronson îl selectează și afișează lungimea, costul și utilizatorii', /800 m/.test(inspected) &&
     /24\.000,00 lei/.test(inspected) && /Finanțator/.test(inspected) &&
     await page.evaluate(() => window.AppUI.getState().linii[0].racordari.length) === 1, inspected);
   check('simbolul PR arată tipul, denumirea și tensiunea', await page.locator('.dl-pr-symbol').getAttribute('aria-label') === 'Post de transformare PT 123' &&

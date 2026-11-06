@@ -82,7 +82,7 @@
           <text class="tree-branch-label" x="8" y=${by + 4}>${b.nume}</text>
           ${!b.parentId ? html`<${V.PRSymbol} x=${195} y=${by} data=${l.punctRacordare} />` : null}
           ${branchTotal > 0 ? html`<text class="tree-payment-label" x="8" y=${by + 25}>Comp. ${K.money(branchTotal)} lei</text>` : null}
-          <text x="215" y=${by - 25}>${b.parentId ? 'Din ' + branchName(l, b.parentId) + ' la ' + b.deLa + ' m' : 'PR · ' + ((l.punctRacordare || {}).denumire || 'originea rețelei')}</text>
+          <text x="215" y=${by - 25}>${b.parentId ? 'Din ' + branchName(l, b.parentId) + ' la ' + K.fmtLen(b.deLa) + ' m' : 'PR · ' + ((l.punctRacordare || {}).denumire || 'originea rețelei')}</text>
           ${(l.tronsoane || []).filter(function (t) { return t.branchId === b.id; }).map(function (t) {
             var paid = props.contributions && props.contributions[t.id];
             var route = props.userId && t.utilizatori.indexOf(props.userId) >= 0;
@@ -101,16 +101,16 @@
             </g>`;
           })}
           ${(l.zoneTehnice || []).filter(function (z) { return z.branchId === b.id; }).map(function (z) {
-            return html`<text class="tree-zone" x=${x(b, z.deLa)} y=${by + 5} text-anchor="middle" key=${z.id}>◆<title>${z.deLa} m · ${z.tipLinie || 'Nespecificat'}</title></text>`;
+            return html`<text class="tree-zone" x=${x(b, z.deLa)} y=${by + 5} text-anchor="middle" key=${z.id}>◆<title>${K.fmtLen(z.deLa)} m · ${z.tipLinie || 'Nespecificat'}</title></text>`;
           })}
           <text x=${bx} y=${by + 20}>0 m</text>
-          <text x=${x(b, b.L)} y=${by + 20} text-anchor="end">${b.L} m</text>
+          <text x=${x(b, b.L)} y=${by + 20} text-anchor="end">${K.fmtLen(b.L)} m</text>
           ${recs.map(function (r, i) {
             var rx = x(b, r.distanta), ry = by + 48 + i * 28, left = rx > 650;
             return html`<g key=${r.userId} class=${'tree-user rol-' + ((global.AppState.findUser(store.state, r.userId) || {}).rol || '')}>
               <line x1=${rx} x2=${rx} y1=${by} y2=${ry - 8} />
               <circle cx=${rx} cy=${ry} r="7" />
-              <text x=${rx + (left ? -12 : 12)} y=${ry + 4} text-anchor=${left ? 'end' : 'start'}>${userCode(r.userId)} · ${r.distanta} m</text>
+              <text x=${rx + (left ? -12 : 12)} y=${ry + 4} text-anchor=${left ? 'end' : 'start'}>${userCode(r.userId)} · ${K.fmtLen(r.distanta)} m</text>
             </g>`;
           })}
         </g>`;
@@ -127,7 +127,7 @@
         return html`<tr key=${t.id} class=${props.segmentId === t.id ? 'tree-selected-row' : ''}>
           <td>${props.onSelect ? html`<button type="button" class="linkish" onClick=${function () { props.onSelect(t.id); }}>${t.nume}</button>` : t.nume}</td>
           <td>${[t.tipLinie || 'Nespecificat', t.conductor, t.sectiune ? t.sectiune + ' mm²' : '', t.observatii].filter(Boolean).join(' · ')}</td>
-          <td>${t.lungime} m / ${K.money(C.tronsonCost(l, t))} lei</td>
+          <td>${K.fmtLen(t.lungime)} m / ${K.money(C.tronsonCost(l, t))} lei</td>
           <td>${t.utilizatori.map(userName).join(', ') || 'Neutilizat'}</td>
         </tr>`;
       })}</tbody></table>`;
@@ -223,7 +223,7 @@
             onCommit=${function (v) { return connect(rec.branchId, v); }} /></label>` : null}
         </div>
         <${K.InputNote} path="distanta" />
-        ${rec ? html`<p>Lungime traseu de la PR: ${(tree.routes.filter(function (r) { return r.userId === uid; })[0] || {}).distance} m</p>
+        ${rec ? html`<p>Lungime traseu de la PR: ${K.fmtLen((tree.routes.filter(function (r) { return r.userId === uid; })[0] || {}).distance)} m</p>
           <button type="button" class="btn tiny danger" onClick=${function () { connect('', 0); }}>Deconectează utilizatorul</button>` : null}
       </fieldset>` : null}
       <div class="toolbar" role="group" aria-label="Ramurile rețelei">${l.ramuri.map(function (x) {
@@ -294,7 +294,7 @@
         </div>
       </fieldset>` : null}
       ${segment ? html`<section class="scheme-inspector"><h3>Inspector tronson — ${segment.nume}</h3>
-        <p>${segment.lungime} m · ${K.money(C.tronsonCost(l, segment))} lei · ${segment.utilizatori.map(userName).join(', ') || 'Neutilizat'}</p>
+        <p>${K.fmtLen(segment.lungime)} m · ${K.money(C.tronsonCost(l, segment))} lei · ${segment.utilizatori.map(userName).join(', ') || 'Neutilizat'}</p>
         ${contributions[segment.id] ? html`<strong>Comp. ${K.money(contributions[segment.id].total)} lei</strong>` : null}
       </section>` : null}
       ${result ? html`<${V.LineCompensation} l=${l} user=${selectedUser} result=${result} contributions=${contributions} onSelect=${selectSegment} />` : null}
@@ -309,13 +309,13 @@
       <h3>Schema rețelei ramificate — ${l.nume}</h3>
       <p>PR: ${pr.denumire || 'Nespecificat'} · ${pr.tip || 'tip nespecificat'} ${pr.tensiune ? ' · ' + pr.tensiune + ' kV' : ''} ${pr.observatii || ''}</p>
       <p>Schemă orientativă pe ramuri, fără bucle. Distanțele sunt locale, de la începutul fiecărei ramuri.
-        Lungime fizică totală: ${l.L} m; investiție: ${K.money(l.IL)} lei; cost pe ramurile automate: ${K.money(tree.rate)} lei/m.</p>
+        Lungime fizică totală: ${K.fmtLen(l.L)} m; investiție: ${K.money(l.IL)} lei; cost pe ramurile automate: ${K.money(tree.rate)} lei/m.</p>
       ${l.ramuri.map(function (b) {
         var records = l.racordari.filter(function (r) { return r.branchId === b.id; }), pages = [0];
         for (var offset = 6; offset < records.length; offset += 6) pages.push(offset);
         return html`<section class="tree-report-branch" key=${b.id}>
-          <h4>${b.nume} — ${b.L} m</h4>
-          <p>${b.parentId ? 'Desprindere din ' + branchName(l, b.parentId) + ' la ' + b.deLa + ' m locali' : 'Origine: PR'}.
+          <h4>${b.nume} — ${K.fmtLen(b.L)} m</h4>
+          <p>${b.parentId ? 'Desprindere din ' + branchName(l, b.parentId) + ' la ' + K.fmtLen(b.deLa) + ' m locali' : 'Origine: PR'}.
             Cost ramură: ${K.money(b.costManual ? b.IL : Number(b.L) * tree.rate)} lei (${b.costManual ? 'cost propriu' : 'automat'}).</p>
           ${pages.map(function (start, index) {
             return html`<figure class="tree-report-block" key=${start}>
@@ -326,8 +326,8 @@
           })}
           <ul>${records.map(function (r) {
             var route = tree.routes.filter(function (path) { return path.userId === r.userId; })[0];
-            return html`<li key=${r.userId}>${userCode(r.userId)} — ${userName(r.userId)} · ${r.distanta} m locali ·
-              ${route ? route.distance : '—'} m de la PR</li>`;
+            return html`<li key=${r.userId}>${userCode(r.userId)} — ${userName(r.userId)} · ${K.fmtLen(r.distanta)} m locali ·
+              ${route ? K.fmtLen(route.distance) : '—'} m de la PR</li>`;
           })}</ul>
           <${SegmentTable} l=${l} branchId=${b.id} />
         </section>`;

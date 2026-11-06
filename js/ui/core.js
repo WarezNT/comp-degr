@@ -41,6 +41,8 @@
   function fmtNum(x, max) {
     return (Number(x) || 0).toLocaleString('ro-RO', { maximumFractionDigits: max === undefined ? 4 : max });
   }
+  // Lungimi în metri: fără erori de virgulă mobilă, maximum două zecimale.
+  function fmtLen(x) { return fmtNum(x, 2); }
 
   // Text de editare: fără separator de mii, virgulă zecimală; 0 / gol → câmp gol (placeholder 0).
   function fmtEdit(v) {
@@ -277,7 +279,7 @@
 
   global.AppKit = {
     h: h, html: html, store: store,
-    money: money, fmtNum: fmtNum, fmtEdit: fmtEdit, fmtShow: fmtShow, parseNum: parseNum,
+    money: money, fmtNum: fmtNum, fmtLen: fmtLen, fmtEdit: fmtEdit, fmtShow: fmtShow, parseNum: parseNum,
     RefChip: RefChip, Info: Info, Abbr: Abbr, Field: Field,
     TextInput: TextInput, DateInput: DateInput, NumInput: NumInput, SelectInput: SelectInput, CheckInput: CheckInput,
     MaterialSelect: MaterialSelect,
