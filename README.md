@@ -91,6 +91,8 @@ mai întâi un editor:
    nu folosește linia. Butonul **+ Adaugă utilizator** creează imediat o persoană nouă.
 3. **Schița liniei** — se desenează automat din lungime și distanțe. Cercurile pot fi
    trase pentru ajustare rapidă, iar distanța exactă rămâne cea scrisă în listă.
+   Tronsoanele folosite de utilizatorii cu rol **Nou** sunt marcate cu roșu, inclusiv
+   pe derivări; o derivare tocmai adăugată primește eticheta **„nou”**.
 4. **Rezumatul** — numărul de tronsoane, lungimea însumată, costul total și verificarea
    `sumă tronsoane = I_L`. Tabelul detaliat se deschide dintr-un singur click.
 

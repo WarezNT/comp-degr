@@ -1126,6 +1126,25 @@
           throw new Error('lista ramurilor nu afișează derivarea');
         }
         if (document.querySelector('.derivation-form')) throw new Error('formularul nu s-a închis');
+        if (!document.querySelector('.chip-new')) throw new Error('derivarea nouă nu are marcajul „nou”');
+      });
+
+      test('Evidențiere: tronsoanele folosite de utilizatorul nou sunt redate cu roșu', function () {
+        var p = emptyOk(); p.meta.model = 'line';
+        var u1 = window.AppState.addUser(p, { id: 'u1', nume: 'U1', rol: 'prim' });
+        var u2 = window.AppState.addUser(p, { id: 'u2', nume: 'U2', rol: 'nou' });
+        p.linii.push({ id: 'Lred', nume: 'Linie roșie', IL: 10000, L: 100, mod: 'distante', tronsoane: [],
+          racordari: [{ userId: u1.id, distanta: 100 }, { userId: u2.id, distanta: 40 }] });
+        window.AppUI.setProject(p);
+        window.AppUI.store.guide.on = false; window.AppUI.render();
+        window.AppUI.setTab('instalatie');
+        var segs = document.querySelectorAll('.line-overview .dl-seg');
+        if (segs.length !== 2 || !segs[0].classList.contains('dl-new') || segs[1].classList.contains('dl-new')) {
+          throw new Error('segmentele utilizatorului nou nu sunt marcate corect');
+        }
+        if (!/utilizatorul nou/.test(document.querySelector('.dl-legend').textContent)) {
+          throw new Error('legenda nu explică marcajul roșu');
+        }
       });
 
       test('Linie pe distanțe — U3 la 30 m plătește 500 + 500', function () {
@@ -1325,6 +1344,17 @@
         window.AppCalc.deriveAll(p);
         return p;
       }
+
+      test('Evidențiere: ramura și tronsoanele utilizatorului nou sunt marcate roșu', function () {
+        window.AppUI.setProject(treeProject());
+        window.AppUI.store.guide.on = false; window.AppUI.render();
+        window.AppUI.setTab('instalatie');
+        if (!document.querySelector('.plan-edge-new')) throw new Error('tronsonul de pe ramura nouă nu este marcat în planșă');
+        var items = Array.prototype.slice.call(document.querySelectorAll('.branch-item-new'));
+        if (!items.some(function (li) { return /Sub A/.test(li.textContent); })) {
+          throw new Error('ramura utilizatorului nou nu este marcată');
+        }
+      });
 
       test('Ramuri: lungime fizică, cost unic și traseu numai prin strămoși', function () {
         var p = treeProject(), l = p.linii[0], tree = window.AppTree.analyze(l);
@@ -2181,7 +2211,8 @@
       test('Planșă: deschiderea, selecția și modul extins nu modifică proiectul', function () {
         window.AppUI.setProject(treeProject()); window.AppUI.setTab('instalatie');
         var before = JSON.stringify(window.AppUI.getState()), undo = window.AppUI.store.undoStack.length;
-        byText('button', 'Planșă cu noduri').click(); window.AppUI.store.render();
+        if (!document.querySelector('.plan-tables')) byText('button', 'Planșă cu noduri').click();
+        window.AppUI.store.render();
         if (!document.querySelector('.plan-tables') || !document.querySelector('.plan-svg')) throw new Error('planșă și tabel absente');
         document.querySelector('.plan-node').dispatchEvent(new MouseEvent('click', { bubbles: true })); window.AppUI.store.render();
         byText('button', 'Extinde planșa').click(); window.AppUI.store.render();
@@ -2211,7 +2242,8 @@
         p.linii[0].noduriPlan = [{ branchId: 'absent', distanta: 25, x: 200, y: 200 }];
         window.AppUI.setProject(p); window.AppUI.setTab('instalatie');
         var physical = JSON.stringify(window.AppUI.getState().linii[0].ramuri);
-        byText('button', 'Planșă cu noduri').click(); window.AppUI.store.render();
+        if (!document.querySelector('.plan-tables')) byText('button', 'Planșă cu noduri').click();
+        window.AppUI.store.render();
         var oldConfirm = window.confirm; window.confirm = function () { return true; };
         try { byText('button', 'Resetează planșa').click(); } finally { window.confirm = oldConfirm; }
         var l = window.AppUI.getState().linii[0];

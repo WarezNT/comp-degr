@@ -33,6 +33,8 @@
   function TreeDiagram(props) {
     var l = props.l, tree = global.AppTree.analyze(l);
     if (tree.errors.length) return html`<p class="warn">${tree.errors.join(' ')}</p>`;
+    var newSet = {};
+    global.AppState.newIds(store.state).forEach(function (id) { newSet[id] = true; });
     var rows = [], y = 55, starts = Object.create(null), ys = Object.create(null), max = 1;
     function walk(b, start) {
       starts[b.id] = start; ys[b.id] = y;
@@ -84,7 +86,8 @@
           ${(l.tronsoane || []).filter(function (t) { return t.branchId === b.id; }).map(function (t) {
             var paid = props.contributions && props.contributions[t.id];
             var route = props.userId && t.utilizatori.indexOf(props.userId) >= 0;
-            var cls = 'tree-segment tip-' + (t.tipLinie || 'nespecificat') + (route ? ' tree-route' : '') + (paid ? ' tree-payment' : '') + (props.segmentId === t.id ? ' tree-selected' : '');
+            var usedByNew = t.utilizatori.some(function (id) { return newSet[id]; });
+            var cls = 'tree-segment tip-' + (t.tipLinie || 'nespecificat') + (usedByNew ? ' tree-new' : '') + (route ? ' tree-route' : '') + (paid ? ' tree-payment' : '') + (props.segmentId === t.id ? ' tree-selected' : '');
             return html`<g key=${t.id}>
               <line class=${cls} stroke-dasharray=${t.tipLinie === 'LEA' || t.tipLinie === 'LES' ? undefined : '2 5'}
                 x1=${x(b, t.deLa)} x2=${x(b, t.panaLa)} y1=${by} y2=${by} />

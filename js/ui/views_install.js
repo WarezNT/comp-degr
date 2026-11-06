@@ -24,6 +24,9 @@
     return index >= 0 ? 'U' + (index + 1) : 'U?';
   }
 
+  // Derivările adăugate în sesiunea curentă primesc un marcaj vizual „nou”.
+  var NEW_BRANCH_IDS = Object.create(null);
+
   /* ----------------------- prevederi tranzitorii (art. 17–18) ----------------------- */
 
   function tranzLineHint(l) {
@@ -165,6 +168,8 @@
   function LineDiagram(props) {
     var l = props.l;
     var g = lineGeo(l, props.report);
+    var newSet = {};
+    S.newIds(store.state).forEach(function (id) { newSet[id] = true; });
     var drag = useRef(null);
     var editable = l.mod === 'distante';
     var selected = g.rec.filter(function (r) { return r.userId === props.selectedId; })[0];
@@ -202,8 +207,11 @@
       while (tronsonIndex < regularInfo.length && regularInfo[tronsonIndex].to < b - 1e-6) tronsonIndex++;
       var tronson = regularInfo[tronsonIndex] && Math.abs(regularInfo[tronsonIndex].to - b) < 1e-6
         ? regularInfo[tronsonIndex].tronson : null;
+      var usedByNew = g.rec.some(function (r) {
+        return newSet[r.userId] && Number(r.distanta) >= b - 1e-6;
+      });
       segsData.push({ from: prev, to: b, len: len, cost: tronson ? C.tronsonCost(l, tronson) : len * bL,
-        tipLinie: technical.tipLinie || '', technical: technical, tronson: tronson });
+        tipLinie: technical.tipLinie || '', technical: technical, tronson: tronson, usedByNew: usedByNew });
       prev = b;
     });
     var segmentOffset = props.segmentOffset || 0;
@@ -374,9 +382,10 @@
       var clickLabel = props.tool === 'place' ? 'Racordează utilizatorul selectat' :
         props.tool === 'zones' ? 'Adaugă limită tehnică' : 'Selectează tronsonul';
       return html`<g key=${'s' + i}>
-        <title>${segName}, ${startLabel}–${endLabel}, ${technicalLabel(s.technical)} · ${clickLabel}</title>
+        <title>${segName}, ${startLabel}–${endLabel}, ${technicalLabel(s.technical)}${s.usedByNew ? ' · folosit de utilizator nou' : ''} · ${clickLabel}</title>
         <line x1=${x1} y1=${baseY} x2=${x2} y2=${baseY}
           class=${'dl-seg' + (s.tipLinie ? ' tip-' + s.tipLinie : '') +
+            (s.usedByNew ? ' dl-new' : '') +
             (selected && selected.distanta >= s.to ? ' dl-route' : '') +
             (contribution ? ' dl-compensated' : '') +
             (selectedSegment ? ' dl-segment-selected' : '')} />
@@ -463,7 +472,7 @@
     var vlist = segsData.map(function (s, i) {
       var at = g.rec.filter(function (r) { return Number(r.distanta) === s.to; });
       return html`<li key=${'v' + i}><strong>T${i + 1}</strong> — ${money(s.from)}–${money(s.to)} m · ${money(s.cost)} lei
-        ${s.tipLinie ? ' · ' + s.tipLinie : ''}${at.length ? html` · ${at.map(function (r) { return userName(r.userId); }).join(', ')}` : null}</li>`;
+        ${s.tipLinie ? ' · ' + s.tipLinie : ''}${s.usedByNew ? html` <span class="chip-new">nou</span>` : null}${at.length ? html` · ${at.map(function (r) { return userName(r.userId); }).join(', ')}` : null}</li>`;
     });
 
     return html`<div class="diagram-wrap">
@@ -627,6 +636,11 @@
     </section>`;
   }
 
+  function convertToTree(l) {
+    if (!global.confirm('Transformi linia într-o rețea cu ramuri și subramuri, fără bucle? Racordările și limitele existente se păstrează pe linia principală. Poți reveni cu „Anulează”.')) return;
+    store.convertTree(l.id);
+  }
+
   // Derivările se adaugă direct, fără să mai cauți inspectorul ramurii.
   function LineDerivations(props) {
     var l = props.l;
@@ -638,6 +652,8 @@
       id: '', nume: l.nume || 'Linia principală', parentId: '', deLa: 0, L: Number(l.L) || 0
     }];
     var current = options.filter(function (b) { return b.id === parentId; })[0] || options[0];
+    var newSet = {};
+    S.newIds(store.state).forEach(function (id) { newSet[id] = true; });
 
     function depthOf(b) {
       var depth = 0, seen = {}, list = l.ramuri || [];
@@ -647,6 +663,10 @@
         depth++;
       }
       return depth;
+    }
+
+    function usedByNew(b) {
+      return (l.racordari || []).some(function (r) { return r.branchId === b.id && newSet[r.userId]; });
     }
 
     function submit(event) {
@@ -661,7 +681,7 @@
         conductor: String(data.get('conductor') || ''),
         sectiune: String(data.get('sectiune') || '')
       });
-      if (created) { setOpen(false); setParentId(''); }
+      if (created) { NEW_BRANCH_IDS[created] = true; setOpen(false); setParentId(''); }
     }
 
     return html`<section class="line-derivations">
@@ -676,13 +696,19 @@
       </div>
       ${l.mod === 'ramuri' && branches.length ? html`<ul class="branch-list">${branches.map(function (b) {
         var parent = branches.filter(function (x) { return x.id === b.parentId; })[0];
-        return html`<li class="branch-item" style=${{ marginLeft: (depthOf(b) * 18) + 'px' }} key=${b.id}>
+        var isNew = !!NEW_BRANCH_IDS[b.id];
+        return html`<li class=${'branch-item' + (usedByNew(b) ? ' branch-item-new' : '')}
+          style=${{ marginLeft: (depthOf(b) * 18) + 'px' }} key=${b.id}>
           <span class="branch-glyph" aria-hidden="true">↳</span>
-          <span><strong>${b.nume || b.id}</strong>
+          <span><strong>${b.nume || b.id}</strong>${isNew ? html` <span class="chip-new">nou</span>` : null}
             <span class="muted">· ${K.fmtNum(b.L)} m${b.parentId ? ' · desprinsă la ' + K.fmtNum(b.deLa) + ' m din ' + (parent ? parent.nume : 'ramura părinte') : ' · de la PR'}</span>
           </span>
         </li>`;
       })}</ul>` : html`<p class="hint">Linia este încă o singură ramură. Poți adăuga o derivare oricând.</p>`}
+      ${l.mod === 'distante' ? html`<p class="hint line-convert">Vrei să transformi linia în rețea cu ramuri
+        fără să adaugi acum o derivare?
+        <button type="button" class="linkish" onClick=${function () { convertToTree(l); }}>→ Rețea cu ramuri</button>
+      </p>` : null}
       ${open ? html`<form class="derivation-form" onSubmit=${submit}>
         <div class="row2">
           <label>Ramură părinte
@@ -888,6 +914,7 @@
       <li><span class="dl-legend-line lea"></span>LEA — aeriană, linie continuă</li>
       <li><span class="dl-legend-line les"></span>LES — subterană, linie punctată</li>
       <li><span class="dl-legend-line unknown"></span>Tip nespecificat / altul</li>
+      <li><span class="dl-legend-line new"></span>Tronson folosit de utilizatorul nou</li>
       <li><span class="dl-zone-key">◆</span>Limită tehnică</li>
     </ul>`;
   }
@@ -909,7 +936,8 @@
       ${informative ? html`<p class="warn"><strong>INFORMATIV — condițiile nu sunt îndeplinite; sumele nu sunt datorate.</strong></p>` : null}
       <p><strong class="line-compensation-total">Total pe această linie: ${money(total)} lei fără TVA</strong></p>
       <p class="hint">Tronsoanele care contribuie la plată sunt marcate cu roșu și „Comp.”.
-        Albastrul indică traseul utilizatorului, nu automat o compensație.
+        Roșu fără „Comp.” marchează un tronson folosit de un utilizator nou.
+        Albastrul indică traseul utilizatorului selectat, nu automat o compensație.
         Sumele sunt preluate din motorul de calcul, în ordinea utilizatorilor noi din proiect.</p>
       ${entries.length ? html`<ul class="line-compensation-items">${entries.map(function (t) {
         var entry = props.contributions[t.id];
@@ -1198,7 +1226,7 @@
 
     var advanced = [];
     if (canPlan) advanced.push('planșă cu noduri');
-    if (l.mod === 'distante') advanced.push('circuite pe stâlpi', 'rețea ramificată');
+    if (l.mod === 'distante') advanced.push('circuite pe stâlpi');
 
     var content;
     if (isPlan) {
@@ -1250,14 +1278,11 @@
       <${TranzDetails} kind="line" x=${l} />
       ${content}
       <${LineTechnicalEditor} l=${l} />
-      ${canPlan || (complex && l.mod === 'distante') ? html`<details class="advanced line-advanced">
+      ${l.mod !== 'ramuri' && (canPlan || (complex && l.mod === 'distante')) ? html`<details class="advanced line-advanced">
         <summary>Opțiuni avansate — ${advanced.join(' · ')}</summary>
         <div class="toolbar">
           ${canPlan ? html`<button type="button" class="btn tiny" aria-pressed=${isPlan} onClick=${function () { setView('plan'); }}>Planșă cu noduri + tabel</button>` : null}
           ${l.mod === 'distante' ? html`<button type="button" class="btn tiny" title="Art. 15 alin. 1: al doilea circuit pe stâlpii unei linii aeriene existente" onClick=${function () { store.addStalpi(id); }}>+ Circuit pe stâlpi existenți</button>` : null}
-          ${(p.meta.model === 'line' || complex) && l.mod === 'distante' ? html`<button type="button" class="btn tiny" onClick=${function () {
-            if (global.confirm('Transformi linia într-o rețea cu ramuri și subramuri, fără bucle? Racordările și limitele existente se păstrează pe linia principală. Poți reveni cu „Anulează”.')) store.convertTree(id);
-          }}>→ Rețea cu ramuri</button>` : null}
         </div>
         <p class="hint">Planșa este utilă pentru rețele cu noduri și ramificații.
           Pentru o linie simplă, formularul de mai sus este suficient.</p>

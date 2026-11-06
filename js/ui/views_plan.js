@@ -106,8 +106,8 @@
     return html`<tr key=${version[0]} data-portion=${b ? b.id : 'new'}
       class=${b && props.selection === 'branch:' + b.id ? 'plan-table-selected' : ''}
       onKeyDown=${function (e) { if (e.key === 'Escape') { e.stopPropagation(); version[1](version[0] + 1); } }}>
-      <th scope="row"><div class="plan-portion-name"><span>Tronson ${props.index + 1}</span>
-        <${TableInput} form=${form} name="name" label="Denumire porțiune" value=${b ? b.nume : 'Tronson ' + (props.index + 1)} required=${true} /></div></th>
+      <th scope="row"><div class="plan-portion-name"><span>${b ? 'Tronson ' + (props.index + 1) : 'Porțiune nouă'}</span>
+        <${TableInput} form=${form} name="name" label="Denumire porțiune" value=${b ? b.nume : 'Porțiune nouă'} required=${true} /></div></th>
       <td><select form=${form} name="start" aria-label="Nod de început" value=${b ? startValue : defaultStart}
         disabled=${!!(b && !b.parentId)}>
         ${graph.nodes.map(function (node) {
@@ -360,6 +360,16 @@
     var maxX = Math.max.apply(null, [850].concat(graph.nodes.map(function (n) { return n.x + 180; })));
     var maxY = Math.max.apply(null, [480].concat(graph.nodes.map(function (n) { return n.y + 110 + n.users.length * 24; })));
     var tree = l.mod === 'ramuri' ? global.AppTree.analyze(l) : null;
+    var newSet = {};
+    S.newIds(store.state).forEach(function (id) { newSet[id] = true; });
+    var newRoutes = tree && !tree.errors.length ? tree.routes.filter(function (r) { return newSet[r.userId]; }) : [];
+    function edgeUsedByNew(edge) {
+      return newRoutes.some(function (route) {
+        return route.path.some(function (part) {
+          return part.branchId === edge.branchId && part.to >= edge.to.distance - 1e-6;
+        });
+      });
+    }
     var canStart = P.empty(l);
     var automatic = (l.ramuri || []).some(function (b) { return !b.costManual; });
     return html`<section class=${'plan-editor' + (props.tableMode ? ' plan-tabular' : '') + (expanded[0] ? ' plan-expanded' : '')} aria-label="Editor cu noduri"
@@ -472,7 +482,8 @@
               ${graph.edges.map(function (edge) {
                 var selected = selectedBranch && selectedBranch.id === edge.branchId;
                 return html`<g key=${edge.key}>
-                  <line class=${'plan-edge tree-segment tip-' + (edge.type || 'nespecificat') + (selected ? ' plan-edge-selected' : '')}
+                  <line class=${'plan-edge tree-segment tip-' + (edge.type || 'nespecificat') +
+                    (edgeUsedByNew(edge) ? ' plan-edge-new' : '') + (selected ? ' plan-edge-selected' : '')}
                     x1=${edge.from.x} y1=${edge.from.y} x2=${edge.to.x} y2=${edge.to.y} />
                   <line class="plan-hit" tabindex="0" role="button" aria-label=${'Selectează porțiunea ' + edge.length + ' m · ' + edge.type}
                     x1=${edge.from.x} y1=${edge.from.y} x2=${edge.to.x} y2=${edge.to.y}

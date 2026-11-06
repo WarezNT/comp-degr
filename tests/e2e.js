@@ -900,10 +900,13 @@ const focusedKey = (page) => page.evaluate(() => {
   check('PDF ramificat păstrează stilurile LES și LEA și culorile E.ON', await page.evaluate(() => {
     const les = Array.from(document.querySelectorAll('.tree-report .tree-segment.tip-LES'));
     const lea = Array.from(document.querySelectorAll('.tree-report .tree-segment.tip-LEA'));
+    const base = Array.from(document.querySelectorAll('.tree-report .tree-segment')).find((el) => !el.classList.contains('tree-new'));
+    const marked = Array.from(document.querySelectorAll('.tree-report .tree-segment.tree-new'));
     return les.length > 0 && lea.length > 0 && les.every((el) =>
       getComputedStyle(el).strokeDasharray === '1px, 12px' && getComputedStyle(el).strokeLinecap === 'round') &&
-      lea.every((el) => getComputedStyle(el).strokeDasharray === 'none') &&
-      getComputedStyle(document.querySelector('.tree-report .tree-segment')).stroke === 'rgb(92, 92, 92)';
+      lea.every((el) => getComputedStyle(el).strokeDasharray === 'none') && !!base &&
+      getComputedStyle(base).stroke === 'rgb(92, 92, 92)' &&
+      (!marked.length || getComputedStyle(marked[0]).stroke === 'rgb(196, 23, 8)');
   }), '');
   const treePdf = await page.pdf({ format: 'A4', margin: { top: '12mm', bottom: '12mm', left: '12mm', right: '12mm' } });
   check('PDF A4 ramificat generat efectiv', treePdf.subarray(0, 5).toString() === '%PDF-' && treePdf.length > 5000, '');
@@ -1487,6 +1490,7 @@ const focusedKey = (page) => page.evaluate(() => {
   });
   const planEntry = () => page.getByRole('button', { name: 'Planșă cu noduri + tabel', exact: true });
   const enterPlan = async () => {
+    if (await page.locator('.plan-editor').count()) return;
     await page.locator('.line-card details.line-advanced').first().evaluate((el) => { el.open = true; });
     if (await planEntry().first().getAttribute('aria-pressed') !== 'true') await planEntry().first().click();
   };
@@ -1652,7 +1656,8 @@ const focusedKey = (page) => page.evaluate(() => {
   await page.click('#tab-instalatie'); await enterPlan();
   check('redeschiderea păstrează nodurile, finanțatorii și costurile', await page.evaluate((before) =>
     JSON.stringify(window.AppUI.getState()) === before, persistedPlan), '');
-  await page.getByRole('button', { name: 'Formular avansat', exact: true }).click();
+  const backToForm = page.getByRole('button', { name: 'Formular avansat', exact: true });
+  if (await backToForm.count()) await backToForm.click();
   check('formularul avansat rămâne disponibil', await page.locator('.tree-editor').count() === 1, '');
   await page.evaluate(() => {
     const p = window.AppState.demoU4(); window.AppUI.setProject(p); window.AppUI.setTab('instalatie');

@@ -563,8 +563,10 @@ svg.diagram { display: block; width: 100%; height: auto; }
 .line-derivations { border: 1px dashed var(--eon-grey400); border-radius: var(--radius); padding: 14px 16px; background: var(--bg); }
 .branch-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
 .branch-item { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.branch-item-new { border-left: 3px solid var(--eon-red600); padding-left: 6px; }
 .branch-glyph { color: var(--info); font-weight: 700; flex: none; }
 .branch-item .muted { overflow-wrap: anywhere; }
+.chip-new { display: inline-block; padding: 0 7px; border-radius: 999px; background: var(--eon-red600); color: var(--eon-white); font-size: 11px; font-weight: 700; line-height: 18px; vertical-align: 1px; }
 .derivation-form { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .derivation-form label { min-width: 0; }
 .derivation-form input, .derivation-form select { width: 100%; min-width: 0; }
@@ -626,6 +628,8 @@ details.advanced > summary { cursor: pointer; font-weight: 600; }
 .dl-seg.tip-LEA, .tree-segment.tip-LEA { stroke-dasharray: none; }
 .dl-seg.tip-LES, .tree-segment.tip-LES { stroke-dasharray: 1 12; stroke-linecap: round; }
 .dl-seg.tip-altul { stroke-dasharray: 2 5; }
+.dl-seg.dl-new { stroke: var(--eon-red600); stroke-width: 6; }
+.dl-seg.dl-new.dl-route { stroke: var(--info); }
 .dl-seg.dl-segment-selected { stroke: var(--eon-red600); stroke-width: 9; }
 .dl-seg.dl-segment-selected.dl-route { stroke: var(--eon-system-highlight-dark); }
 .dl-seg.dl-compensated { stroke: var(--eon-red600); stroke-width: 7; }
@@ -654,6 +658,7 @@ details.advanced > summary { cursor: pointer; font-weight: 600; }
 .dl-legend-line { display: inline-block; width: 30px; border-top: 3px solid var(--eon-grey800); }
 .dl-legend-line.les { border-top-style: dotted; }
 .dl-legend-line.unknown { border-top-style: dotted; border-color: var(--eon-grey500); }
+.dl-legend-line.new { border-top-color: var(--eon-red600); border-top-width: 5px; }
 .dl-zone-key { color: var(--eon-red600); font-size: 14px; }
 .scheme-tools { margin: 8px 0; }
 .scheme-tools .btn { padding-right: 10px; padding-left: 10px; font-size: 14px; white-space: normal; }
@@ -781,6 +786,7 @@ details.advanced > summary { cursor: pointer; font-weight: 600; }
 .tree-diagram { display: block; width: 100%; min-width: 780px; height: auto; font-size: 13px; fill: var(--eon-grey800); }
 .tree-branch-label { font-weight: 700; }
 .tree-segment { stroke: var(--eon-grey700); stroke-width: 6; }
+.tree-new { stroke: var(--eon-red600); stroke-width: 7; }
 .tree-route { stroke: var(--eon-system-highlight); stroke-width: 8; }
 .tree-payment { stroke: var(--eon-red600); stroke-width: 8; }
 .tree-payment-label { fill: var(--eon-red600); font-weight: 600; }
@@ -852,6 +858,7 @@ details.advanced > summary { cursor: pointer; font-weight: 600; }
 .plan-scroll { overflow: auto; max-height: 65vh; border: 1px solid var(--line); background: var(--eon-grey100); }
 .plan-svg { display: block; max-width: none; font-size: 13px; fill: var(--eon-grey800); }
 .plan-edge { pointer-events: none; }
+.plan-edge-new { stroke: var(--eon-red600); stroke-width: 7; }
 .plan-edge-selected { stroke: var(--eon-system-highlight); }
 .plan-edge.tip-altul, .plan-edge.tip-nespecificat { stroke-dasharray: 2 5; }
 .plan-hit { stroke: transparent; stroke-width: 24; cursor: pointer; }
