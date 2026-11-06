@@ -408,6 +408,56 @@
     return true;
   };
 
+  // Adaugă o derivare (ramură) într-un punct oarecare al unei ramuri.
+  // Pe o linie pe distanțe, conversia la rețea cu ramuri se face automat.
+  store.addDerivation = function (lineId, values) {
+    values = values || {};
+    var line = byId(store.state.linii, lineId);
+    if (!line) return null;
+    var nume = String(values.nume || '').trim();
+    var L = Number(values.L);
+    var deLa = Number(values.deLa);
+    if (!nume) { store.toast('Completează denumirea derivării.', 'error'); return null; }
+    if (!isFinite(L) || L <= 0) { store.toast('Lungimea derivării trebuie să fie pozitivă.', 'error'); return null; }
+    if (!isFinite(deLa) || deLa < 0) { store.toast('Distanța de desprindere trebuie să fie nenegativă.', 'error'); return null; }
+    var branch = {
+      id: S.uid('ramura'), nume: nume, parentId: '', deLa: deLa, L: L, IL: '',
+      costManual: false, tipLinie: values.tipLinie || '', conductor: values.conductor || '',
+      sectiune: values.sectiune || '', observatii: values.observatii || '', finantatorId: ''
+    };
+    var next;
+    if (line.mod === 'distante') {
+      var rootId = S.uid('ramura');
+      next = treeCandidate(line, rootId);
+      if (!next) return null;
+      if (deLa > Number(next.ramuri[0].L) + 1e-6) {
+        store.toast('Desprinderea depășește lungimea liniei principale.', 'error');
+        return null;
+      }
+      branch.parentId = rootId;
+      next.ramuri.push(branch);
+    } else if (line.mod === 'ramuri') {
+      var parent = byId(line.ramuri, values.parentId);
+      if (!parent) { store.toast('Alege ramura părinte a derivării.', 'error'); return null; }
+      if (deLa > Number(parent.L) + 1e-6) {
+        store.toast('Desprinderea depășește lungimea ramurii „' + (parent.nume || parent.id) + '”.', 'error');
+        return null;
+      }
+      branch.parentId = parent.id;
+      next = JSON.parse(JSON.stringify(line));
+      next.ramuri.push(branch);
+    } else {
+      store.toast('Linia are tronsoane manuale. Treci întâi la distanțe, apoi adaugă derivarea.', 'error');
+      return null;
+    }
+    var errors = global.AppTree.analyze(next).errors;
+    if (errors.length) { store.toast(errors.join(' '), 'error'); return null; }
+    mutate(function (p) { p.linii[p.linii.indexOf(line)] = next; }, { undo: true, noFocus: true });
+    store.toast('Derivarea „' + nume + '” a fost adăugată' +
+      (line.mod === 'distante' ? '. Linia a trecut la rețea cu ramuri.' : '.'), 'info');
+    return branch.id;
+  };
+
   store.editTree = function (lineId, change, opts) {
     var line = byId(store.state.linii, lineId);
     if (!line || line.mod !== 'ramuri') { store.toast('Rețeaua ramificată nu este disponibilă.', 'error'); return false; }

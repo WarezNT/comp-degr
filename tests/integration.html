@@ -1070,6 +1070,64 @@
         if (!/2 tronsoane/.test(stats.textContent)) throw new Error('rezumatul nu s-a actualizat: ' + stats.textContent);
       });
 
+      test('Derivare: adăugarea pe o linie pe distanțe converteste rețeaua și păstrează racordările', function () {
+        var p = emptyOk(); p.meta.model = 'line';
+        var u1 = window.AppState.addUser(p, { id: 'u1', nume: 'U1', rol: 'prim' });
+        var u2 = window.AppState.addUser(p, { id: 'u2', nume: 'U2', rol: 'nou' });
+        p.linii.push({ id: 'Lder', nume: 'Linie derivare', IL: 10000, L: 100, mod: 'distante', tronsoane: [],
+          racordari: [{ userId: u1.id, distanta: 100 }, { userId: u2.id, distanta: 50 }] });
+        window.AppUI.setProject(p);
+        var id = window.AppUI.store.addDerivation('Lder', { nume: 'Derivare', deLa: 30, L: 20, tipLinie: 'LES' });
+        if (!id) throw new Error('derivarea nu a fost creată');
+        var l = window.AppUI.getState().linii[0];
+        var root = l.ramuri.filter(function (b) { return !b.parentId; })[0];
+        var branch = l.ramuri.filter(function (b) { return b.id === id; })[0];
+        if (l.mod !== 'ramuri' || l.ramuri.length !== 2 || !root || !branch ||
+          branch.parentId !== root.id || branch.deLa !== 30 || branch.L !== 20 || branch.tipLinie !== 'LES') {
+          throw new Error('structura derivării este incorectă');
+        }
+        if (l.IL !== 10000 || l.L !== 120) throw new Error('investiția sau lungimea s-au schimbat');
+        if (l.racordari.length !== 2 || l.racordari.some(function (r) { return r.branchId !== root.id; })) {
+          throw new Error('racordările nu au fost păstrate pe ramura principală');
+        }
+        if (window.AppTree.analyze(l).errors.length) throw new Error('rețeaua generată este invalidă');
+        window.AppUI.undo();
+        l = window.AppUI.getState().linii[0];
+        if (l.mod !== 'distante' || l.ramuri) throw new Error('undo nu a revenit la modul pe distanțe');
+      });
+
+      test('Derivare: formularul din pagină creează ramura la distanța aleasă', function () {
+        var p = emptyOk(); p.meta.model = 'line';
+        var u1 = window.AppState.addUser(p, { id: 'u1', nume: 'U1', rol: 'prim' });
+        p.linii.push({ id: 'LderUI', nume: 'Linie UI', IL: 10000, L: 100, mod: 'distante', tronsoane: [],
+          racordari: [{ userId: u1.id, distanta: 100 }] });
+        window.AppUI.setProject(p);
+        window.AppUI.store.guide.on = false; window.AppUI.render();
+        window.AppUI.setTab('instalatie');
+        var add = byText('button', '+ Adaugă derivare');
+        if (!add) throw new Error('lipsește butonul de adăugare a derivării');
+        add.click(); window.AppUI.render();
+        var form = document.querySelector('.derivation-form');
+        if (!form) throw new Error('formularul de derivare nu s-a deschis');
+        form.querySelector('[name="deLa"]').value = '40';
+        form.querySelector('[name="L"]').value = '25';
+        form.querySelector('[name="nume"]').value = 'Derivare UI';
+        form.querySelector('[name="tip"]').value = 'LEA';
+        form.requestSubmit();
+        window.AppUI.render();
+        var l = window.AppUI.getState().linii[0];
+        var branch = l.ramuri.filter(function (b) { return b.parentId; })[0];
+        if (l.mod !== 'ramuri' || !branch || branch.deLa !== 40 || branch.L !== 25 ||
+          branch.tipLinie !== 'LEA' || branch.nume !== 'Derivare UI') {
+          throw new Error('derivarea din formular este incorectă');
+        }
+        var list = document.querySelector('.branch-list');
+        if (!list || !/Derivare UI/.test(list.textContent) || !/desprinsă la 40 m/.test(list.textContent)) {
+          throw new Error('lista ramurilor nu afișează derivarea');
+        }
+        if (document.querySelector('.derivation-form')) throw new Error('formularul nu s-a închis');
+      });
+
       test('Linie pe distanțe — U3 la 30 m plătește 500 + 500', function () {
         var p = emptyOk(); p.meta.model = 'line';
         var u1 = window.AppState.addUser(p, { nume: 'U1', rol: 'prim' });

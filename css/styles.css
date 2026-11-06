@@ -558,8 +558,16 @@ svg.diagram { display: block; width: 100%; height: auto; }
 .line-section-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px 20px; flex-wrap: wrap; margin-bottom: 10px; }
 .line-section-head h3 { margin: 0 0 4px; }
 .line-section-head .hint { margin: 0; }
-.line-users, .line-overview, .line-derived, .line-branches, .line-legacy { margin: 18px 0; }
-.line-users h3, .line-overview h3, .line-derived h3, .line-branches h3 { margin-top: 0; }
+.line-users, .line-overview, .line-derived, .line-branches, .line-legacy, .line-derivations { margin: 18px 0; }
+.line-users h3, .line-overview h3, .line-derived h3, .line-branches h3, .line-derivations h3 { margin-top: 0; }
+.line-derivations { border: 1px dashed var(--eon-grey400); border-radius: var(--radius); padding: 14px 16px; background: var(--bg); }
+.branch-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.branch-item { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.branch-glyph { color: var(--info); font-weight: 700; flex: none; }
+.branch-item .muted { overflow-wrap: anywhere; }
+.derivation-form { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.derivation-form label { min-width: 0; }
+.derivation-form input, .derivation-form select { width: 100%; min-width: 0; }
 .line-empty { background: var(--bg); border: 1px dashed var(--eon-grey400); border-radius: 10px; padding: 12px 14px; margin: 8px 0; }
 .line-stats { display: flex; flex-wrap: wrap; gap: 8px 18px; list-style: none; margin: 10px 0; padding: 0; }
 .line-stats li { background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 13px; }

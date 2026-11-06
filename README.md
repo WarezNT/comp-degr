@@ -100,6 +100,19 @@ liniilor vechi sunt grupate la **Opțiuni avansate**, ca să nu încarce introdu
 obișnuită. Liniile importate cu tronsoane manuale rămân complet editabile în tabelul
 lor, cu un buton explicit de trecere la distanțe.
 
+#### Derivări (ramuri) în mijlocul liniei
+
+Secțiunea **Derivări** are butonul **+ Adaugă derivare**. Formularul cere ramura
+părinte, distanța de desprindere (de la începutul ramurii părinte, nu de la PR),
+lungimea, denumirea și tipul LEA/LES. Poți alege orice punct al ramurii părinte,
+deci derivarea poate porni și din mijlocul unui tronson.
+
+Dacă linia este încă pe distanțe, trecerea la rețeaua cu ramuri se face automat
+în aceeași acțiune, păstrând racordările. `I_L` rămâne neschimbat, iar costul
+derivării se calculează automat din `b_L`; dacă derivarea aduce investiție nouă,
+crește `I_L` după salvare. Operația are undo, iar lista ramurilor arată ierarhia
+și punctul de desprindere.
+
 #### Planșă cu noduri + tabel (opțiune avansată)
 
 În pasul **Instalație → Opțiuni avansate**, deschide **Planșă cu noduri + tabel**.

@@ -571,9 +571,7 @@
       <h3>3 · Cum arată linia</h3>
       ${Number(l.L) > 0
         ? html`<${LineDiagram} l=${l} />
-          <${LineLegend} />
-          <p class="hint">Schiță orientativă, nu la scară. Poți trage cercurile utilizatorilor pentru a le muta;
-            distanța exactă rămâne cea scrisă mai sus.</p>`
+          <${LineLegend} />`
         : html`<p class="line-empty">Completează lungimea totală L și distanțele utilizatorilor pentru a vedea schița liniei.</p>`}
     </section>`;
   }
@@ -629,6 +627,105 @@
     </section>`;
   }
 
+  // Derivările se adaugă direct, fără să mai cauți inspectorul ramurii.
+  function LineDerivations(props) {
+    var l = props.l;
+    var openState = useState(false), parentState = useState('');
+    var open = openState[0], setOpen = openState[1];
+    var parentId = parentState[0], setParentId = parentState[1];
+    var branches = l.mod === 'ramuri' ? (l.ramuri || []) : [];
+    var options = branches.length ? branches : [{
+      id: '', nume: l.nume || 'Linia principală', parentId: '', deLa: 0, L: Number(l.L) || 0
+    }];
+    var current = options.filter(function (b) { return b.id === parentId; })[0] || options[0];
+
+    function depthOf(b) {
+      var depth = 0, seen = {}, list = l.ramuri || [];
+      while (b && b.parentId && !seen[b.id]) {
+        seen[b.id] = true;
+        b = list.filter(function (x) { return x.id === b.parentId; })[0];
+        depth++;
+      }
+      return depth;
+    }
+
+    function submit(event) {
+      event.preventDefault();
+      var data = new global.FormData(event.currentTarget);
+      var created = store.addDerivation(l.id, {
+        nume: String(data.get('nume') || '').trim() || ('Derivare ' + (branches.length + 1)),
+        parentId: String(data.get('parent') || ''),
+        deLa: K.parseNum(String(data.get('deLa') || '')),
+        L: K.parseNum(String(data.get('L') || '')),
+        tipLinie: String(data.get('tip') || ''),
+        conductor: String(data.get('conductor') || ''),
+        sectiune: String(data.get('sectiune') || '')
+      });
+      if (created) { setOpen(false); setParentId(''); }
+    }
+
+    return html`<section class="line-derivations">
+      <div class="line-section-head">
+        <div>
+          <h3>${l.mod === 'ramuri' ? 'Derivări (ramuri)' : '5 · Derivări (opțional)'}</h3>
+          <p class="hint">O derivare pornește dintr-un punct al liniei, nu neapărat de la capăt.
+            Alege ramura părinte și distanța de desprindere; restul rețelei se recalculează automat.</p>
+        </div>
+        <button type="button" class="btn tiny" onClick=${function () { setOpen(!open); }}>
+          ${open ? 'Închide formularul' : '+ Adaugă derivare'}</button>
+      </div>
+      ${l.mod === 'ramuri' && branches.length ? html`<ul class="branch-list">${branches.map(function (b) {
+        var parent = branches.filter(function (x) { return x.id === b.parentId; })[0];
+        return html`<li class="branch-item" style=${{ marginLeft: (depthOf(b) * 18) + 'px' }} key=${b.id}>
+          <span class="branch-glyph" aria-hidden="true">↳</span>
+          <span><strong>${b.nume || b.id}</strong>
+            <span class="muted">· ${K.fmtNum(b.L)} m${b.parentId ? ' · desprinsă la ' + K.fmtNum(b.deLa) + ' m din ' + (parent ? parent.nume : 'ramura părinte') : ' · de la PR'}</span>
+          </span>
+        </li>`;
+      })}</ul>` : html`<p class="hint">Linia este încă o singură ramură. Poți adăuga o derivare oricând.</p>`}
+      ${open ? html`<form class="derivation-form" onSubmit=${submit}>
+        <div class="row2">
+          <label>Ramură părinte
+            <select name="parent" value=${current.id} onChange=${function (e) { setParentId(e.target.value); }}>
+              ${options.map(function (b) { return html`<option value=${b.id} key=${b.id || 'root'}>${b.nume} · ${K.fmtNum(b.L)} m</option>`; })}
+            </select>
+          </label>
+          <label>Desprindere la (m)
+            <input name="deLa" type="text" inputmode="decimal" max=${current.L}
+              placeholder=${'0–' + K.fmtNum(current.L)} autocomplete="off" required />
+          </label>
+          <label>Lungimea derivării (m)
+            <input name="L" type="text" inputmode="decimal" required autocomplete="off" />
+          </label>
+          <label>Denumire
+            <input name="nume" type="text" defaultValue=${'Derivare ' + (branches.length + 1)} autocomplete="off" />
+          </label>
+          <label>Tip linie
+            <select name="tip">
+              <option value="">Nespecificat</option>
+              <option value="LEA">LEA — aeriană</option>
+              <option value="LES">LES — subterană</option>
+              <option value="altul">Altul</option>
+            </select>
+          </label>
+          <label>Conductor / cablu
+            <input name="conductor" type="text" autocomplete="off" />
+          </label>
+          <label>Secțiune / configurație
+            <input name="sectiune" type="text" autocomplete="off" />
+          </label>
+        </div>
+        <p class="hint">Distanța se măsoară de la începutul ramurii părinte. Investiția totală I_L rămâne neschimbată;
+          derivarea primește cost automat din b_L. Dacă derivarea aduce investiție nouă, crește I_L după salvare.
+          ${l.mod !== 'ramuri' ? ' Linia va trece automat la rețea cu ramuri.' : ''}</p>
+        <div class="toolbar">
+          <button type="submit" class="btn primary">Creează derivarea</button>
+          <button type="button" class="btn ghost" onClick=${function () { setOpen(false); }}>Renunță</button>
+        </div>
+      </form>` : null}
+    </section>`;
+  }
+
   // Rețelele convertite la ramuri au propriul editor; păstrăm un rezumat lizibil.
   function LineBranches(props) {
     var l = props.l;
@@ -639,6 +736,7 @@
       <p class="hint">Lungimea totală este <strong>${K.fmtNum(l.L)} m</strong>, investiția <strong>${money(l.IL)} lei</strong>,
         iar ${a.routes.length} utilizatori au traseu calculat de la PR.</p>
       ${a.errors.length ? html`<div class="warn" role="alert">${a.errors.map(function (text) { return html`<p>${text}</p>`; })}</div>` : null}
+      <${LineDerivations} l=${l} />
       ${plan ? html`<${V.PlanEditor} l=${l} tableMode=${true} />` : null}
       <details class="advanced">
         <summary>Proprietăți tehnice, alocări speciale și detaliu de calcul</summary>
@@ -1118,6 +1216,7 @@
               <${DistEditor} l=${l} />
               <${LineOverview} l=${l} />
               <${LineDerived} l=${l} />
+              <${LineDerivations} l=${l} />
             <//>`
           : html`<${LineLegacy} l=${l} />`}`;
     }
