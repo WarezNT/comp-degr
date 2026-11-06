@@ -91,8 +91,8 @@
     return html`<tr key=${version[0]} data-portion=${b ? b.id : 'new'}
       class=${b && props.selection === 'branch:' + b.id ? 'plan-table-selected' : ''}
       onKeyDown=${function (e) { if (e.key === 'Escape') { e.stopPropagation(); version[1](version[0] + 1); } }}>
-      <th scope="row">Tronson ${props.index + 1}<small>${b ? b.nume : 'Porțiune nouă'}</small>
-        <${TableInput} form=${form} name="name" label="Denumire porțiune" value=${b ? b.nume : 'Tronson ' + (props.index + 1)} required=${true} /></th>
+      <th scope="row"><div class="plan-portion-name"><span>Tronson ${props.index + 1}</span>
+        <${TableInput} form=${form} name="name" label="Denumire porțiune" value=${b ? b.nume : 'Tronson ' + (props.index + 1)} required=${true} /></div></th>
       <td><select form=${form} name="start" aria-label="Nod de început" value=${b ? startValue : defaultStart}
         disabled=${!!(b && !b.parentId)}>
         ${graph.nodes.map(function (node) {
@@ -109,7 +109,6 @@
         })}
         ${!graph.nodes.length ? html`<option value="" selected>Nodul PR</option>` : null}
       </select></td>
-      <td class="plan-node-output">${b ? nodeLabel(graph, start) : 'Se generează după salvare'}</td>
       <td class="plan-node-output">${b ? nodeLabel(graph, end) : 'Nod nou după salvare'}</td>
       <td><${TableInput} form=${form} name="length" label="Lungime porțiune (m)" numeric=${true} value=${b ? b.L : ''} required=${true} /></td>
       <td><${TableInput} form=${form} name="cost" label="Cost porțiune (lei)" numeric=${true} value=${cost} required=${true} />
@@ -159,18 +158,16 @@
     return html`<tr key=${version[0]} data-connection=${u.id}
       onKeyDown=${function (e) { if (e.key === 'Escape') { e.stopPropagation(); version[1](version[0] + 1); } }}>
       <th scope="row">${userName(u.id)}</th>
-      <td><form id=${form} onSubmit=${submit}>
-        <select name="branch" aria-label="Tronson utilizator" form=${form}>
-          <option value="" selected=${!r}>Neracordat</option>
-          ${branches.map(function (b) { return html`<option key=${b.id} value=${b.id} selected=${branchId === b.id}>${b.nume}</option>`; })}
-        </select>
-        <input form=${form} name="distance" type="text" inputmode="decimal"
-          aria-label="Distanță locală utilizator (m)" data-guide=${l.mod === 'distante' ? 'dist:' + l.id + ':' + u.id : undefined}
-          defaultValue=${r ? String(r.distanta).replace('.', ',') : ''} autocomplete="off" />
-        <button type="submit" class="btn tiny">Salvează racordarea</button>
-      </form></td>
+      <td><select name="branch" aria-label="Tronson utilizator" form=${form}>
+        <option value="" selected=${!r}>Neracordat</option>
+        ${branches.map(function (b) { return html`<option key=${b.id} value=${b.id} selected=${branchId === b.id}>${b.nume}</option>`; })}
+      </select></td>
+      <td><input form=${form} name="distance" type="text" inputmode="decimal"
+        aria-label="Distanță locală utilizator (m)" data-guide=${l.mod === 'distante' ? 'dist:' + l.id + ':' + u.id : undefined}
+        defaultValue=${r ? String(r.distanta).replace('.', ',') : ''} autocomplete="off" /></td>
       <td>${currentNode ? nodeLabel(graph, currentNode) : 'Se generează după salvare'}</td>
       <td>${route ? route.distance + ' m' : '—'}</td>
+      <td><form id=${form} onSubmit=${submit}><button type="submit" class="btn tiny">Salvează racordarea</button></form></td>
     </tr>`;
   }
   function PlanTables(props) {
@@ -198,7 +195,10 @@
         }
       }}>Resetează planșa</button>` : null}
       <div class="table-wrap"><table class="plan-portions"><caption>Tronsoane și nodurile dintre ele</caption>
-        <thead><tr><th>Tronson</th><th>Nod de început</th><th>Nod de sfârșit</th><th>Lungime (m)</th>
+        <colgroup><col class="plan-col-name" /><col class="plan-col-start" /><col class="plan-col-node" />
+          <col class="plan-col-length" /><col class="plan-col-cost" />
+          <col class="plan-col-type" /><col class="plan-col-financier" /><col class="plan-col-actions" /></colgroup>
+        <thead><tr><th>Tronson / denumire</th><th>Nod de început</th><th>Nod de sfârșit</th><th>Lungime (m)</th>
           <th>Cost (lei)</th><th>Tip linie</th><th>Finanțator documentat</th><th>Acțiuni</th></tr></thead>
         <tbody>${branches.map(function (b, index) {
           return html`<${PortionRow} key=${b.id + JSON.stringify(b) + (tree ? tree.rate : '')}
@@ -211,7 +211,10 @@
       ${l.mod === 'ramuri' || l.mod === 'distante' && Number(l.L) > 0 ? html`<h3>Racordarea utilizatorilor la noduri</h3>
         <p class="hint">Alege direct nodul din listă. Nodurile se generează din capetele tronsoanelor, ramificații și limite existente.</p>
         <div class="table-wrap"><table class="plan-connections"><caption>Racordările utilizatorilor</caption>
-          <thead><tr><th>Utilizator</th><th>Tronson și distanță locală (m)</th><th>Nod generat</th><th>Traseu de la PR (m)</th></tr></thead>
+          <colgroup><col class="plan-col-user" /><col class="plan-col-connection" /><col class="plan-col-distance" />
+            <col class="plan-col-node-output" /><col class="plan-col-route" /><col class="plan-col-connection-actions" /></colgroup>
+          <thead><tr><th>Utilizator</th><th>Tronson</th><th>Distanță locală (m)</th>
+            <th>Nod generat</th><th>Traseu de la PR (m)</th><th>Acțiuni</th></tr></thead>
           <tbody>${store.state.utilizatori.map(function (u) {
             var r = l.racordari.filter(function (x) { return x.userId === u.id; })[0];
             return html`<${ConnectionRow} key=${u.id + JSON.stringify(r)} l=${l} graph=${graph} user=${u} onSelect=${props.onSelect} />`;

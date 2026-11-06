@@ -1488,6 +1488,16 @@ const focusedKey = (page) => page.evaluate(() => {
   const newPortion = () => plan.locator('.plan-portions tr[data-portion="new"]');
   const portion = (id) => plan.locator('.plan-portions tr[data-portion="' + id + '"]');
   const connection = (id) => plan.locator('.plan-connections tr[data-connection="' + id + '"]');
+  check('coloanele tabelului de tronsoane se aliniază cu celulele fiecărui rând',
+    await page.evaluate(() => {
+      const table = document.querySelector('.plan-portions');
+      const headers = Array.from(table.tHead.rows[0].cells);
+      const row = table.querySelector('tbody tr[data-portion="new"]');
+      return headers.length === row.cells.length && headers.every((header, index) => {
+        const head = header.getBoundingClientRect(), cell = row.cells[index].getBoundingClientRect();
+        return Math.abs(head.left - cell.left) < 1 && Math.abs(head.width - cell.width) < 1;
+      });
+    }), '');
   const emptySnapshot = await page.evaluate(() => JSON.stringify(window.AppUI.getState()));
   await newPortion().getByLabel('Denumire porțiune').fill('Porțiune inițială');
   await newPortion().getByLabel('Lungime porțiune (m)').fill('400');
@@ -1515,6 +1525,18 @@ const focusedKey = (page) => page.evaluate(() => {
   await connection('u1').getByLabel('Tronson utilizator').selectOption(rootId);
   await connection('u1').getByLabel('Distanță locală utilizator (m)').fill('400');
   await connection('u1').getByRole('button', { name: 'Salvează racordarea', exact: true }).click();
+  check('coloanele tabelului de racordări separă tronsonul, distanța și acțiunea',
+    await page.evaluate(() => {
+      const table = document.querySelector('.plan-connections');
+      const headers = Array.from(table.tHead.rows[0].cells);
+      const row = table.querySelector('tbody tr[data-connection="u1"]');
+      return headers.length === 6 && row.cells.length === headers.length &&
+        row.cells[1].querySelector('select') && row.cells[2].querySelector('input') &&
+        row.cells[5].querySelector('button') && headers.every((header, index) => {
+          const head = header.getBoundingClientRect(), cell = row.cells[index].getBoundingClientRect();
+          return Math.abs(head.left - cell.left) < 1 && Math.abs(head.width - cell.width) < 1;
+        });
+    }), '');
   await newPortion().getByLabel('Denumire porțiune').fill('Extindere');
   await newPortion().getByLabel('Nod de început').selectOption(rootId + ':400');
   await newPortion().getByLabel('Tip linie').selectOption('LES');
